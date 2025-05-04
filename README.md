@@ -55,3 +55,6 @@ I built Hark because I needed it — and I hope it helps others too.
 ---
 
 "Hearing aid tech should be accessible — not locked behind overpriced accessories."
+
+© 2024 Thivyan Pillay. All rights reserved.
+This code is not to be copied, modified, or redistributed without written permission.
