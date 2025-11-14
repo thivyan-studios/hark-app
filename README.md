@@ -33,17 +33,8 @@ Hark is a lightweight Android app that turns your phone into a live microphone, 
 
 ---
 
-## ⚙️ Built With
-- Kotlin
-- Android Studio
-- `AudioRecord` + `AudioTrack` APIs
-
----
-
-## ⚠️ License
-This project is NOT open source.  
-Please do not reuse or distribute without permission.  
-If you're interested in contributing or building on top of it, feel free to reach out.
+## ⚖️ License
+- Covered by MIT License
 
 ---
 
@@ -58,3 +49,4 @@ I built Hark because I needed it — and I hope it helps others too.
 
 © 2025 Thivyan Pillay. All rights reserved.
 This code is not to be copied, modified, or redistributed without written permission.
+
