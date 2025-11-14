@@ -21,12 +21,13 @@ Hark is a lightweight Android app that turns your phone into a live microphone, 
 
 ## 🙋‍♂️ Author
 
-👋 Hi! I’m Thivyan Pillay. For more about me, [read here] (https://www.linkedin.com/in/thivyan-pillay/)  
+👋 Hi! I’m Thivyan Pillay. For more about me, [read here](https://www.linkedin.com/in/thivyan-pillay/)  
 I built Hark because I needed it — and I hope it helps others too.
 
 ---
 
 "Hearing aid tech should be accessible — not locked behind overpriced accessories."
+
 
 
 
