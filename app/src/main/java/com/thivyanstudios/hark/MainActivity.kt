@@ -13,12 +13,22 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.thivyanstudios.hark.screens.BottomNavBar
+import com.thivyanstudios.hark.screens.HomeScreen
+import com.thivyanstudios.hark.screens.SettingsScreen
+import com.thivyanstudios.hark.service.AudioStreamingService
+import com.thivyanstudios.hark.ui.theme.HarkTheme
 
+@OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
 
     private var audioService: AudioStreamingService? = null
@@ -80,19 +90,36 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val version = try {
-                val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                "Developed by Thivyan Pillay (Stable-Release v${packageInfo.versionName})"
-            } catch (e: PackageManager.NameNotFoundException) {
-                e.printStackTrace()
-                "Developed by Thivyan Pillay (Version not found)"
-            }
+            HarkTheme {
+                val version = try {
+                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                    "Developed by Thivyan Pillay (Stable-Release v${packageInfo.versionName})"
+                } catch (e: PackageManager.NameNotFoundException) {
+                    e.printStackTrace()
+                    "Developed by Thivyan Pillay (Version not found)"
+                }
 
-            MainScreen(
-                isStreaming = isStreaming,
-                versionName = version,
-                onStreamButtonClick = { toggleStreaming() }
-            )
+                val navController = rememberNavController()
+                Scaffold(
+                    bottomBar = { BottomNavBar(navController = navController) }
+                ) { innerPadding ->
+                    NavHost(
+                        navController = navController,
+                        startDestination = "home",
+                        modifier = Modifier.padding(innerPadding)
+                    ) {
+                        composable("home") {
+                            HomeScreen(
+                                isStreaming = isStreaming,
+                                onStreamButtonClick = { toggleStreaming() }
+                            )
+                        }
+                        composable("settings") {
+                            SettingsScreen(versionName = version)
+                        }
+                    }
+                }
+            }
         }
 
         startService(Intent(this, AudioStreamingService::class.java))
@@ -111,12 +138,14 @@ class MainActivity : ComponentActivity() {
             isStreaming = false
         } else {
             val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-            val hasHearingAid = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type == AudioDeviceInfo.TYPE_HEARING_AID }
+            val hasHearingAid = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .any { it.type == AudioDeviceInfo.TYPE_HEARING_AID }
             if (hasHearingAid) {
                 audioService?.startStreaming()
                 isStreaming = true
             } else {
-                Toast.makeText(this, "Connect your hearing system first.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Connect your hearing system first.", Toast.LENGTH_SHORT)
+                    .show()
             }
         }
     }

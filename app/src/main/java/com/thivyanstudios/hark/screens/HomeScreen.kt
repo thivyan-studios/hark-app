@@ -1,31 +1,40 @@
-package com.thivyanstudios.hark
+package com.thivyanstudios.hark.screens
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.ui.graphics.Color
+import com.thivyanstudios.hark.R
 
 @Composable
-fun MainScreen(
+fun HomeScreen(
     isStreaming: Boolean,
-    versionName: String,
     onStreamButtonClick: () -> Unit
 ) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium), label = ""
+    )
+    val haptic = LocalHapticFeedback.current
 
     Box(
         modifier = Modifier
@@ -37,10 +46,26 @@ fun MainScreen(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(120.dp) // Sets a fixed size for the image
+                .scale(scale)
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.primary)
                 .align(Alignment.Center) // Centers the image in the Box
-                .clickable { onStreamButtonClick() } // Makes the image clickable
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed = true
+                            try {
+                                awaitRelease()
+                            } finally {
+                                isPressed = false
+                            }
+                        },
+                        onTap = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onStreamButtonClick()
+                        }
+                    )
+                }
         ) {
             Image(
                 painter = if (isStreaming) {
@@ -52,29 +77,5 @@ fun MainScreen(
                 modifier = Modifier.size(100.dp)
             )
         }
-
-        Text(
-            text = versionName,
-            color = if (isSystemInDarkTheme()) {
-                Color.White
-            } else {
-                Color.Black
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier
-                .align(Alignment.BottomCenter) // Aligns the text to the bottom center of the Box
-                .padding(bottom = 32.dp) // Adds some space from the absolute bottom
-        )
     }
-}
-
-// This is a Preview function so you can see your UI in Android Studio without running the app.
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    MainScreen(
-        isStreaming = false,
-        versionName = "Developed by Thivyan Pillay (Stable-Release v1.0.0)",
-        onStreamButtonClick = {}
-    )
 }
