@@ -1,4 +1,4 @@
-package com.tapps.hark
+package com.thivyanstudios.hark
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
 
     private val streamingStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "com.tapps.hark.STREAMING_STATE_CHANGED") {
+            if (intent?.action == "com.thivyanstudios.hark.STREAMING_STATE_CHANGED") {
                 isStreaming = intent.getBooleanExtra("isStreaming", false)
             }
         }
@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
         Intent(this, AudioStreamingService::class.java).also { intent ->
             bindService(intent, connection, BIND_AUTO_CREATE)
         }
-        val streamingFilter = IntentFilter("com.tapps.hark.STREAMING_STATE_CHANGED")
+        val streamingFilter = IntentFilter("com.thivyanstudios.hark.STREAMING_STATE_CHANGED")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(streamingStateReceiver, streamingFilter, RECEIVER_NOT_EXPORTED)
         } else {
