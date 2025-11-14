@@ -1,4 +1,4 @@
-package com.tapps.hark
+package com.thivyanstudios.hark
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -26,11 +26,11 @@ fun MainScreen(
     versionName: String,
     onStreamButtonClick: () -> Unit
 ) {
-    // This Box is similar to your ConstraintLayout, allowing layers and alignment.
+
     Box(
         modifier = Modifier
-            .fillMaxSize() // This is like layout_width/height="match_parent"
-            .padding(16.dp) // Optional: Add some padding
+            .fillMaxSize()
+            .padding(16.dp)
     ) {
         // This is your stream button (ImageView)
         Box(
@@ -53,7 +53,6 @@ fun MainScreen(
             )
         }
 
-        // This is your trademark TextView
         Text(
             text = versionName,
             color = if (isSystemInDarkTheme()) {

@@ -1,4 +1,4 @@
-package com.tapps.hark
+package com.thivyanstudios.hark
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -141,7 +141,7 @@ class AudioStreamingService : Service() {
     fun isStreaming(): Boolean = isStreaming.get()
     
     private fun broadcastStreamingState(isStreaming: Boolean) {
-        val intent = Intent("com.tapps.hark.STREAMING_STATE_CHANGED").putExtra("isStreaming", isStreaming)
+        val intent = Intent("com.thivyanstudios.hark.STREAMING_STATE_CHANGED").putExtra("isStreaming", isStreaming)
         sendBroadcast(intent)
     }
 
@@ -168,7 +168,7 @@ class AudioStreamingService : Service() {
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("HARK is running")
             .setContentText("Streaming live audio")
-            .setSmallIcon(R.drawable.white_mic_on)
+            .setSmallIcon(R.drawable.ic_mic_on)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setWhen(System.currentTimeMillis()) // Explicitly set the start time

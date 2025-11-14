@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.tapps.hark"
+    namespace = "com.thivyanstudios.hark"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.tapps.hark"
+        applicationId = "com.thivyanstudios.hark"
         minSdk = 23
         targetSdk = 36
         versionCode = 1
