@@ -1,4 +1,4 @@
-package com.thivyanstudios.hark
+package com.thivyanstudios.hark.service
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -17,9 +17,10 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
+import com.thivyanstudios.hark.MainActivity
+import com.thivyanstudios.hark.R
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
-
 
 class AudioStreamingService : Service() {
 
@@ -81,7 +82,7 @@ class AudioStreamingService : Service() {
                 val channelConfig = AudioFormat.CHANNEL_IN_MONO
                 val audioFormat = AudioFormat.ENCODING_PCM_16BIT
                 val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-                
+
                 audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, minBufferSize)
                 audioPlayBack = AudioTrack.Builder()
                     .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
@@ -139,7 +140,7 @@ class AudioStreamingService : Service() {
     }
 
     fun isStreaming(): Boolean = isStreaming.get()
-    
+
     private fun broadcastStreamingState(isStreaming: Boolean) {
         val intent = Intent("com.thivyanstudios.hark.STREAMING_STATE_CHANGED").putExtra("isStreaming", isStreaming)
         sendBroadcast(intent)
@@ -180,7 +181,6 @@ class AudioStreamingService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1
     }
-
 
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onDestroy() {
