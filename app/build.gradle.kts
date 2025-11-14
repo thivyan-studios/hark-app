@@ -8,6 +8,13 @@ android {
     namespace = "com.thivyanstudios.hark"
     compileSdk = 36
 
+    dependenciesInfo {
+        // Disables dependency metadata when building APKs (for IzzyOnDroid/F-Droid)
+        includeInApk = false
+        // Disables dependency metadata when building Android App Bundles (for Google Play)
+        includeInBundle = false
+    }
+
     defaultConfig {
         applicationId = "com.thivyanstudios.hark"
         minSdk = 23
