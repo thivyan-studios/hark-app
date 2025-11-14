@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -111,7 +112,9 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(
                                 isStreaming = isStreaming,
-                                onStreamButtonClick = { toggleStreaming() }
+                                onStreamButtonClick = @androidx.annotation.RequiresPermission(
+                                    android.Manifest.permission.RECORD_AUDIO
+                                ) { toggleStreaming() }
                             )
                         }
                         composable("settings") {
@@ -126,6 +129,7 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
     }
 
+    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
     @RequiresApi(Build.VERSION_CODES.S)
     private fun toggleStreaming() {
         if (!hasPermissions()) {
