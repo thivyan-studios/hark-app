@@ -74,7 +74,7 @@ fun MainScreen(
 fun DefaultPreview() {
     MainScreen(
         isStreaming = false,
-        versionName = "Developed by Thivyan Pillay (Pre-release v1.0)",
+        versionName = "Developed by Thivyan Pillay (Stable-Release v1.0.0)",
         onStreamButtonClick = {}
     )
 }

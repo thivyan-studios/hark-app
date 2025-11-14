@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val version = try {
                 val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                "Developed by Thivyan Pillay (Pre-release v${packageInfo.versionName})"
+                "Developed by Thivyan Pillay (Stable-Release v${packageInfo.versionName})"
             } catch (e: PackageManager.NameNotFoundException) {
                 e.printStackTrace()
                 "Developed by Thivyan Pillay (Version not found)"

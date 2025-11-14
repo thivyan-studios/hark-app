@@ -4,7 +4,7 @@
     "type": "APK",
     "kind": "Directory"
   },
-  "applicationId": "com.tapps.hark",
+  "applicationId": "com.thivyanstudios.hark",
   "variantName": "release",
   "elements": [
     {
@@ -12,7 +12,7 @@
       "filters": [],
       "attributes": [],
       "versionCode": 1,
-      "versionName": "0.2.4",
+      "versionName": "1.0.0",
       "outputFile": "app-release.apk"
     }
   ],
