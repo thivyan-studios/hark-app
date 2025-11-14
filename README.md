@@ -8,7 +8,7 @@ Hark is a lightweight Android app that turns your phone into a live microphone, 
 - Captures real-time audio from the phone’s microphone
 - Streams it via Bluetooth (ASHA-compatible devices preferred)
 - Acts as a portable table mic for hearing aid users
-- Simple on/off toggle, minimal latency
+- Simple on/off toggle
 
 ---
 
@@ -29,7 +29,7 @@ Hark is a lightweight Android app that turns your phone into a live microphone, 
 
 ## 📦 Installing the APK
 
-> ⚠️ You may need to enable "Install unknown apps" on your Android phone. This APK is unsigned and for testing only.
+> ⚠️ You may need to enable "Install unknown apps" on your Android phone. This APK is signed, however.
 
 ---
 
@@ -49,4 +49,5 @@ I built Hark because I needed it — and I hope it helps others too.
 
 © 2025 Thivyan Pillay. All rights reserved.
 This code is not to be copied, modified, or redistributed without written permission.
+
 
