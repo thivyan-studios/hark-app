@@ -7,10 +7,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemColors
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -32,10 +31,7 @@ import com.thivyanstudios.hark.R
 fun BottomNavBar(navController: NavController, hapticFeedbackEnabled: Boolean) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    BottomAppBar(
-        modifier = Modifier.height(64.dp),
-        windowInsets = WindowInsets(0.dp)
-    ) {
+    NavigationBar(modifier = Modifier.height(64.dp)) {
         AnimatedNavigationBarItem(
             icon = { Icon(painterResource(id = R.drawable.ic_home), contentDescription = "Home") },
             label = { Text("Home") },

@@ -3,6 +3,7 @@ package com.thivyanstudios.hark.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +32,8 @@ import com.thivyanstudios.hark.viewmodel.SettingsViewModelFactory
 @Composable
 fun SettingsScreen(
     versionName: String,
-    factory: SettingsViewModelFactory
+    factory: SettingsViewModelFactory,
+    innerPadding: PaddingValues
 ) {
     val viewModel: SettingsViewModel = viewModel(factory = factory)
     val uriHandler = LocalUriHandler.current
@@ -40,18 +42,20 @@ fun SettingsScreen(
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val disableHearingAidPriority by viewModel.disableHearingAidPriority.collectAsState()
+    val useSingleMicrophone by viewModel.useSingleMicrophone.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(innerPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column(
             modifier = Modifier
                 .weight(1f, fill = false)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Surface(
@@ -123,6 +127,22 @@ fun SettingsScreen(
                             onCheckedChange = {
                                 if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 viewModel.setDisableHearingAidPriority(it)
+                            }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Use single microphone")
+                        Switch(
+                            checked = useSingleMicrophone,
+                            onCheckedChange = {
+                                if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                viewModel.setUseSingleMicrophone(it)
                             }
                         )
                     }
