@@ -39,6 +39,7 @@ fun SettingsScreen(
     val hapticFeedbackEnabled by viewModel.hapticFeedbackEnabled.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    val disableHearingAidPriority by viewModel.disableHearingAidPriority.collectAsState()
 
     Column(
         modifier = Modifier
@@ -106,6 +107,22 @@ fun SettingsScreen(
                             onCheckedChange = {
                                 if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 viewModel.setKeepScreenOn(it)
+                            }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Disable Hearing Aid priority")
+                        Switch(
+                            checked = disableHearingAidPriority,
+                            onCheckedChange = {
+                                if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                viewModel.setDisableHearingAidPriority(it)
                             }
                         )
                     }

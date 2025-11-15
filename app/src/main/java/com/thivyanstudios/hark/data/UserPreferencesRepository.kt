@@ -15,6 +15,7 @@ class UserPreferencesRepository(context: Context) {
         const val HAPTIC_FEEDBACK_ENABLED = "haptic_feedback_enabled"
         const val IS_DARK_MODE = "is_dark_mode"
         const val KEEP_SCREEN_ON = "keep_screen_on"
+        const val DISABLE_HEARING_AID_PRIORITY = "disable_hearing_aid_priority"
     }
 
     val hapticFeedbackEnabled: Flow<Boolean> = callbackFlow {
@@ -60,5 +61,20 @@ class UserPreferencesRepository(context: Context) {
 
     fun setKeepScreenOn(isEnabled: Boolean) {
         sharedPreferences.edit { putBoolean(PreferenceKeys.KEEP_SCREEN_ON, isEnabled) }
+    }
+
+    val disableHearingAidPriority: Flow<Boolean> = callbackFlow {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == PreferenceKeys.DISABLE_HEARING_AID_PRIORITY) {
+                trySend(sharedPreferences.getBoolean(key, false))
+            }
+        }
+        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
+        trySend(sharedPreferences.getBoolean(PreferenceKeys.DISABLE_HEARING_AID_PRIORITY, false))
+        awaitClose { sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    fun setDisableHearingAidPriority(isEnabled: Boolean) {
+        sharedPreferences.edit { putBoolean(PreferenceKeys.DISABLE_HEARING_AID_PRIORITY, isEnabled) }
     }
 }
