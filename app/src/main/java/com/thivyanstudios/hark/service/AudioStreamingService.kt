@@ -13,38 +13,34 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import android.util.Log
-import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import com.thivyanstudios.hark.MainActivity
 import com.thivyanstudios.hark.R
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.system.exitProcess
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class AudioStreamingService : Service() {
 
     private val binder = LocalBinder()
     private var streamingThread: Thread? = null
-    private val isStreaming = AtomicBoolean(false)
+    private val _isStreaming = MutableStateFlow(false)
+    val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
-    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val _hearingAidConnected = MutableStateFlow(false)
+    val hearingAidConnected = _hearingAidConnected.asStateFlow()
 
     private val audioDeviceCallback = object : AudioDeviceCallback() {
-        @RequiresApi(Build.VERSION_CODES.S)
-        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
-            if (removedDevices.any { it.type == AudioDeviceInfo.TYPE_HEARING_AID }) {
-                // Gracefully stop streaming to release the WakeLock and other resources.
-                stopStreaming()
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+            updateHearingAidStatus()
+        }
 
-                // Show a toast and then forcefully terminate the app after a delay.
-                mainHandler.post {
-                    Toast.makeText(applicationContext, "Please reconnect your hearing systems.", Toast.LENGTH_SHORT).show()
-                    val notificationManager =
-                        getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                    notificationManager.cancel(NOTIFICATION_ID)
-                    mainHandler.postDelayed({ exitProcess(0) }, 0) // 0-second delay
-                }
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+            updateHearingAidStatus()
+            if (removedDevices?.any { it.type == AudioDeviceInfo.TYPE_HEARING_AID } == true) {
+                stopStreaming()
             }
         }
     }
@@ -59,19 +55,26 @@ class AudioStreamingService : Service() {
         super.onCreate()
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hark::AudioStreamingWakeLock")
+        updateHearingAidStatus()
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, Handler(Looper.getMainLooper()))
+    }
+
+    private fun updateHearingAidStatus() {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        _hearingAidConnected.value = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .any { it.type == AudioDeviceInfo.TYPE_HEARING_AID }
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
     @RequiresPermission(Manifest.permission.RECORD_AUDIO)
     @SuppressLint("ForegroundServiceType")
     fun startStreaming() {
-        if (isStreaming.getAndSet(true)) return
+        if (_isStreaming.value) return
+        _isStreaming.value = true
 
         startForeground(NOTIFICATION_ID, createNotification())
-        wakeLock?.acquire(10*60*1000L) // 10 minute timeout, for safety
-
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
+        wakeLock?.acquire(10 * 60 * 1000L) // 10 minute timeout, for safety
 
         streamingThread = Thread {
             var audioRecord: AudioRecord? = null
@@ -94,9 +97,8 @@ class AudioStreamingService : Service() {
                 val buffer = ByteArray(minBufferSize)
                 audioRecord.startRecording()
                 audioPlayBack.play()
-                broadcastStreamingState(true)
 
-                while (isStreaming.get()) {
+                while (_isStreaming.value) {
                     val read = audioRecord.read(buffer, 0, buffer.size)
                     if (read > 0) {
                         audioPlayBack.write(buffer, 0, read)
@@ -109,8 +111,6 @@ class AudioStreamingService : Service() {
                 audioRecord?.release()
                 audioPlayBack?.stop()
                 audioPlayBack?.release()
-
-                broadcastStreamingState(false)
                 stopForeground(STOP_FOREGROUND_REMOVE)
             }
         }.apply { start() }
@@ -118,32 +118,15 @@ class AudioStreamingService : Service() {
 
     @RequiresApi(Build.VERSION_CODES.S)
     fun stopStreaming() {
-        if (!isStreaming.getAndSet(false)) return
-
-        // 1. Tell the system this is no longer a foreground service.
-        //    This will remove the notification.
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (!_isStreaming.value) return
+        _isStreaming.value = false
 
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
         }
 
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        try {
-            audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
-        } catch (e: Exception) {
-            Log.w("AudioStreamingService", "Audio device callback already unregistered")
-        }
-
         streamingThread?.interrupt()
         streamingThread = null
-    }
-
-    fun isStreaming(): Boolean = isStreaming.get()
-
-    private fun broadcastStreamingState(isStreaming: Boolean) {
-        val intent = Intent("com.thivyanstudios.hark.STREAMING_STATE_CHANGED").putExtra("isStreaming", isStreaming)
-        sendBroadcast(intent)
     }
 
     private fun createNotification(): Notification {
@@ -156,7 +139,6 @@ class AudioStreamingService : Service() {
             val channel = NotificationChannel(channelId, name, importance).apply {
                 description = descriptionText
             }
-            // Register the channel with the system
             val notificationManager: NotificationManager =
                 getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
@@ -172,8 +154,8 @@ class AudioStreamingService : Service() {
             .setSmallIcon(R.drawable.ic_mic_on)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setWhen(System.currentTimeMillis()) // Explicitly set the start time
-            .setUsesChronometer(true) // Enable the timer
+            .setWhen(System.currentTimeMillis())
+            .setUsesChronometer(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
@@ -186,6 +168,8 @@ class AudioStreamingService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopStreaming()
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
     }
 
     @RequiresApi(Build.VERSION_CODES.S)

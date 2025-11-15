@@ -7,6 +7,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBarItem
@@ -21,26 +23,32 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.thivyanstudios.hark.R
 
 @Composable
-fun BottomNavBar(navController: NavController) {
+fun BottomNavBar(navController: NavController, hapticFeedbackEnabled: Boolean) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    BottomAppBar {
+    BottomAppBar(
+        modifier = Modifier.height(64.dp),
+        windowInsets = WindowInsets(0.dp)
+    ) {
         AnimatedNavigationBarItem(
             icon = { Icon(painterResource(id = R.drawable.ic_home), contentDescription = "Home") },
             label = { Text("Home") },
             selected = currentRoute == "home",
-            onClick = { navController.navigate("home") }
+            onClick = { navController.navigate("home") },
+            hapticFeedbackEnabled = hapticFeedbackEnabled
         )
         AnimatedNavigationBarItem(
             icon = { Icon(painterResource(id = R.drawable.ic_settings), contentDescription = "Settings") },
             label = { Text("Settings") },
             selected = currentRoute == "settings",
-            onClick = { navController.navigate("settings") }
+            onClick = { navController.navigate("settings") },
+            hapticFeedbackEnabled = hapticFeedbackEnabled
         )
     }
 }
@@ -54,7 +62,8 @@ fun RowScope.AnimatedNavigationBarItem(
     enabled: Boolean = true,
     label: @Composable (() -> Unit)? = null,
     alwaysShowLabel: Boolean = true,
-    colors: NavigationBarItemColors = NavigationBarItemDefaults.colors()
+    colors: NavigationBarItemColors = NavigationBarItemDefaults.colors(),
+    hapticFeedbackEnabled: Boolean
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -68,7 +77,9 @@ fun RowScope.AnimatedNavigationBarItem(
     NavigationBarItem(
         selected = selected,
         onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            if (hapticFeedbackEnabled) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
             onClick()
         },
         icon = { Box(modifier = Modifier.scale(scale)) { icon() } },
