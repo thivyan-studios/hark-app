@@ -15,7 +15,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
-import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,7 +33,6 @@ import com.thivyanstudios.hark.service.AudioStreamingService
 import com.thivyanstudios.hark.ui.theme.HarkTheme
 import com.thivyanstudios.hark.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.viewmodel.SettingsViewModelFactory
-import kotlinx.coroutines.flow.MutableStateFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -113,9 +111,7 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(
                                 isStreaming = isStreaming,
-                                onStreamButtonClick = @androidx.annotation.RequiresPermission(
-                                    android.Manifest.permission.RECORD_AUDIO
-                                ) { toggleStreaming() },
+                                onStreamButtonClick = { toggleStreaming() },
                                 hapticFeedbackEnabled = hapticFeedbackEnabled
                             )
                         }
@@ -131,7 +127,6 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
     }
 
-    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
     @RequiresApi(Build.VERSION_CODES.S)
     private fun toggleStreaming() {
         if (!hasPermissions()) {
