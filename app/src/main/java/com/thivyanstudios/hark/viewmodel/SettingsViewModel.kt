@@ -48,4 +48,17 @@ class SettingsViewModel(private val userPreferencesRepository: UserPreferencesRe
             userPreferencesRepository.setKeepScreenOn(isEnabled)
         }
     }
+
+    val disableHearingAidPriority: StateFlow<Boolean> = userPreferencesRepository.disableHearingAidPriority
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
+
+    fun setDisableHearingAidPriority(isEnabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDisableHearingAidPriority(isEnabled)
+        }
+    }
 }

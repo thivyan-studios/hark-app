@@ -19,8 +19,15 @@ import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import com.thivyanstudios.hark.MainActivity
 import com.thivyanstudios.hark.R
+import com.thivyanstudios.hark.data.UserPreferencesRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -32,6 +39,9 @@ class AudioStreamingService : Service() {
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
+    private lateinit var userPreferencesRepository: UserPreferencesRepository
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var disableHearingAidPriority = false
 
     private val _hearingAidConnected = MutableStateFlow(false)
     val hearingAidConnected = _hearingAidConnected.asStateFlow()
@@ -57,7 +67,8 @@ class AudioStreamingService : Service() {
                     restartStreaming()
                 }
             }
-            if (removedDevices?.any { it.type == AudioDeviceInfo.TYPE_HEARING_AID } == true) {
+            val deviceType = if(disableHearingAidPriority) AudioDeviceInfo.TYPE_BLUETOOTH_SCO else AudioDeviceInfo.TYPE_HEARING_AID
+            if (removedDevices?.any { it.type == deviceType } == true) {
                 stopStreaming()
             }
         }
@@ -71,9 +82,23 @@ class AudioStreamingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        userPreferencesRepository = UserPreferencesRepository(applicationContext)
+
+        userPreferencesRepository.disableHearingAidPriority
+            .onEach { newValue ->
+                val hasChanged = newValue != disableHearingAidPriority
+                disableHearingAidPriority = newValue
+                if (hasChanged) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        stopStreaming()
+                    }
+                }
+                updateHearingAidStatus()
+            }
+            .launchIn(serviceScope)
+
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hark::AudioStreamingWakeLock")
-        updateHearingAidStatus()
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, Handler(Looper.getMainLooper()))
     }
@@ -81,8 +106,9 @@ class AudioStreamingService : Service() {
     private fun updateHearingAidStatus() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val deviceType = if(disableHearingAidPriority) AudioDeviceInfo.TYPE_BLUETOOTH_SCO else AudioDeviceInfo.TYPE_HEARING_AID
             _hearingAidConnected.value = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                .any { it.type == AudioDeviceInfo.TYPE_HEARING_AID }
+                .any { it.type == deviceType }
         }
     }
 
@@ -296,6 +322,7 @@ class AudioStreamingService : Service() {
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel()
         stopStreaming()
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
