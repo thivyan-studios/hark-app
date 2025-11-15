@@ -1,16 +1,12 @@
 package com.thivyanstudios.hark
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.*
 import android.content.pm.PackageManager
-import android.media.AudioDeviceInfo
-import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -32,12 +29,16 @@ import com.thivyanstudios.hark.service.AudioStreamingService
 import com.thivyanstudios.hark.ui.theme.HarkTheme
 import com.thivyanstudios.hark.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.viewmodel.SettingsViewModelFactory
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
 
     private var audioService: AudioStreamingService? by mutableStateOf(null)
     private var bound = false
+    private val snackbarChannel = Channel<String>()
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -84,6 +85,13 @@ class MainActivity : ComponentActivity() {
             val isDarkMode by settingsViewModel.isDarkMode.collectAsStateWithLifecycle()
             val keepScreenOn by settingsViewModel.keepScreenOn.collectAsStateWithLifecycle()
 
+            val snackbarHostState = remember { SnackbarHostState() }
+            LaunchedEffect(snackbarChannel) {
+                snackbarChannel.receiveAsFlow().collect { message ->
+                    snackbarHostState.showSnackbar(message)
+                }
+            }
+
             if (keepScreenOn) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             } else {
@@ -101,6 +109,15 @@ class MainActivity : ComponentActivity() {
 
                 val navController = rememberNavController()
                 Scaffold(
+                    snackbarHost = {
+                        SnackbarHost(snackbarHostState) { data ->
+                            Snackbar(
+                                snackbarData = data,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    },
                     bottomBar = { BottomNavBar(navController = navController, hapticFeedbackEnabled = hapticFeedbackEnabled) },
                     contentWindowInsets = ScaffoldDefaults.contentWindowInsets
                 ) { innerPadding ->
@@ -145,7 +162,9 @@ class MainActivity : ComponentActivity() {
             if (audioService?.hearingAidConnected?.value == true) {
                 audioService?.startStreaming()
             } else {
-                Toast.makeText(this, "Connect your hearing system first.", Toast.LENGTH_SHORT).show()
+                lifecycleScope.launch {
+                    snackbarChannel.send("Connect your hearing system first.")
+                }
             }
         }
     }
