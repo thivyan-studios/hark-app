@@ -11,12 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -27,12 +27,16 @@ import com.thivyanstudios.hark.R
 @Composable
 fun HomeScreen(
     isStreaming: Boolean,
-    onStreamButtonClick: () -> Unit
+    onStreamButtonClick: () -> Unit,
+    hapticFeedbackEnabled: Boolean
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.9f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMedium), label = ""
+        targetValue = if (isPressed) 0.85f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ), label = ""
     )
     val haptic = LocalHapticFeedback.current
 
@@ -48,7 +52,7 @@ fun HomeScreen(
                 .size(120.dp) // Sets a fixed size for the image
                 .scale(scale)
                 .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.primary)
+                .background(if (isStreaming) Color(0xFF4B5320) else Color.Red)
                 .align(Alignment.Center) // Centers the image in the Box
                 .pointerInput(Unit) {
                     detectTapGestures(
@@ -61,7 +65,9 @@ fun HomeScreen(
                             }
                         },
                         onTap = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            if (hapticFeedbackEnabled) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
                             onStreamButtonClick()
                         }
                     )

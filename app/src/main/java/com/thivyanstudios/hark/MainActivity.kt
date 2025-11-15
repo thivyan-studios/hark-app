@@ -9,9 +9,11 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.layout.padding
@@ -20,56 +22,43 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.screens.BottomNavBar
 import com.thivyanstudios.hark.screens.HomeScreen
 import com.thivyanstudios.hark.screens.SettingsScreen
 import com.thivyanstudios.hark.service.AudioStreamingService
 import com.thivyanstudios.hark.ui.theme.HarkTheme
+import com.thivyanstudios.hark.viewmodel.SettingsViewModel
+import com.thivyanstudios.hark.viewmodel.SettingsViewModelFactory
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
 
-    private var audioService: AudioStreamingService? = null
+    private var audioService: AudioStreamingService? by mutableStateOf(null)
     private var bound = false
-    private var isStreaming by mutableStateOf(false)
-
-    private val streamingStateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "com.thivyanstudios.hark.STREAMING_STATE_CHANGED") {
-                isStreaming = intent.getBooleanExtra("isStreaming", false)
-            }
-        }
-    }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as AudioStreamingService.LocalBinder
             audioService = binder.getService()
             bound = true
-            isStreaming = audioService?.isStreaming() == true
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             audioService = null
             bound = false
-            isStreaming = false
         }
     }
 
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onStart() {
         super.onStart()
         Intent(this, AudioStreamingService::class.java).also { intent ->
             bindService(intent, connection, BIND_AUTO_CREATE)
-        }
-        val streamingFilter = IntentFilter("com.thivyanstudios.hark.STREAMING_STATE_CHANGED")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(streamingStateReceiver, streamingFilter, RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(streamingStateReceiver, streamingFilter)
         }
     }
 
@@ -79,19 +68,31 @@ class MainActivity : ComponentActivity() {
             unbindService(connection)
             bound = false
         }
-        unregisterReceiver(streamingStateReceiver)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        isStreaming = audioService?.isStreaming() == true
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val userPreferencesRepository = UserPreferencesRepository(applicationContext)
+        val settingsViewModelFactory = SettingsViewModelFactory(userPreferencesRepository)
+        val settingsViewModel: SettingsViewModel by viewModels { settingsViewModelFactory }
+
         setContent {
-            HarkTheme {
+            val service = audioService
+            val isStreaming by service?.isStreaming?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
+            val hearingAidConnected by service?.hearingAidConnected?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
+
+            val hapticFeedbackEnabled by settingsViewModel.hapticFeedbackEnabled.collectAsStateWithLifecycle()
+            val isDarkMode by settingsViewModel.isDarkMode.collectAsStateWithLifecycle()
+            val keepScreenOn by settingsViewModel.keepScreenOn.collectAsStateWithLifecycle()
+
+            if (keepScreenOn) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+
+            HarkTheme(darkTheme = isDarkMode) {
                 val version = try {
                     val packageInfo = packageManager.getPackageInfo(packageName, 0)
                     "Developed by Thivyan Pillay (Stable-Release v${packageInfo.versionName})"
@@ -102,7 +103,7 @@ class MainActivity : ComponentActivity() {
 
                 val navController = rememberNavController()
                 Scaffold(
-                    bottomBar = { BottomNavBar(navController = navController) }
+                    bottomBar = { BottomNavBar(navController = navController, hapticFeedbackEnabled = hapticFeedbackEnabled) }
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
@@ -114,11 +115,12 @@ class MainActivity : ComponentActivity() {
                                 isStreaming = isStreaming,
                                 onStreamButtonClick = @androidx.annotation.RequiresPermission(
                                     android.Manifest.permission.RECORD_AUDIO
-                                ) { toggleStreaming() }
+                                ) { toggleStreaming() },
+                                hapticFeedbackEnabled = hapticFeedbackEnabled
                             )
                         }
                         composable("settings") {
-                            SettingsScreen(versionName = version)
+                            SettingsScreen(versionName = version, factory = settingsViewModelFactory)
                         }
                     }
                 }
@@ -137,19 +139,13 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        if (audioService?.isStreaming() == true) {
+        if (audioService?.isStreaming?.value == true) {
             audioService?.stopStreaming()
-            isStreaming = false
         } else {
-            val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-            val hasHearingAid = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                .any { it.type == AudioDeviceInfo.TYPE_HEARING_AID }
-            if (hasHearingAid) {
+            if (audioService?.hearingAidConnected?.value == true) {
                 audioService?.startStreaming()
-                isStreaming = true
             } else {
-                Toast.makeText(this, "Connect your hearing system first.", Toast.LENGTH_SHORT)
-                    .show()
+                Toast.makeText(this, "Connect your hearing system first.", Toast.LENGTH_SHORT).show()
             }
         }
     }
