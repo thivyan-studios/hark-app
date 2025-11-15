@@ -13,12 +13,11 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,6 +70,7 @@ class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         val userPreferencesRepository = UserPreferencesRepository(applicationContext)
         val settingsViewModelFactory = SettingsViewModelFactory(userPreferencesRepository)
         val settingsViewModel: SettingsViewModel by viewModels { settingsViewModelFactory }
@@ -101,22 +101,27 @@ class MainActivity : ComponentActivity() {
 
                 val navController = rememberNavController()
                 Scaffold(
-                    bottomBar = { BottomNavBar(navController = navController, hapticFeedbackEnabled = hapticFeedbackEnabled) }
+                    bottomBar = { BottomNavBar(navController = navController, hapticFeedbackEnabled = hapticFeedbackEnabled) },
+                    contentWindowInsets = ScaffoldDefaults.contentWindowInsets
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
                         startDestination = "home",
-                        modifier = Modifier.padding(innerPadding)
                     ) {
                         composable("home") {
                             HomeScreen(
                                 isStreaming = isStreaming,
                                 onStreamButtonClick = { toggleStreaming() },
-                                hapticFeedbackEnabled = hapticFeedbackEnabled
+                                hapticFeedbackEnabled = hapticFeedbackEnabled,
+                                innerPadding = innerPadding
                             )
                         }
                         composable("settings") {
-                            SettingsScreen(versionName = version, factory = settingsViewModelFactory)
+                            SettingsScreen(
+                                versionName = version,
+                                factory = settingsViewModelFactory,
+                                innerPadding = innerPadding
+                            )
                         }
                     }
                 }

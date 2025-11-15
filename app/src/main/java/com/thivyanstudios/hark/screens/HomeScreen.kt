@@ -7,6 +7,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,7 +29,8 @@ import com.thivyanstudios.hark.R
 fun HomeScreen(
     isStreaming: Boolean,
     onStreamButtonClick: () -> Unit,
-    hapticFeedbackEnabled: Boolean
+    hapticFeedbackEnabled: Boolean,
+    innerPadding: PaddingValues
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -43,7 +45,7 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(innerPadding)
     ) {
         // This is your stream button (ImageView)
         Box(

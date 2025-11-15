@@ -42,6 +42,7 @@ class AudioStreamingService : Service() {
     private lateinit var userPreferencesRepository: UserPreferencesRepository
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var disableHearingAidPriority = false
+    private var useSingleMicrophone = false
 
     private val _hearingAidConnected = MutableStateFlow(false)
     val hearingAidConnected = _hearingAidConnected.asStateFlow()
@@ -88,12 +89,24 @@ class AudioStreamingService : Service() {
             .onEach { newValue ->
                 val hasChanged = newValue != disableHearingAidPriority
                 disableHearingAidPriority = newValue
-                if (hasChanged) {
+                if (hasChanged && _isStreaming.value) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         stopStreaming()
                     }
                 }
                 updateHearingAidStatus()
+            }
+            .launchIn(serviceScope)
+
+        userPreferencesRepository.useSingleMicrophone
+            .onEach { newValue ->
+                val hasChanged = newValue != useSingleMicrophone
+                useSingleMicrophone = newValue
+                if (hasChanged && _isStreaming.value) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        stopStreaming()
+                    }
+                }
             }
             .launchIn(serviceScope)
 
@@ -146,26 +159,6 @@ class AudioStreamingService : Service() {
             val audioFormat = AudioFormat.ENCODING_PCM_16BIT
             val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
 
-            val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-            val microphones = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).filter { isMicrophone(it) }
-
-            if (microphones.isEmpty()) {
-                Log.e(TAG, "No microphones found!")
-                return@execute
-            }
-
-            Log.d(TAG, "Found ${microphones.size} microphones.")
-
-            val audioRecords = microphones.mapNotNull { mic -> createAudioRecordFor(mic) }
-            if (audioRecords.isEmpty()) {
-                Log.e(TAG, "Could not create any AudioRecord instances.")
-                return@execute
-            }
-
-            val bufferSize = minBufferSize / 2
-            val audioBuffers = audioRecords.map { ShortArray(bufferSize) }
-            val mixedBuffer = ShortArray(bufferSize)
-
             val audioPlayBackBuilder = AudioTrack.Builder()
                 .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                 .setAudioFormat(AudioFormat.Builder().setEncoding(audioFormat).setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
@@ -176,32 +169,65 @@ class AudioStreamingService : Service() {
             }
             val audioPlayBack = audioPlayBackBuilder.build()
 
+            var audioRecord: AudioRecord? = null
+            var audioRecords: List<AudioRecord>? = null
+
             try {
-                audioRecords.forEach { it.startRecording() }
+                if (useSingleMicrophone) {
+                    audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, minBufferSize)
+                    audioRecord.startRecording()
+                } else {
+                    val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+                    val microphones = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).filter { isMicrophone(it) }
+                    if (microphones.isEmpty()) {
+                        throw IllegalStateException("No microphones found!")
+                    }
+                    Log.d(TAG, "Found ${microphones.size} microphones.")
+
+                    audioRecords = microphones.mapNotNull { mic -> createAudioRecordFor(mic) }
+                    if (audioRecords.isEmpty()) {
+                        throw IllegalStateException("Could not create any AudioRecord instances.")
+                    }
+                    audioRecords.forEach { it.startRecording() }
+                }
+
                 audioPlayBack.play()
 
                 while (_isStreaming.value) {
-                    audioRecords.forEachIndexed { index, record ->
-                        val read = record.read(audioBuffers[index], 0, bufferSize)
-                        if (read < 0) Log.e(TAG, "Error reading from mic ${record.preferredDevice?.productName}")
-                    }
-
-                    mixedBuffer.fill(0)
-                    for (i in 0 until bufferSize) {
-                        var sampleSum = 0
-                        for (j in audioRecords.indices) {
-                            sampleSum += audioBuffers[j][i]
+                    if (useSingleMicrophone) {
+                        val buffer = ShortArray(minBufferSize / 2)
+                        val read = audioRecord!!.read(buffer, 0, buffer.size)
+                        if (read > 0) {
+                            audioPlayBack.write(buffer, 0, read)
                         }
-                        mixedBuffer[i] = (sampleSum / audioRecords.size).toShort()
-                    }
+                    } else {
+                        val bufferSize = minBufferSize / 2
+                        val audioBuffers = audioRecords!!.map { ShortArray(bufferSize) }
+                        val mixedBuffer = ShortArray(bufferSize)
 
-                    audioPlayBack.write(mixedBuffer, 0, bufferSize)
+                        audioRecords.forEachIndexed { index, record ->
+                            val read = record.read(audioBuffers[index], 0, bufferSize)
+                            if (read < 0) Log.e(TAG, "Error reading from mic ${record.preferredDevice?.productName}")
+                        }
+
+                        mixedBuffer.fill(0)
+                        for (i in 0 until bufferSize) {
+                            var sampleSum = 0
+                            for (j in audioRecords.indices) {
+                                sampleSum += audioBuffers[j][i]
+                            }
+                            mixedBuffer[i] = (sampleSum / audioRecords.size).toShort()
+                        }
+                        audioPlayBack.write(mixedBuffer, 0, bufferSize)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception in streaming loop", e)
             } finally {
                 Log.d(TAG, "Cleaning up streaming resources.")
-                audioRecords.forEach {
+                audioRecord?.stop()
+                audioRecord?.release()
+                audioRecords?.forEach {
                     it.stop()
                     it.release()
                 }
