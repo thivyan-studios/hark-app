@@ -61,17 +61,4 @@ class SettingsViewModel(private val userPreferencesRepository: UserPreferencesRe
             userPreferencesRepository.setDisableHearingAidPriority(isEnabled)
         }
     }
-
-    val useSingleMicrophone: StateFlow<Boolean> = userPreferencesRepository.useSingleMicrophone
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false
-        )
-
-    fun setUseSingleMicrophone(isEnabled: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.setUseSingleMicrophone(isEnabled)
-        }
-    }
 }

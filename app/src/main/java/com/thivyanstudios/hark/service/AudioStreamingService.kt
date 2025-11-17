@@ -42,7 +42,6 @@ class AudioStreamingService : Service() {
     private lateinit var userPreferencesRepository: UserPreferencesRepository
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var disableHearingAidPriority = false
-    private var useSingleMicrophone = false
 
     private val _hearingAidConnected = MutableStateFlow(false)
     val hearingAidConnected = _hearingAidConnected.asStateFlow()
@@ -98,18 +97,6 @@ class AudioStreamingService : Service() {
             }
             .launchIn(serviceScope)
 
-        userPreferencesRepository.useSingleMicrophone
-            .onEach { newValue ->
-                val hasChanged = newValue != useSingleMicrophone
-                useSingleMicrophone = newValue
-                if (hasChanged && _isStreaming.value) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        stopStreaming()
-                    }
-                }
-            }
-            .launchIn(serviceScope)
-
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hark::AudioStreamingWakeLock")
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
@@ -157,68 +144,33 @@ class AudioStreamingService : Service() {
             val sampleRate = 44100
             val channelConfig = AudioFormat.CHANNEL_IN_MONO
             val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-            val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+            val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat) * 2
 
-            val audioPlayBackBuilder = AudioTrack.Builder()
+            val audioPlayBack = AudioTrack.Builder()
                 .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                 .setAudioFormat(AudioFormat.Builder().setEncoding(audioFormat).setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                .setBufferSizeInBytes(minBufferSize)
+                .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(AudioTrack.MODE_STREAM)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                audioPlayBackBuilder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-            }
-            val audioPlayBack = audioPlayBackBuilder.build()
+                .apply {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+                    }
+                }
+                .build()
 
             var audioRecord: AudioRecord? = null
-            var audioRecords: List<AudioRecord>? = null
 
             try {
-                if (useSingleMicrophone) {
-                    audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, minBufferSize)
-                    audioRecord.startRecording()
-                } else {
-                    val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-                    val microphones = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).filter { isMicrophone(it) }
-                    if (microphones.isEmpty()) {
-                        throw IllegalStateException("No microphones found!")
-                    }
-                    Log.d(TAG, "Found ${microphones.size} microphones.")
-
-                    audioRecords = microphones.mapNotNull { mic -> createAudioRecordFor(mic) }
-                    if (audioRecords.isEmpty()) {
-                        throw IllegalStateException("Could not create any AudioRecord instances.")
-                    }
-                    audioRecords.forEach { it.startRecording() }
-                }
+                audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, bufferSize)
+                audioRecord.startRecording()
 
                 audioPlayBack.play()
 
                 while (_isStreaming.value) {
-                    if (useSingleMicrophone) {
-                        val buffer = ShortArray(minBufferSize / 2)
-                        val read = audioRecord!!.read(buffer, 0, buffer.size)
-                        if (read > 0) {
-                            audioPlayBack.write(buffer, 0, read)
-                        }
-                    } else {
-                        val bufferSize = minBufferSize / 2
-                        val audioBuffers = audioRecords!!.map { ShortArray(bufferSize) }
-                        val mixedBuffer = ShortArray(bufferSize)
-
-                        audioRecords.forEachIndexed { index, record ->
-                            val read = record.read(audioBuffers[index], 0, bufferSize)
-                            if (read < 0) Log.e(TAG, "Error reading from mic ${record.preferredDevice?.productName}")
-                        }
-
-                        mixedBuffer.fill(0)
-                        for (i in 0 until bufferSize) {
-                            var sampleSum = 0
-                            for (j in audioRecords.indices) {
-                                sampleSum += audioBuffers[j][i]
-                            }
-                            mixedBuffer[i] = (sampleSum / audioRecords.size).toShort()
-                        }
-                        audioPlayBack.write(mixedBuffer, 0, bufferSize)
+                    val buffer = ShortArray(bufferSize / 2)
+                    val read = audioRecord.read(buffer, 0, buffer.size)
+                    if (read > 0) {
+                        audioPlayBack.write(buffer, 0, read)
                     }
                 }
             } catch (e: Exception) {
@@ -227,10 +179,6 @@ class AudioStreamingService : Service() {
                 Log.d(TAG, "Cleaning up streaming resources.")
                 audioRecord?.stop()
                 audioRecord?.release()
-                audioRecords?.forEach {
-                    it.stop()
-                    it.release()
-                }
                 audioPlayBack.stop()
                 audioPlayBack.release()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -238,55 +186,6 @@ class AudioStreamingService : Service() {
                 }
             }
         }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun createAudioRecordFor(device: AudioDeviceInfo): AudioRecord? {
-        return try {
-            val sampleRate = 44100
-            val channelConfig = AudioFormat.CHANNEL_IN_MONO
-            val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-            val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-
-            val builder = AudioRecord.Builder()
-                .setAudioFormat(AudioFormat.Builder().setEncoding(audioFormat).setSampleRate(sampleRate).setChannelMask(channelConfig).build())
-                .setBufferSizeInBytes(minBufferSize)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                builder.setAudioSource(MediaRecorder.AudioSource.MIC)
-                val audioRecord = builder.build()
-                audioRecord.preferredDevice = device
-                 if (audioRecord.state == AudioRecord.STATE_INITIALIZED) {
-                    Log.d(TAG, "Successfully created AudioRecord for ${device.productName}")
-                    audioRecord
-                } else {
-                    Log.e(TAG, "Failed to create AudioRecord for ${device.productName}")
-                    null
-                }
-            } else {
-                // For older APIs, we can't select a specific device, so we create a generic one.
-                builder.setAudioSource(MediaRecorder.AudioSource.MIC)
-                val audioRecord = builder.build()
-                 if (audioRecord.state == AudioRecord.STATE_INITIALIZED) {
-                    Log.d(TAG, "Successfully created generic AudioRecord")
-                    audioRecord
-                } else {
-                    Log.e(TAG, "Failed to create generic AudioRecord")
-                    null
-                }
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception creating AudioRecord for ${device.productName}", e)
-            null
-        }
-    }
-
-    private fun isMicrophone(device: AudioDeviceInfo): Boolean {
-        return device.type == AudioDeviceInfo.TYPE_BUILTIN_MIC ||
-                device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                device.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
