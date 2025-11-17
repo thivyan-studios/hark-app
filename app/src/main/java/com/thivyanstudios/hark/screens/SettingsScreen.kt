@@ -53,7 +53,6 @@ fun SettingsScreen(
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val disableHearingAidPriority by viewModel.disableHearingAidPriority.collectAsState()
-    val useSingleMicrophone by viewModel.useSingleMicrophone.collectAsState()
 
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -90,7 +89,7 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Haptic feedback")
+                    Text(text = "Haptic feedback", modifier = Modifier.weight(1f).padding(end = 16.dp))
                     Switch(
                         checked = hapticFeedbackEnabled,
                         onCheckedChange = {
@@ -106,7 +105,7 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Use dark mode")
+                    Text(text = "Use dark mode", modifier = Modifier.weight(1f).padding(end = 16.dp))
                     Switch(
                         checked = isDarkMode,
                         onCheckedChange = {
@@ -122,7 +121,7 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Keep screen on when in foreground")
+                    Text(text = "Keep screen on when in foreground", modifier = Modifier.weight(1f).padding(end = 16.dp))
                     Switch(
                         checked = keepScreenOn,
                         onCheckedChange = {
@@ -138,28 +137,12 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Disable Hearing Aid priority")
+                    Text(text = "Disable Hearing Aid priority", modifier = Modifier.weight(1f).padding(end = 16.dp))
                     Switch(
                         checked = disableHearingAidPriority,
                         onCheckedChange = {
                             if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.setDisableHearingAidPriority(it)
-                        }
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "Use single microphone")
-                    Switch(
-                        checked = useSingleMicrophone,
-                        onCheckedChange = {
-                            if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.setUseSingleMicrophone(it)
                         }
                     )
                 }

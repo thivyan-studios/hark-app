@@ -16,7 +16,6 @@ class UserPreferencesRepository(context: Context) {
         const val IS_DARK_MODE = "is_dark_mode"
         const val KEEP_SCREEN_ON = "keep_screen_on"
         const val DISABLE_HEARING_AID_PRIORITY = "disable_hearing_aid_priority"
-        const val USE_SINGLE_MICROPHONE = "use_single_microphone"
     }
 
     val hapticFeedbackEnabled: Flow<Boolean> = callbackFlow {
@@ -77,20 +76,5 @@ class UserPreferencesRepository(context: Context) {
 
     fun setDisableHearingAidPriority(isEnabled: Boolean) {
         sharedPreferences.edit { putBoolean(PreferenceKeys.DISABLE_HEARING_AID_PRIORITY, isEnabled) }
-    }
-
-    val useSingleMicrophone: Flow<Boolean> = callbackFlow {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == PreferenceKeys.USE_SINGLE_MICROPHONE) {
-                trySend(sharedPreferences.getBoolean(key, false))
-            }
-        }
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
-        trySend(sharedPreferences.getBoolean(PreferenceKeys.USE_SINGLE_MICROPHONE, false))
-        awaitClose { sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
-
-    fun setUseSingleMicrophone(isEnabled: Boolean) {
-        sharedPreferences.edit { putBoolean(PreferenceKeys.USE_SINGLE_MICROPHONE, isEnabled) }
     }
 }
