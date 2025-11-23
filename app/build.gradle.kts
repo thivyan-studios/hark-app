@@ -16,9 +16,8 @@ versionPropertiesFile.inputStream().use {
     versionProperties.load(it)
 }
 
-// Safely read properties with default values
 val appVersionCode = versionProperties.getProperty("APP_VERSION_CODE", "1").toInt()
-val appVersionName = versionProperties.getProperty("APP_VERSION_NAME", "0.1.0")
+val appVersionName: String = versionProperties.getProperty("APP_VERSION_NAME", "0.1.0")
 
 android {
     namespace = "com.thivyanstudios.hark"
@@ -31,7 +30,7 @@ android {
 
     defaultConfig {
         applicationId = "com.thivyanstudios.hark"
-        minSdk = 23
+        minSdk = 28
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
@@ -43,7 +42,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // For builds from the MAIN branch
             buildConfigField("String", "BUILD_STATUS", "\"Stable-Release\"")
