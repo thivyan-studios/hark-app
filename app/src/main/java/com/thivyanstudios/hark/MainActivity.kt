@@ -79,7 +79,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             val service = audioService
             val isStreaming by service?.isStreaming?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
-            val hearingAidConnected by service?.hearingAidConnected?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
 
             val hapticFeedbackEnabled by settingsViewModel.hapticFeedbackEnabled.collectAsStateWithLifecycle()
             val isDarkMode by settingsViewModel.isDarkMode.collectAsStateWithLifecycle()
@@ -101,7 +100,7 @@ class MainActivity : ComponentActivity() {
             HarkTheme(darkTheme = isDarkMode) {
                 val version = try {
                     val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                    "Developed by Thivyan Pillay (Stable-Release v${packageInfo.versionName})"
+                    "Developed by Thivyan Pillay (Pre-Release v${packageInfo.versionName})"
                 } catch (e: PackageManager.NameNotFoundException) {
                     e.printStackTrace()
                     "Developed by Thivyan Pillay (Version not found)"
