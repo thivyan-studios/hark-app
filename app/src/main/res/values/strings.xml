@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">HARK</string>
+    <string name="version_text">Developed by Thivyan Pillay (%1$s v%2$s)</string>
 </resources>

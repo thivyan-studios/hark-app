@@ -1,8 +1,23 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
 }
+
+// Read version properties
+val versionPropertiesFile = file("version.properties")
+if (!versionPropertiesFile.exists()) {
+    throw GradleException("version.properties not found in ${versionPropertiesFile.absolutePath}")
+}
+val versionProperties = Properties()
+versionPropertiesFile.inputStream().use {
+    versionProperties.load(it)
+}
+
+val appVersionCode = versionProperties.getProperty("APP_VERSION_CODE", "1").toInt()
+val appVersionName = versionProperties.getProperty("APP_VERSION_NAME", "0.1.0")
 
 android {
     namespace = "com.thivyanstudios.hark"
@@ -17,16 +32,26 @@ android {
         applicationId = "com.thivyanstudios.hark"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.3.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Default status for debug builds
+        buildConfigField("String", "BUILD_STATUS", "\"DEBUG\"")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // For builds from the MAIN branch
+            buildConfigField("String", "BUILD_STATUS", "\"Stable-Release\"")
+        }
+        create("beta") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            // For builds from the BETA branch
+            buildConfigField("String", "BUILD_STATUS", "\"Pre-Release\"")
         }
     }
 
@@ -42,6 +67,7 @@ android {
     buildFeatures {
         viewBinding = true
         compose = true
+        buildConfig = true
     }
 }
 
