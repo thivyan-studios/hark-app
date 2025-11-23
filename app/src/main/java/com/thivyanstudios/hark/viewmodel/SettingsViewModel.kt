@@ -61,4 +61,17 @@ class SettingsViewModel(private val userPreferencesRepository: UserPreferencesRe
             userPreferencesRepository.setDisableHearingAidPriority(isEnabled)
         }
     }
+
+    val microphoneGain: StateFlow<Float> = userPreferencesRepository.microphoneGain
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0.0f
+        )
+
+    fun setMicrophoneGain(gain: Float) {
+        viewModelScope.launch {
+            userPreferencesRepository.setMicrophoneGain(gain)
+        }
+    }
 }

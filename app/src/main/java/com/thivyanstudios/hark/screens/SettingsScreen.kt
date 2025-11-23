@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.thivyanstudios.hark.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.viewmodel.SettingsViewModelFactory
+import java.text.DecimalFormat
 
 @Composable
 fun SettingsScreen(
@@ -53,6 +55,8 @@ fun SettingsScreen(
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val disableHearingAidPriority by viewModel.disableHearingAidPriority.collectAsState()
+    val microphoneGain by viewModel.microphoneGain.collectAsState()
+    val df = remember { DecimalFormat("0.0") }
 
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -146,6 +150,41 @@ fun SettingsScreen(
                         }
                     )
                 }
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                val formattedGain = when {
+                    microphoneGain > 0.01f -> "+${df.format(microphoneGain)}"
+                    microphoneGain < -0.01f -> df.format(microphoneGain)
+                    else -> "0"
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Microphone gain", modifier = Modifier.weight(1f).padding(end = 16.dp))
+                    Text(text = "$formattedGain dB")
+                }
+                Slider(
+                    value = microphoneGain,
+                    onValueChange = { viewModel.setMicrophoneGain(it) },
+                    valueRange = -10f..30f,
+                    steps = 39,
+                    onValueChangeFinished = {
+                        if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    }
+                )
             }
         }
 
