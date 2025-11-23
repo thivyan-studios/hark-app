@@ -15,7 +15,7 @@ android {
 
     defaultConfig {
         applicationId = "com.thivyanstudios.hark"
-        minSdk = 23
+        minSdk = 28
         targetSdk = 36
         versionCode = 1
         versionName = "0.3.0"

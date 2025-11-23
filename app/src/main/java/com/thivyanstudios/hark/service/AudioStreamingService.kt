@@ -7,14 +7,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.*
 import android.os.Binder
-import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import com.thivyanstudios.hark.MainActivity
@@ -49,7 +47,6 @@ class AudioStreamingService : Service() {
     val hearingAidConnected = _hearingAidConnected.asStateFlow()
 
     private val audioDeviceCallback = object : AudioDeviceCallback() {
-        @RequiresApi(Build.VERSION_CODES.S)
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
             updateHearingAidStatus()
             if (_isStreaming.value) {
@@ -60,7 +57,6 @@ class AudioStreamingService : Service() {
             }
         }
 
-        @RequiresApi(Build.VERSION_CODES.S)
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
             updateHearingAidStatus()
             if (_isStreaming.value) {
@@ -91,9 +87,7 @@ class AudioStreamingService : Service() {
                 val hasChanged = newValue != disableHearingAidPriority
                 disableHearingAidPriority = newValue
                 if (hasChanged && _isStreaming.value) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        stopStreaming()
-                    }
+                    stopStreaming()
                 }
                 updateHearingAidStatus()
             }
@@ -111,14 +105,11 @@ class AudioStreamingService : Service() {
 
     private fun updateHearingAidStatus() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val deviceType = if(disableHearingAidPriority) AudioDeviceInfo.TYPE_BLUETOOTH_SCO else AudioDeviceInfo.TYPE_HEARING_AID
             _hearingAidConnected.value = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
                 .any { it.type == deviceType }
-        }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     private fun restartStreaming() {
         if (_isStreaming.value) {
@@ -158,9 +149,7 @@ class AudioStreamingService : Service() {
                 .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .apply {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                    }
                 }
                 .build()
 
@@ -190,14 +179,11 @@ class AudioStreamingService : Service() {
                 audioRecord?.release()
                 audioPlayBack.stop()
                 audioPlayBack.release()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
-                }
             }
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     fun stopStreaming() {
         if (!_isStreaming.value) return
         Log.d(TAG, "stopStreaming called.")
@@ -220,7 +206,7 @@ class AudioStreamingService : Service() {
     private fun createNotification(): Notification {
         val channelId = "hark_channel"
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
             val name = "HARK Audio Streaming"
             val descriptionText = "Notification for ongoing audio streaming"
             val importance = NotificationManager.IMPORTANCE_LOW
@@ -230,7 +216,6 @@ class AudioStreamingService : Service() {
             val notificationManager: NotificationManager =
                 getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
-        }
 
         val pendingIntent: PendingIntent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
@@ -253,7 +238,6 @@ class AudioStreamingService : Service() {
         private const val TAG = "AudioStreamingService"
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
@@ -262,10 +246,4 @@ class AudioStreamingService : Service() {
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
-        stopStreaming()
-        stopSelf()
-    }
 }
