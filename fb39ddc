@@ -1,0 +1,38 @@
+[33mfb39ddc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/beta[m[33m, [m[1;32mbeta[m[33m)[m Fixing lifecycle, adding mic gain :)
+[33m5e7d637[m[33m ([m[1;33mtag: [m[1;33mv0.3.0[m[33m)[m Remove build errors :)
+[33ma170680[m feat: Microphone gain :)
+[33mf90e7af[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Syncing files :)
+[33ma140f72[m[33m ([m[1;33mtag: [m[1;33mv1.1.3.2[m[33m)[m Changes to text layout in settings
+[33m428fb61[m[33m ([m[1;33mtag: [m[1;33mv1.1.3.1[m[33m)[m Changes made to toast notifications :)
+[33ma34700f[m[33m ([m[1;33mtag: [m[1;33mv1.1.3[m[33m)[m Some fixes :)
+[33m0292957[m[33m ([m[1;33mtag: [m[1;33mv1.1.2[m[33m)[m Inclusion of Bluetooth Hearing Aids :)
+[33mb5f3aa3[m Slimming source code :)
+[33m7edfdd2[m Update gitignore rules
+[33m4824d68[m[33m ([m[1;33mtag: [m[1;33mv1.1.1[m[33m)[m Changes made to use all microphones :)
+[33m828615c[m[33m ([m[1;33mtag: [m[1;33mv1.1.0[m[33m)[m Some changes :)
+[33mc417a61[m[33m ([m[1;33mtag: [m[1;33mv1.0.1[m[33m)[m Added methods for donations :)
+[33m7c2caa5[m Update version number & add permission checks :)
+[33m18f1a65[m A lot of internal reorganization! :)
+[33mf999ed9[m Changes for BLOB
+[33m66cd9b6[m Version 1.0.0 files :)
+[33m020349b[m[33m ([m[1;33mtag: [m[1;33mv1.0.0[m[33m)[m Streamlining :)
+[33mde48d02[m Cleaning up assets :)
+[33m2b16369[m Merge branch 'main' of https://github.com/thivyan-studios/hark-app
+[33m5c0d525[m Some minor changes :)
+[33ma9d1f52[m Some minor changes :)
+[33m81af254[m Fix formatting issues in README.md
+[33mc6b31a4[m Add LICENSE file
+[33m9092cbe[m Cleaning up :)
+[33m62e8bc4[m Revise README formatting and installation instructions
+[33m44ccf20[m Revise README content and license information
+[33m447b1de[m Delete Hark.apk
+[33m2c73333[m Delete hearing aid.jpg
+[33m213b27b[m Delete mic off.jpg
+[33m0421720[m Delete mic on.jpg
+[33m8c4f413[m Remove mistakenly included initial marketing materials
+[33mf49ff2c[m[33m ([m[1;33mtag: [m[1;33mv0.2.4[m[33m)[m Add MIT License to the project
+[33m359609f[m Attempting to open-source the project
+[33ma5949e3[m[33m ([m[1;33mtag: [m[1;33mv0.2.3[m[33m, [m[1;33mtag: [m[1;33mv0.2.2[m[33m)[m README.md
+[33m549bca0[m[33m ([m[1;33mtag: [m[1;33mv0.2.1[m[33m, [m[1;33mtag: [m[1;33mv0.2.0[m[33m)[m Update README.md
+[33m3189c04[m[33m ([m[1;33mtag: [m[1;33mv0.1.0[m[33m)[m Screenshots of the app
+[33m2acc444[m Add Hark debug APK
