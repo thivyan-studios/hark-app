@@ -101,7 +101,13 @@ class MainActivity : ComponentActivity() {
             HarkTheme(darkTheme = isDarkMode) {
                 val version = try {
                     val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                    "Developed by Thivyan Pillay (Stable-Release v${packageInfo.versionName})"
+                    val currentVersionName = packageInfo.versionName
+                    val buildStatus = BuildConfig.BUILD_STATUS
+                    getString(
+                        R.string.version_text,
+                        buildStatus,
+                        currentVersionName
+                    )
                 } catch (e: PackageManager.NameNotFoundException) {
                     e.printStackTrace()
                     "Developed by Thivyan Pillay (Version not found)"

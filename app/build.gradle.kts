@@ -21,12 +21,22 @@ android {
         versionName = "1.1.3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Default status for debug builds
+        buildConfigField("String", "BUILD_STATUS", "\"DEBUG\"")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // For builds from the MAIN branch
+            buildConfigField("String", "BUILD_STATUS", "\"Stable-Release\"")
+        }
+        create("beta") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            // For builds from the BETA branch
+            buildConfigField("String", "BUILD_STATUS", "\"Pre-Release\"")
         }
     }
 
@@ -42,6 +52,7 @@ android {
     buildFeatures {
         viewBinding = true
         compose = true
+        buildConfig = true
     }
 }
 
