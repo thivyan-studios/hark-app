@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
@@ -99,7 +100,7 @@ class MainActivity : ComponentActivity() {
             }
 
             HarkTheme(darkTheme = isDarkMode) {
-                val version = try {
+                 val version = try {
                     val packageInfo = packageManager.getPackageInfo(packageName, 0)
                     val currentVersionName = packageInfo.versionName
                     val buildStatus = BuildConfig.BUILD_STATUS
@@ -134,7 +135,7 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(
                                 isStreaming = isStreaming,
-                                onStreamButtonClick = { toggleStreaming() },
+                                onStreamButtonClick = @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT]) { toggleStreaming() },
                                 hapticFeedbackEnabled = hapticFeedbackEnabled,
                                 innerPadding = innerPadding
                             )
@@ -155,6 +156,7 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
     }
 
+    @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     @RequiresApi(Build.VERSION_CODES.S)
     private fun toggleStreaming() {
         if (!hasPermissions()) {
