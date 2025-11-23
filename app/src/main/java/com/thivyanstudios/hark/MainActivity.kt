@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
@@ -79,6 +80,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val service = audioService
             val isStreaming by service?.isStreaming?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
+            val hearingAidConnected by service?.hearingAidConnected?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
 
             val hapticFeedbackEnabled by settingsViewModel.hapticFeedbackEnabled.collectAsStateWithLifecycle()
             val isDarkMode by settingsViewModel.isDarkMode.collectAsStateWithLifecycle()
@@ -127,7 +129,7 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(
                                 isStreaming = isStreaming,
-                                onStreamButtonClick = { toggleStreaming() },
+                                onStreamButtonClick = @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT]) { toggleStreaming() },
                                 hapticFeedbackEnabled = hapticFeedbackEnabled,
                                 innerPadding = innerPadding
                             )
@@ -148,6 +150,7 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
     }
 
+    @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     @RequiresApi(Build.VERSION_CODES.S)
     private fun toggleStreaming() {
         if (!hasPermissions()) {

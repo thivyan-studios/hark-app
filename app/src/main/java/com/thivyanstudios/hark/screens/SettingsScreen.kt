@@ -56,7 +56,7 @@ fun SettingsScreen(
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val disableHearingAidPriority by viewModel.disableHearingAidPriority.collectAsState()
     val microphoneGain by viewModel.microphoneGain.collectAsState()
-    val df = remember { DecimalFormat("#.0") }
+    val df = remember { DecimalFormat("0.0") }
 
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -163,13 +163,18 @@ fun SettingsScreen(
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
+                val formattedGain = when {
+                    microphoneGain > 0.01f -> "+${df.format(microphoneGain)}"
+                    microphoneGain < -0.01f -> df.format(microphoneGain)
+                    else -> "0"
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = "Microphone gain", modifier = Modifier.weight(1f).padding(end = 16.dp))
-                    Text(text = "${df.format(microphoneGain)} dB")
+                    Text(text = "$formattedGain dB")
                 }
                 Slider(
                     value = microphoneGain,
