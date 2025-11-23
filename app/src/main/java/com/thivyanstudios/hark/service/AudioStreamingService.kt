@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.onEach
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.math.pow
 
 class AudioStreamingService : Service() {
 
@@ -42,6 +43,7 @@ class AudioStreamingService : Service() {
     private lateinit var userPreferencesRepository: UserPreferencesRepository
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var disableHearingAidPriority = false
+    private var microphoneGain = 1.0f
 
     private val _hearingAidConnected = MutableStateFlow(false)
     val hearingAidConnected = _hearingAidConnected.asStateFlow()
@@ -97,6 +99,10 @@ class AudioStreamingService : Service() {
             }
             .launchIn(serviceScope)
 
+        userPreferencesRepository.microphoneGain
+            .onEach { microphoneGain = 10.0.pow(it / 20.0).toFloat() }
+            .launchIn(serviceScope)
+
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hark::AudioStreamingWakeLock")
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
@@ -143,7 +149,7 @@ class AudioStreamingService : Service() {
 
             val sampleRate = 44100
             val channelConfig = AudioFormat.CHANNEL_IN_MONO
-            val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+            val audioFormat = AudioFormat.ENCODING_PCM_FLOAT
             val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat) * 2
 
             val audioPlayBack = AudioTrack.Builder()
@@ -167,10 +173,13 @@ class AudioStreamingService : Service() {
                 audioPlayBack.play()
 
                 while (_isStreaming.value) {
-                    val buffer = ShortArray(bufferSize / 2)
-                    val read = audioRecord.read(buffer, 0, buffer.size)
+                    val buffer = FloatArray(bufferSize / 4)
+                    val read = audioRecord.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING)
                     if (read > 0) {
-                        audioPlayBack.write(buffer, 0, read)
+                        for (i in 0 until read) {
+                            buffer[i] *= microphoneGain
+                        }
+                        audioPlayBack.write(buffer, 0, read, AudioTrack.WRITE_BLOCKING)
                     }
                 }
             } catch (e: Exception) {
