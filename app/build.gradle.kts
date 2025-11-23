@@ -1,8 +1,24 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
 }
+
+// Read version properties
+val versionPropertiesFile = file("version.properties")
+if (!versionPropertiesFile.exists()) {
+    throw GradleException("version.properties not found in ${versionPropertiesFile.absolutePath}")
+}
+val versionProperties = Properties()
+versionPropertiesFile.inputStream().use {
+    versionProperties.load(it)
+}
+
+// Safely read properties with default values
+val appVersionCode = versionProperties.getProperty("APP_VERSION_CODE", "1").toInt()
+val appVersionName = versionProperties.getProperty("APP_VERSION_NAME", "0.1.0")
 
 android {
     namespace = "com.thivyanstudios.hark"
@@ -17,12 +33,12 @@ android {
         applicationId = "com.thivyanstudios.hark"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.1.3.1"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Default status for debug builds
-        buildConfigField("String", "BUILD_STATUS", "\"DEBUG\"")
+        buildConfigField("String", "BUILD_STATUS", "\"ReleaseText\"")
     }
 
     buildTypes {
