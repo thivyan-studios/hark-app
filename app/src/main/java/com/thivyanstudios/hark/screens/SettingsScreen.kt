@@ -179,7 +179,7 @@ fun SettingsScreen(
                 Slider(
                     value = microphoneGain,
                     onValueChange = { viewModel.setMicrophoneGain(it) },
-                    valueRange = -20f..20f,
+                    valueRange = -10f..30f,
                     steps = 39,
                     onValueChangeFinished = {
                         if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
