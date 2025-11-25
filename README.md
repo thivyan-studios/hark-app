@@ -1,4 +1,4 @@
-# Hark – Hearing Aid Relay Kit
+# HARK – Hearing Aid Relay Kit
 
 Hark is a lightweight Android app that turns your phone into a live microphone, streaming audio directly to your hearing aids using Bluetooth. Built originally to solve a personal problem, Hark replaces the need for expensive “table microphone” hardware with a single button on your phone.
 
@@ -27,6 +27,7 @@ I built Hark because I needed it — and I hope it helps others too.
 ---
 
 "Hearing aid tech should be accessible — not locked behind overpriced accessories."
+> This app was developed in conjunction with Gemini, using my understanding of programming constructs, and ability to natively program Pascal.
 
 
 
