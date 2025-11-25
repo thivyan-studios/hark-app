@@ -15,16 +15,17 @@
     <!-- Bluetooth & Audio Routing -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android.fullBackupContent="@xml/backup_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/appicon"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/appicon"
         android:supportsRtl="true"
-        android.theme="@style/Theme.Hark"
+        android:theme="@style/Theme.Hark"
         tools:targetApi="31">
 
         <activity

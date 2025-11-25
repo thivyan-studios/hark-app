@@ -42,7 +42,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // For builds from the MAIN branch
             buildConfigField("String", "BUILD_STATUS", "\"Stable-Release\"")
@@ -95,4 +95,8 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+
+    implementation(libs.androidx.core.ktx) // Assuming the library name is 'androidx.core.ktx'
+    implementation(libs.material)         // Assuming the library name is 'material'
 }
