@@ -209,7 +209,7 @@ class AudioStreamingService : Service() {
 
             val name = "HARK Audio Streaming"
             val descriptionText = "Notification for ongoing audio streaming"
-            val importance = NotificationManager.IMPORTANCE_LOW
+            val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(channelId, name, importance).apply {
                 description = descriptionText
             }
@@ -230,6 +230,7 @@ class AudioStreamingService : Service() {
             .setWhen(System.currentTimeMillis())
             .setUsesChronometer(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setRequestPromotedOngoing(true)
             .build()
     }
 
