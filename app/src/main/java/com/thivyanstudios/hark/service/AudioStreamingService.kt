@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import com.thivyanstudios.hark.MainActivity
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,8 +30,10 @@ import kotlinx.coroutines.flow.onEach
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 import kotlin.math.pow
 
+@AndroidEntryPoint
 class AudioStreamingService : Service() {
 
     private val binder = LocalBinder()
@@ -38,7 +41,10 @@ class AudioStreamingService : Service() {
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
-    private lateinit var userPreferencesRepository: UserPreferencesRepository
+    
+    @Inject
+    lateinit var userPreferencesRepository: UserPreferencesRepository
+    
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var disableHearingAidPriority = false
     private var microphoneGain = 1.0f
@@ -80,7 +86,6 @@ class AudioStreamingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        userPreferencesRepository = UserPreferencesRepository(applicationContext)
 
         userPreferencesRepository.disableHearingAidPriority
             .onEach { newValue ->
@@ -135,7 +140,7 @@ class AudioStreamingService : Service() {
         val executor = Executors.newCachedThreadPool()
         this.streamingExecutor = executor
 
-        executor.execute {
+        executor.execute { 
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
 
             val sampleRate = 44100

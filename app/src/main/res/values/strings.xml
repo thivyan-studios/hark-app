@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">HARK</string>
     <string name="version_text">Developed by Thivyan Pillay (%1$s v%2$s)</string>
+    <string name="connect_hearing_system_first">Connect your hearing system first.</string>
+    <string name="permissions_required">Permissions are required to stream audio.</string>
 </resources>

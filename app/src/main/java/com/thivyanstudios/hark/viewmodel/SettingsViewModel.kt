@@ -1,23 +1,51 @@
 package com.thivyanstudios.hark.viewmodel
 
 import android.annotation.SuppressLint
+import android.app.Application
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.thivyanstudios.hark.BuildConfig
+import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@HiltViewModel
 @SuppressLint("MissingPermission")
-class SettingsViewModel(
+class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val bluetoothAdapter: BluetoothAdapter?
+    private val bluetoothAdapter: BluetoothAdapter?,
+    private val application: Application
 ) : ViewModel() {
+
+    val versionName: StateFlow<String> = MutableStateFlow(
+        try {
+            val packageInfo = application.packageManager.getPackageInfo(application.packageName, 0)
+            val currentVersionName = packageInfo.versionName
+            val buildStatus = BuildConfig.BUILD_STATUS
+            application.getString(
+                R.string.version_text,
+                buildStatus,
+                currentVersionName
+            )
+        } catch (e: PackageManager.NameNotFoundException) {
+            e.printStackTrace()
+            "Developed by Thivyan Pillay (Version not found)"
+        }
+    ).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = ""
+    )
 
     val hapticFeedbackEnabled: StateFlow<Boolean> = userPreferencesRepository.hapticFeedbackEnabled
         .stateIn(
