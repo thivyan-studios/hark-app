@@ -1,14 +1,23 @@
 package com.thivyanstudios.hark.viewmodel
 
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class SettingsViewModel(private val userPreferencesRepository: UserPreferencesRepository) : ViewModel() {
+@SuppressLint("MissingPermission")
+class SettingsViewModel(
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val bluetoothAdapter: BluetoothAdapter?
+) : ViewModel() {
 
     val hapticFeedbackEnabled: StateFlow<Boolean> = userPreferencesRepository.hapticFeedbackEnabled
         .stateIn(
@@ -72,6 +81,19 @@ class SettingsViewModel(private val userPreferencesRepository: UserPreferencesRe
     fun setMicrophoneGain(gain: Float) {
         viewModelScope.launch {
             userPreferencesRepository.setMicrophoneGain(gain)
+        }
+    }
+
+    private val _bluetoothDevices = MutableStateFlow<List<BluetoothDevice>>(emptyList())
+    val bluetoothDevices: StateFlow<List<BluetoothDevice>> = _bluetoothDevices.asStateFlow()
+
+    init {
+        getBluetoothDevices()
+    }
+
+    private fun getBluetoothDevices() {
+        bluetoothAdapter?.let {
+            _bluetoothDevices.value = it.bondedDevices.toList()
         }
     }
 }

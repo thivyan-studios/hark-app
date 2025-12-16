@@ -1,6 +1,7 @@
 package com.thivyanstudios.hark
 
 import android.Manifest
+import android.bluetooth.BluetoothManager
 import android.content.*
 import android.content.pm.PackageManager
 import android.os.Build
@@ -74,7 +75,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val userPreferencesRepository = UserPreferencesRepository(applicationContext)
-        val settingsViewModelFactory = SettingsViewModelFactory(userPreferencesRepository)
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val settingsViewModelFactory = SettingsViewModelFactory(userPreferencesRepository, bluetoothManager.adapter)
         val settingsViewModel: SettingsViewModel by viewModels { settingsViewModelFactory }
 
         setContent {
