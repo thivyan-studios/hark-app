@@ -22,6 +22,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.thivyanstudios.hark.R
 
@@ -34,14 +35,30 @@ fun BottomNavBar(navController: NavController, hapticFeedbackEnabled: Boolean) {
             icon = { Icon(painterResource(id = R.drawable.ic_home), contentDescription = "Home") },
             label = { Text("Home") },
             selected = currentRoute == "home",
-            onClick = { navController.navigate("home") },
+            onClick = {
+                navController.navigate("home") {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
             hapticFeedbackEnabled = hapticFeedbackEnabled
         )
         AnimatedNavigationBarItem(
             icon = { Icon(painterResource(id = R.drawable.ic_settings), contentDescription = "Settings") },
             label = { Text("Settings") },
             selected = currentRoute == "settings",
-            onClick = { navController.navigate("settings") },
+            onClick = {
+                navController.navigate("settings") {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
             hapticFeedbackEnabled = hapticFeedbackEnabled
         )
     }

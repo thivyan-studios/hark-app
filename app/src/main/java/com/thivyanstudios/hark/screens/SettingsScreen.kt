@@ -46,28 +46,26 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.thivyanstudios.hark.viewmodel.SettingsViewModel
-import com.thivyanstudios.hark.viewmodel.SettingsViewModelFactory
 import java.text.DecimalFormat
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    versionName: String,
-    factory: SettingsViewModelFactory,
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
     innerPadding: PaddingValues
 ) {
-    val viewModel: SettingsViewModel = viewModel(factory = factory)
     val uriHandler = LocalUriHandler.current
     val haptic = LocalHapticFeedback.current
-    val hapticFeedbackEnabled by viewModel.hapticFeedbackEnabled.collectAsState()
-    val isDarkMode by viewModel.isDarkMode.collectAsState()
-    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
-    val disableHearingAidPriority by viewModel.disableHearingAidPriority.collectAsState()
-    val microphoneGain by viewModel.microphoneGain.collectAsState()
-    val bluetoothDevices by viewModel.bluetoothDevices.collectAsState()
+    val versionName by settingsViewModel.versionName.collectAsState()
+    val hapticFeedbackEnabled by settingsViewModel.hapticFeedbackEnabled.collectAsState()
+    val isDarkMode by settingsViewModel.isDarkMode.collectAsState()
+    val keepScreenOn by settingsViewModel.keepScreenOn.collectAsState()
+    val disableHearingAidPriority by settingsViewModel.disableHearingAidPriority.collectAsState()
+    val microphoneGain by settingsViewModel.microphoneGain.collectAsState()
+    val bluetoothDevices by settingsViewModel.bluetoothDevices.collectAsState()
     val df = remember { DecimalFormat("0.0") }
 
     var isPressed by remember { mutableStateOf(false) }
@@ -110,7 +108,7 @@ fun SettingsScreen(
                         checked = hapticFeedbackEnabled,
                         onCheckedChange = {
                             if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.setHapticFeedbackEnabled(it)
+                            settingsViewModel.setHapticFeedbackEnabled(it)
                         }
                     )
                 }
@@ -126,7 +124,7 @@ fun SettingsScreen(
                         checked = isDarkMode,
                         onCheckedChange = {
                             if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.setIsDarkMode(it)
+                            settingsViewModel.setIsDarkMode(it)
                         }
                     )
                 }
@@ -142,7 +140,7 @@ fun SettingsScreen(
                         checked = keepScreenOn,
                         onCheckedChange = {
                             if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.setKeepScreenOn(it)
+                            settingsViewModel.setKeepScreenOn(it)
                         }
                     )
                 }
@@ -158,7 +156,7 @@ fun SettingsScreen(
                         checked = disableHearingAidPriority,
                         onCheckedChange = {
                             if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.setDisableHearingAidPriority(it)
+                            settingsViewModel.setDisableHearingAidPriority(it)
                         }
                     )
                 }
@@ -190,7 +188,7 @@ fun SettingsScreen(
                 }
                 Slider(
                     value = microphoneGain,
-                    onValueChange = { viewModel.setMicrophoneGain(it) },
+                    onValueChange = { settingsViewModel.setMicrophoneGain(it) },
                     valueRange = -10f..30f,
                     steps = 39,
                     onValueChangeFinished = {
