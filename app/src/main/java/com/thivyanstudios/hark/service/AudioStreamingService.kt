@@ -133,7 +133,7 @@ class AudioStreamingService : Service() {
         _isStreaming.value = true
 
         startForeground(NOTIFICATION_ID, createNotification())
-        wakeLock?.acquire(10 * 60 * 1000L) // 10 minute timeout, for safety
+        wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
 
         val executor = Executors.newCachedThreadPool()
         this.streamingExecutor = executor
@@ -141,14 +141,13 @@ class AudioStreamingService : Service() {
         executor.execute {
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
 
-            val sampleRate = 44100
             val channelConfig = AudioFormat.CHANNEL_IN_MONO
             val audioFormat = AudioFormat.ENCODING_PCM_FLOAT
-            val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat) * 2
+            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, channelConfig, audioFormat) * BUFFER_SIZE_MULTIPLIER
 
             val audioPlayBack = AudioTrack.Builder()
                 .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                .setAudioFormat(AudioFormat.Builder().setEncoding(audioFormat).setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                .setAudioFormat(AudioFormat.Builder().setEncoding(audioFormat).setSampleRate(SAMPLE_RATE).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
                 .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .apply {
@@ -159,7 +158,7 @@ class AudioStreamingService : Service() {
             var audioRecord: AudioRecord? = null
 
             try {
-                audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, bufferSize)
+                audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channelConfig, audioFormat, bufferSize)
                 audioRecord.startRecording()
 
                 audioPlayBack.play()
@@ -240,6 +239,9 @@ class AudioStreamingService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val TAG = "AudioStreamingService"
+        private const val SAMPLE_RATE = 44100
+        private const val BUFFER_SIZE_MULTIPLIER = 2
+        private const val WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L // 10 minutes
     }
 
     override fun onDestroy() {
