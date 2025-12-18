@@ -1,13 +1,10 @@
 package com.thivyanstudios.hark
 
 import android.Manifest
-import android.content.ComponentName
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,6 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import com.thivyanstudios.hark.screens.BottomNavBar
 import com.thivyanstudios.hark.screens.HomeScreen
 import com.thivyanstudios.hark.screens.SettingsScreen
+import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.service.AudioStreamingService
 import com.thivyanstudios.hark.ui.MainUiState
 import com.thivyanstudios.hark.ui.theme.HarkTheme
@@ -35,11 +33,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    @Inject
+    lateinit var audioServiceManager: AudioServiceManager
     private val settingsViewModel: SettingsViewModel by viewModels()
     private val snackbarChannel = Channel<String>()
     private val requestPermissionLauncher = registerForActivityResult(
@@ -51,34 +52,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    private var audioService by mutableStateOf<AudioStreamingService?>(null)
-    private var bound by mutableStateOf(false)
-
-    private val audioServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as AudioStreamingService.LocalBinder
-            audioService = binder.getService()
-            bound = true
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            bound = false
-        }
-    }
 
     override fun onStart() {
         super.onStart()
-        Intent(this, AudioStreamingService::class.java).also { intent ->
-            bindService(intent, audioServiceConnection, BIND_AUTO_CREATE)
-        }
+        audioServiceManager.bindService()
     }
 
     override fun onStop() {
         super.onStop()
-        if (bound) {
-            unbindService(audioServiceConnection)
-            bound = false
-        }
+        audioServiceManager.unbindService()
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
@@ -89,12 +71,12 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
 
         setContent {
-            val service = audioService
-            val uiState by remember(service, bound) {
-                if (service != null && bound) {
+            val service by audioServiceManager.service.collectAsStateWithLifecycle()
+            val uiState by remember(service) {
+                if (service != null) {
                     combine(
-                        service.isStreaming,
-                        service.hearingAidConnected,
+                        service!!.isStreaming,
+                        service!!.hearingAidConnected,
                         settingsViewModel.hapticFeedbackEnabled,
                         settingsViewModel.isDarkMode,
                         settingsViewModel.keepScreenOn
@@ -173,12 +155,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        startService(Intent(this, AudioStreamingService::class.java))
+        audioServiceManager.startService()
     }
 
     private fun toggleStreaming() {
         if (hasPermissions()) {
-            val service = audioService
+            val service = audioServiceManager.service.value
             if (service?.isStreaming?.value == true) {
                 service.stopStreaming()
             } else {
