@@ -22,6 +22,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.thivyanstudios.hark.R
 
@@ -81,7 +82,7 @@ fun HomeScreen(
                 } else {
                     painterResource(id = R.drawable.ic_mic_off)
                 },
-                contentDescription = "Button to stream",
+                contentDescription = stringResource(R.string.cd_stream_button),
                 modifier = Modifier.size(100.dp)
             )
         }

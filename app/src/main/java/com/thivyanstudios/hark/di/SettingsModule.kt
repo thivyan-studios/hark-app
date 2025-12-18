@@ -1,7 +1,5 @@
 package com.thivyanstudios.hark.di
 
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
 import android.content.Context
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import dagger.Module
@@ -19,12 +17,5 @@ object SettingsModule {
     @Singleton
     fun provideUserPreferencesRepository(@ApplicationContext context: Context): UserPreferencesRepository {
         return UserPreferencesRepository(context)
-    }
-
-    @Provides
-    @Singleton
-    fun provideBluetoothAdapter(@ApplicationContext context: Context): BluetoothAdapter? {
-        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        return bluetoothManager.adapter
     }
 }

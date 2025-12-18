@@ -1,10 +1,13 @@
 package com.thivyanstudios.hark
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,7 +26,6 @@ import androidx.navigation.compose.rememberNavController
 import com.thivyanstudios.hark.screens.BottomNavBar
 import com.thivyanstudios.hark.screens.HomeScreen
 import com.thivyanstudios.hark.screens.SettingsScreen
-import com.thivyanstudios.hark.service.AudioServiceConnection
 import com.thivyanstudios.hark.service.AudioStreamingService
 import com.thivyanstudios.hark.ui.MainUiState
 import com.thivyanstudios.hark.ui.theme.HarkTheme
@@ -38,17 +40,29 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    private val settingsViewModel: SettingsViewModel by viewModels()
     private val snackbarChannel = Channel<String>()
-    private val audioServiceConnection = AudioServiceConnection()
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions.entries.all { it.value }) {
-            toggleStreaming() // All permissions granted, try streaming again
-        } else {
+        if (permissions.entries.any { !it.value }) {
             lifecycleScope.launch {
                 snackbarChannel.send(getString(R.string.permissions_required))
             }
+        }
+    }
+    private var audioService by mutableStateOf<AudioStreamingService?>(null)
+    private var bound by mutableStateOf(false)
+
+    private val audioServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as AudioStreamingService.LocalBinder
+            audioService = binder.getService()
+            bound = true
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            bound = false
         }
     }
 
@@ -61,9 +75,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (audioServiceConnection.bound) {
+        if (bound) {
             unbindService(audioServiceConnection)
-            audioServiceConnection.bound = false
+            bound = false
         }
     }
 
@@ -71,12 +85,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val settingsViewModel: SettingsViewModel by viewModels()
+
+        requestPermissions()
 
         setContent {
-            val service = audioServiceConnection.audioService
-            val uiState by remember(service) {
-                if (service != null) {
+            val service = audioService
+            val uiState by remember(service, bound) {
+                if (service != null && bound) {
                     combine(
                         service.isStreaming,
                         service.hearingAidConnected,
@@ -163,12 +178,12 @@ class MainActivity : ComponentActivity() {
 
     private fun toggleStreaming() {
         if (hasPermissions()) {
-            val audioService = audioServiceConnection.audioService
-            if (audioService?.isStreaming?.value == true) {
-                audioService.stopStreaming()
+            val service = audioService
+            if (service?.isStreaming?.value == true) {
+                service.stopStreaming()
             } else {
-                if (audioService?.hearingAidConnected?.value == true) {
-                    audioService.startStreaming()
+                if (service?.hearingAidConnected?.value == true) {
+                    service.startStreaming()
                 } else {
                     lifecycleScope.launch {
                         snackbarChannel.send(getString(R.string.connect_hearing_system_first))
@@ -182,9 +197,6 @@ class MainActivity : ComponentActivity() {
 
     private fun hasPermissions(): Boolean {
         val requiredPermissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            requiredPermissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requiredPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -195,11 +207,6 @@ class MainActivity : ComponentActivity() {
         val permissionsToRequest = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
-            }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {

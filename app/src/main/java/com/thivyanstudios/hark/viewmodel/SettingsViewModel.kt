@@ -2,8 +2,6 @@ package com.thivyanstudios.hark.viewmodel
 
 import android.annotation.SuppressLint
 import android.app.Application
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,7 +12,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,7 +20,6 @@ import javax.inject.Inject
 @SuppressLint("MissingPermission")
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val bluetoothAdapter: BluetoothAdapter?,
     private val application: Application
 ) : ViewModel() {
 
@@ -39,7 +35,7 @@ class SettingsViewModel @Inject constructor(
             )
         } catch (e: PackageManager.NameNotFoundException) {
             e.printStackTrace()
-            "Developed by Thivyan Pillay (Version not found)"
+            application.getString(R.string.version_not_found)
         }
     ).stateIn(
         scope = viewModelScope,
@@ -109,19 +105,6 @@ class SettingsViewModel @Inject constructor(
     fun setMicrophoneGain(gain: Float) {
         viewModelScope.launch {
             userPreferencesRepository.setMicrophoneGain(gain)
-        }
-    }
-
-    private val _bluetoothDevices = MutableStateFlow<List<BluetoothDevice>>(emptyList())
-    val bluetoothDevices: StateFlow<List<BluetoothDevice>> = _bluetoothDevices.asStateFlow()
-
-    init {
-        getBluetoothDevices()
-    }
-
-    private fun getBluetoothDevices() {
-        bluetoothAdapter?.let {
-            _bluetoothDevices.value = it.bondedDevices.toList()
         }
     }
 }
