@@ -3,4 +3,29 @@
     <string name="version_text">Developed by Thivyan Pillay (%1$s v%2$s)</string>
     <string name="connect_hearing_system_first">Connect your hearing system first.</string>
     <string name="permissions_required">Permissions are required to stream audio.</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_haptic_feedback">Haptic feedback</string>
+    <string name="settings_dark_mode">Use dark mode</string>
+    <string name="settings_keep_screen_on">Keep screen on when in foreground</string>
+    <string name="settings_disable_hearing_aid_priority">Disable Hearing Aid priority</string>
+    <string name="settings_microphone_gain">Microphone gain</string>
+    <string name="settings_support_kofi">Support me on Ko-fi ☕</string>
+    <string name="gain_db_format">%1$s dB</string>
+
+    <!-- Bottom Nav -->
+    <string name="nav_home">Home</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Home Screen -->
+    <string name="cd_stream_button">Button to stream</string>
+
+    <!-- Service Notification -->
+    <string name="notification_channel_name">HARK Audio Streaming</string>
+    <string name="notification_channel_description">Notification for ongoing audio streaming</string>
+    <string name="notification_title">HARK is running</string>
+    <string name="notification_text">Streaming live audio</string>
+
+    <!-- ViewModel -->
+    <string name="version_not_found">Developed by Thivyan Pillay (Version not found)</string>
 </resources>

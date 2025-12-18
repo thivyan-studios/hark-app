@@ -1,96 +1,80 @@
 package com.thivyanstudios.hark.data
 
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.core.content.edit
-import kotlinx.coroutines.channels.awaitClose
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.map
 
-class UserPreferencesRepository(context: Context) {
+private const val SETTINGS_PREFERENCES_NAME = "settings"
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = SETTINGS_PREFERENCES_NAME)
 
-    private val sharedPreferences: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+class UserPreferencesRepository(private val context: Context) {
 
     private object PreferenceKeys {
-        const val HAPTIC_FEEDBACK_ENABLED = "haptic_feedback_enabled"
-        const val IS_DARK_MODE = "is_dark_mode"
-        const val KEEP_SCREEN_ON = "keep_screen_on"
-        const val DISABLE_HEARING_AID_PRIORITY = "disable_hearing_aid_priority"
-        const val MICROPHONE_GAIN = "microphone_gain"
+        val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
+        val IS_DARK_MODE = booleanPreferencesKey("is_dark_mode")
+        val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
+        val DISABLE_HEARING_AID_PRIORITY = booleanPreferencesKey("disable_hearing_aid_priority")
+        val MICROPHONE_GAIN = floatPreferencesKey("microphone_gain")
     }
 
-    val hapticFeedbackEnabled: Flow<Boolean> = callbackFlow {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == PreferenceKeys.HAPTIC_FEEDBACK_ENABLED) {
-                trySend(sharedPreferences.getBoolean(key, false))
-            }
+    val hapticFeedbackEnabled: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferenceKeys.HAPTIC_FEEDBACK_ENABLED] ?: false
         }
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
-        trySend(sharedPreferences.getBoolean(PreferenceKeys.HAPTIC_FEEDBACK_ENABLED, false))
-        awaitClose { sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
 
-    fun setHapticFeedbackEnabled(isEnabled: Boolean) {
-        sharedPreferences.edit { putBoolean(PreferenceKeys.HAPTIC_FEEDBACK_ENABLED, isEnabled) }
-    }
-
-    val isDarkMode: Flow<Boolean> = callbackFlow {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == PreferenceKeys.IS_DARK_MODE) {
-                trySend(sharedPreferences.getBoolean(key, true))
-            }
+    suspend fun setHapticFeedbackEnabled(isEnabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.HAPTIC_FEEDBACK_ENABLED] = isEnabled
         }
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
-        trySend(sharedPreferences.getBoolean(PreferenceKeys.IS_DARK_MODE, true))
-        awaitClose { sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
-    fun setIsDarkMode(isEnabled: Boolean) {
-        sharedPreferences.edit { putBoolean(PreferenceKeys.IS_DARK_MODE, isEnabled) }
-    }
-
-    val keepScreenOn: Flow<Boolean> = callbackFlow {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == PreferenceKeys.KEEP_SCREEN_ON) {
-                trySend(sharedPreferences.getBoolean(key, false))
-            }
+    val isDarkMode: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferenceKeys.IS_DARK_MODE] ?: true
         }
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
-        trySend(sharedPreferences.getBoolean(PreferenceKeys.KEEP_SCREEN_ON, false))
-        awaitClose { sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
 
-    fun setKeepScreenOn(isEnabled: Boolean) {
-        sharedPreferences.edit { putBoolean(PreferenceKeys.KEEP_SCREEN_ON, isEnabled) }
-    }
-
-    val disableHearingAidPriority: Flow<Boolean> = callbackFlow {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == PreferenceKeys.DISABLE_HEARING_AID_PRIORITY) {
-                trySend(sharedPreferences.getBoolean(key, false))
-            }
+    suspend fun setIsDarkMode(isEnabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.IS_DARK_MODE] = isEnabled
         }
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
-        trySend(sharedPreferences.getBoolean(PreferenceKeys.DISABLE_HEARING_AID_PRIORITY, false))
-        awaitClose { sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
-    fun setDisableHearingAidPriority(isEnabled: Boolean) {
-        sharedPreferences.edit { putBoolean(PreferenceKeys.DISABLE_HEARING_AID_PRIORITY, isEnabled) }
-    }
-
-    val microphoneGain: Flow<Float> = callbackFlow {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == PreferenceKeys.MICROPHONE_GAIN) {
-                trySend(sharedPreferences.getFloat(key, 0.0f))
-            }
+    val keepScreenOn: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferenceKeys.KEEP_SCREEN_ON] ?: false
         }
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
-        trySend(sharedPreferences.getFloat(PreferenceKeys.MICROPHONE_GAIN, 0.0f))
-        awaitClose { sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
+
+    suspend fun setKeepScreenOn(isEnabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.KEEP_SCREEN_ON] = isEnabled
+        }
     }
 
-    fun setMicrophoneGain(gain: Float) {
-        sharedPreferences.edit { putFloat(PreferenceKeys.MICROPHONE_GAIN, gain) }
+    val disableHearingAidPriority: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferenceKeys.DISABLE_HEARING_AID_PRIORITY] ?: false
+        }
+
+    suspend fun setDisableHearingAidPriority(isEnabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.DISABLE_HEARING_AID_PRIORITY] = isEnabled
+        }
+    }
+
+    val microphoneGain: Flow<Float> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferenceKeys.MICROPHONE_GAIN] ?: 0.0f
+        }
+
+    suspend fun setMicrophoneGain(gain: Float) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.MICROPHONE_GAIN] = gain
+        }
     }
 }

@@ -96,7 +96,7 @@ dependencies {
     kapt(libs.hilt.compiler)
 
     // DataStore
-    implementation("androidx.datastore:datastore-preferences:1.2.0")
+    implementation(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -105,8 +105,4 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-
-
-    implementation(libs.androidx.core.ktx) // Assuming the library name is 'androidx.core.ktx'
-    implementation(libs.material)         // Assuming the library name is 'material'
 }

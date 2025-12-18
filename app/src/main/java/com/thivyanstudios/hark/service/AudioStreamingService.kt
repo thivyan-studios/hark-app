@@ -41,10 +41,8 @@ class AudioStreamingService : Service() {
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
-    
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository
-    
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var disableHearingAidPriority = false
     private var microphoneGain = 1.0f
@@ -140,7 +138,7 @@ class AudioStreamingService : Service() {
         val executor = Executors.newCachedThreadPool()
         this.streamingExecutor = executor
 
-        executor.execute { 
+        executor.execute {
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
 
             val sampleRate = 44100
@@ -212,8 +210,8 @@ class AudioStreamingService : Service() {
         val channelId = "hark_channel"
 
 
-            val name = "HARK Audio Streaming"
-            val descriptionText = "Notification for ongoing audio streaming"
+            val name = getString(R.string.notification_channel_name)
+            val descriptionText = getString(R.string.notification_channel_description)
             val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(channelId, name, importance).apply {
                 description = descriptionText
@@ -227,8 +225,8 @@ class AudioStreamingService : Service() {
         )
 
         return NotificationCompat.Builder(this, channelId)
-            .setContentTitle("HARK is running")
-            .setContentText("Streaming live audio")
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(getString(R.string.notification_text))
             .setSmallIcon(R.drawable.ic_mic_on)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

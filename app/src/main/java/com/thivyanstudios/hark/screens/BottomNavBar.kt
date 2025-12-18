@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -32,8 +33,8 @@ fun BottomNavBar(navController: NavController, hapticFeedbackEnabled: Boolean) {
     val currentRoute = navBackStackEntry?.destination?.route
     NavigationBar {
         AnimatedNavigationBarItem(
-            icon = { Icon(painterResource(id = R.drawable.ic_home), contentDescription = "Home") },
-            label = { Text("Home") },
+            icon = { Icon(painterResource(id = R.drawable.ic_home), contentDescription = stringResource(R.string.nav_home)) },
+            label = { Text(stringResource(R.string.nav_home)) },
             selected = currentRoute == "home",
             onClick = {
                 navController.navigate("home") {
@@ -47,8 +48,8 @@ fun BottomNavBar(navController: NavController, hapticFeedbackEnabled: Boolean) {
             hapticFeedbackEnabled = hapticFeedbackEnabled
         )
         AnimatedNavigationBarItem(
-            icon = { Icon(painterResource(id = R.drawable.ic_settings), contentDescription = "Settings") },
-            label = { Text("Settings") },
+            icon = { Icon(painterResource(id = R.drawable.ic_settings), contentDescription = stringResource(R.string.nav_settings)) },
+            label = { Text(stringResource(R.string.nav_settings)) },
             selected = currentRoute == "settings",
             onClick = {
                 navController.navigate("settings") {
