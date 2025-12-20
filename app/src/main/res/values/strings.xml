@@ -12,6 +12,7 @@
     <string name="settings_microphone_gain">Microphone gain</string>
     <string name="settings_support_kofi">Support me on Ko-fi ☕</string>
     <string name="gain_db_format">%1$s dB</string>
+    <string name="settings_noise_suppression">Noise Suppression</string>
 
     <!-- Bottom Nav -->
     <string name="nav_home">Home</string>
@@ -28,4 +29,5 @@
 
     <!-- ViewModel -->
     <string name="version_not_found">Developed by Thivyan Pillay (Version not found)</string>
+    <string name="noise_suppression_not_available">Noise suppression is not available on this device.</string>
 </resources>

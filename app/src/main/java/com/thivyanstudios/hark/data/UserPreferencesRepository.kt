@@ -21,6 +21,7 @@ class UserPreferencesRepository(private val context: Context) {
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         val DISABLE_HEARING_AID_PRIORITY = booleanPreferencesKey("disable_hearing_aid_priority")
         val MICROPHONE_GAIN = floatPreferencesKey("microphone_gain")
+        val NOISE_SUPPRESSION_ENABLED = booleanPreferencesKey("noise_suppression_enabled")
     }
 
     val hapticFeedbackEnabled: Flow<Boolean> = context.dataStore.data
@@ -75,6 +76,17 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setMicrophoneGain(gain: Float) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.MICROPHONE_GAIN] = gain
+        }
+    }
+
+    val noiseSuppressionEnabled: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] ?: false
+        }
+
+    suspend fun setNoiseSuppressionEnabled(isEnabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] = isEnabled
         }
     }
 }
