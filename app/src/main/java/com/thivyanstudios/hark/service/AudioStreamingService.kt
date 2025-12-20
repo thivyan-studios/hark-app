@@ -11,12 +11,9 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import android.os.Process
 import android.util.Log
 import androidx.annotation.RequiresPermission
-import androidx.core.app.NotificationCompat
-import com.thivyanstudios.hark.MainActivity
-import com.thivyanstudios.hark.R
+import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -27,9 +24,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.pow
 
@@ -37,15 +31,21 @@ import kotlin.math.pow
 class AudioStreamingService : Service() {
 
     private val binder = LocalBinder()
-    private var streamingExecutor: ExecutorService? = null
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
+    
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository
+    
+    @Inject
+    lateinit var audioEngine: AudioEngine
+
+    @Inject
+    lateinit var notificationHelper: NotificationHelper
+
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var disableHearingAidPriority = false
-    private var microphoneGain = 1.0f
 
     private val _hearingAidConnected = MutableStateFlow(false)
     val hearingAidConnected = _hearingAidConnected.asStateFlow()
@@ -97,7 +97,10 @@ class AudioStreamingService : Service() {
             .launchIn(serviceScope)
 
         userPreferencesRepository.microphoneGain
-            .onEach { microphoneGain = 10.0.pow(it / 20.0).toFloat() }
+            .onEach { 
+                val gain = 10.0.pow(it / 20.0).toFloat()
+                audioEngine.setMicrophoneGain(gain)
+            }
             .launchIn(serviceScope)
 
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
@@ -132,58 +135,10 @@ class AudioStreamingService : Service() {
         Log.d(TAG, "startStreaming called.")
         _isStreaming.value = true
 
-        startForeground(NOTIFICATION_ID, createNotification())
+        startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
         wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
 
-        val executor = Executors.newCachedThreadPool()
-        this.streamingExecutor = executor
-
-        executor.execute {
-            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-
-            val channelConfig = AudioFormat.CHANNEL_IN_MONO
-            val audioFormat = AudioFormat.ENCODING_PCM_FLOAT
-            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, channelConfig, audioFormat) * BUFFER_SIZE_MULTIPLIER
-
-            val audioPlayBack = AudioTrack.Builder()
-                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                .setAudioFormat(AudioFormat.Builder().setEncoding(audioFormat).setSampleRate(SAMPLE_RATE).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                .setBufferSizeInBytes(bufferSize)
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .apply {
-                        setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                }
-                .build()
-
-            var audioRecord: AudioRecord? = null
-
-            try {
-                audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channelConfig, audioFormat, bufferSize)
-                audioRecord.startRecording()
-
-                audioPlayBack.play()
-
-                while (_isStreaming.value) {
-                    val buffer = FloatArray(bufferSize / 4)
-                    val read = audioRecord.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING)
-                    if (read > 0) {
-                        for (i in 0 until read) {
-                            buffer[i] *= microphoneGain
-                        }
-                        audioPlayBack.write(buffer, 0, read, AudioTrack.WRITE_BLOCKING)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception in streaming loop", e)
-            } finally {
-                Log.d(TAG, "Cleaning up streaming resources.")
-                audioRecord?.stop()
-                audioRecord?.release()
-                audioPlayBack.stop()
-                audioPlayBack.release()
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-            }
-        }
+        audioEngine.start()
     }
 
     fun stopStreaming() {
@@ -191,56 +146,17 @@ class AudioStreamingService : Service() {
         Log.d(TAG, "stopStreaming called.")
         _isStreaming.value = false
 
-        streamingExecutor?.shutdownNow()
-        try {
-            if (streamingExecutor?.awaitTermination(1, TimeUnit.SECONDS) == false) {
-                Log.e(TAG, "Streaming executor did not terminate in time.")
-            }
-        } catch (e: InterruptedException) {
-            Log.e(TAG, "Interrupted while waiting for executor termination", e)
-        }
+        audioEngine.stop()
 
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
         }
-    }
-
-    private fun createNotification(): Notification {
-        val channelId = "hark_channel"
-
-
-            val name = getString(R.string.notification_channel_name)
-            val descriptionText = getString(R.string.notification_channel_description)
-            val importance = NotificationManager.IMPORTANCE_HIGH
-            val channel = NotificationChannel(channelId, name, importance).apply {
-                description = descriptionText
-            }
-            val notificationManager: NotificationManager =
-                getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-
-        val pendingIntent: PendingIntent = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, channelId)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text))
-            .setSmallIcon(R.drawable.ic_mic_on)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setWhen(System.currentTimeMillis())
-            .setUsesChronometer(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setRequestPromotedOngoing(true)
-            .build()
+        stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val TAG = "AudioStreamingService"
-        private const val SAMPLE_RATE = 44100
-        private const val BUFFER_SIZE_MULTIPLIER = 2
         private const val WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L // 10 minutes
     }
 
