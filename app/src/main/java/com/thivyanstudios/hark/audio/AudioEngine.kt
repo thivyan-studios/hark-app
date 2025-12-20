@@ -6,8 +6,10 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.media.audiofx.NoiseSuppressor
 import android.os.Process
 import android.util.Log
+import kotlinx.coroutines.channels.Channel
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -20,9 +22,21 @@ class AudioEngine @Inject constructor() {
     private val isRunning = AtomicBoolean(false)
     @Volatile
     private var microphoneGain = 1.0f
+    @Volatile
+    private var noiseSuppressionEnabled = false
+    private var noiseSuppressor: NoiseSuppressor? = null
+
+    // Channel to send one-time events to the Service/UI
+    val events = Channel<AudioEngineEvent>(Channel.BUFFERED)
 
     fun setMicrophoneGain(gain: Float) {
         microphoneGain = gain
+    }
+
+    fun setNoiseSuppressionEnabled(enabled: Boolean) {
+        noiseSuppressionEnabled = enabled
+        // If we already have a suppressor instance, update its state dynamically
+        noiseSuppressor?.enabled = enabled
     }
 
     @SuppressLint("MissingPermission")
@@ -58,8 +72,16 @@ class AudioEngine @Inject constructor() {
 
             try {
                 audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channelConfig, audioFormat, bufferSize)
-                audioRecord.startRecording()
 
+                if (NoiseSuppressor.isAvailable()) {
+                     noiseSuppressor = NoiseSuppressor.create(audioRecord.audioSessionId)
+                     noiseSuppressor?.enabled = noiseSuppressionEnabled
+                } else {
+                    Log.w(TAG, "NoiseSuppressor is not available on this device.")
+                    events.trySend(AudioEngineEvent.NoiseSuppressorNotAvailable)
+                }
+
+                audioRecord.startRecording()
                 audioPlayBack.play()
 
                 while (isRunning.get()) {
@@ -77,6 +99,10 @@ class AudioEngine @Inject constructor() {
                 Log.e(TAG, "Exception in streaming loop", e)
             } finally {
                 Log.d(TAG, "Cleaning up streaming resources.")
+                
+                noiseSuppressor?.release()
+                noiseSuppressor = null
+
                 try {
                     audioRecord?.stop()
                     audioRecord?.release()
@@ -112,4 +138,8 @@ class AudioEngine @Inject constructor() {
         private const val SAMPLE_RATE = 44100
         private const val BUFFER_SIZE_MULTIPLIER = 2
     }
+}
+
+sealed class AudioEngineEvent {
+    object NoiseSuppressorNotAvailable : AudioEngineEvent()
 }

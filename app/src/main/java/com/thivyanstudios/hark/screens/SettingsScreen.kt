@@ -60,6 +60,7 @@ fun SettingsScreen(
     val keepScreenOn by settingsViewModel.keepScreenOn.collectAsState()
     val disableHearingAidPriority by settingsViewModel.disableHearingAidPriority.collectAsState()
     val microphoneGain by settingsViewModel.microphoneGain.collectAsState()
+    val noiseSuppressionEnabled by settingsViewModel.noiseSuppressionEnabled.collectAsState()
     val df = remember { DecimalFormat("0.0") }
 
     var isPressed by remember { mutableStateOf(false) }
@@ -151,6 +152,22 @@ fun SettingsScreen(
                         onCheckedChange = {
                             if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             settingsViewModel.setDisableHearingAidPriority(it)
+                        }
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = stringResource(R.string.settings_noise_suppression), modifier = Modifier.weight(1f).padding(end = 16.dp))
+                    Switch(
+                        checked = noiseSuppressionEnabled,
+                        onCheckedChange = {
+                            if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            settingsViewModel.setNoiseSuppressionEnabled(it)
                         }
                     )
                 }

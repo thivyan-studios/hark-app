@@ -107,4 +107,17 @@ class SettingsViewModel @Inject constructor(
             userPreferencesRepository.setMicrophoneGain(gain)
         }
     }
+
+    val noiseSuppressionEnabled: StateFlow<Boolean> = userPreferencesRepository.noiseSuppressionEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
+
+    fun setNoiseSuppressionEnabled(isEnabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNoiseSuppressionEnabled(isEnabled)
+        }
+    }
 }

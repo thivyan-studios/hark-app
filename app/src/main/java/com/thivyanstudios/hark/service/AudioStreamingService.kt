@@ -13,7 +13,9 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
+import com.thivyanstudios.hark.audio.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +26,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.pow
 
@@ -100,6 +104,27 @@ class AudioStreamingService : Service() {
             .onEach { 
                 val gain = 10.0.pow(it / 20.0).toFloat()
                 audioEngine.setMicrophoneGain(gain)
+            }
+            .launchIn(serviceScope)
+
+        userPreferencesRepository.noiseSuppressionEnabled
+            .onEach { isEnabled ->
+                audioEngine.setNoiseSuppressionEnabled(isEnabled)
+            }
+            .launchIn(serviceScope)
+            
+        audioEngine.events.receiveAsFlow()
+            .onEach { event ->
+                when(event) {
+                    is AudioEngineEvent.NoiseSuppressorNotAvailable -> {
+                         // We might want to communicate this back to the UI, but for now we can just log it or maybe
+                         // show a toast if the service was in the foreground, but services can't easily show Snackbars.
+                         // However, if we want to notify the user, we can try a Toast on the main thread.
+                         Handler(Looper.getMainLooper()).post {
+                             android.widget.Toast.makeText(this@AudioStreamingService, getString(R.string.noise_suppression_not_available), android.widget.Toast.LENGTH_SHORT).show()
+                         }
+                    }
+                }
             }
             .launchIn(serviceScope)
 
