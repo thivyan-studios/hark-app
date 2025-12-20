@@ -1,7 +1,6 @@
 package com.thivyanstudios.hark
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -16,7 +15,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -24,15 +22,10 @@ import com.thivyanstudios.hark.screens.BottomNavBar
 import com.thivyanstudios.hark.screens.HomeScreen
 import com.thivyanstudios.hark.screens.SettingsScreen
 import com.thivyanstudios.hark.service.AudioServiceManager
-import com.thivyanstudios.hark.service.AudioStreamingService
-import com.thivyanstudios.hark.ui.MainUiState
 import com.thivyanstudios.hark.ui.theme.HarkTheme
+import com.thivyanstudios.hark.viewmodel.MainViewModel
 import com.thivyanstudios.hark.viewmodel.SettingsViewModel
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,15 +34,14 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var audioServiceManager: AudioServiceManager
+    private val mainViewModel: MainViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
-    private val snackbarChannel = Channel<String>()
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions.entries.any { !it.value }) {
-            lifecycleScope.launch {
-                snackbarChannel.send(getString(R.string.permissions_required))
-            }
+            mainViewModel.showPermissionsRequiredMessage(getString(R.string.permissions_required))
         }
     }
 
@@ -71,42 +63,11 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
 
         setContent {
-            val service by audioServiceManager.service.collectAsStateWithLifecycle()
-            val uiState by remember(service) {
-                if (service != null) {
-                    combine(
-                        service!!.isStreaming,
-                        service!!.hearingAidConnected,
-                        settingsViewModel.hapticFeedbackEnabled,
-                        settingsViewModel.isDarkMode,
-                        settingsViewModel.keepScreenOn
-                    ) { isStreaming, hearingAidConnected, hapticFeedbackEnabled, isDarkMode, keepScreenOn ->
-                        MainUiState(
-                            isStreaming = isStreaming,
-                            hearingAidConnected = hearingAidConnected,
-                            hapticFeedbackEnabled = hapticFeedbackEnabled,
-                            isDarkMode = isDarkMode,
-                            keepScreenOn = keepScreenOn
-                        )
-                    }
-                } else {
-                    combine(
-                        settingsViewModel.hapticFeedbackEnabled,
-                        settingsViewModel.isDarkMode,
-                        settingsViewModel.keepScreenOn
-                    ) { hapticFeedbackEnabled, isDarkMode, keepScreenOn ->
-                        MainUiState(
-                            hapticFeedbackEnabled = hapticFeedbackEnabled,
-                            isDarkMode = isDarkMode,
-                            keepScreenOn = keepScreenOn
-                        )
-                    }
-                }
-            }.collectAsStateWithLifecycle(initialValue = MainUiState())
+            val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
 
             val snackbarHostState = remember { SnackbarHostState() }
-            LaunchedEffect(snackbarChannel) {
-                snackbarChannel.receiveAsFlow().collect { message ->
+            LaunchedEffect(true) {
+                mainViewModel.snackbarEvents.collect { message ->
                     snackbarHostState.showSnackbar(message)
                 }
             }
@@ -160,18 +121,7 @@ class MainActivity : ComponentActivity() {
 
     private fun toggleStreaming() {
         if (hasPermissions()) {
-            val service = audioServiceManager.service.value
-            if (service?.isStreaming?.value == true) {
-                service.stopStreaming()
-            } else {
-                if (service?.hearingAidConnected?.value == true) {
-                    service.startStreaming()
-                } else {
-                    lifecycleScope.launch {
-                        snackbarChannel.send(getString(R.string.connect_hearing_system_first))
-                    }
-                }
-            }
+            mainViewModel.toggleStreaming(getString(R.string.connect_hearing_system_first))
         } else {
             requestPermissions()
         }
