@@ -15,7 +15,7 @@ import android.util.Log
 import androidx.annotation.RequiresPermission
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
-import com.thivyanstudios.hark.audio.AudioEngineEvent
+import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.pow
 
@@ -117,9 +116,6 @@ class AudioStreamingService : Service() {
             .onEach { event ->
                 when(event) {
                     is AudioEngineEvent.NoiseSuppressorNotAvailable -> {
-                         // We might want to communicate this back to the UI, but for now we can just log it or maybe
-                         // show a toast if the service was in the foreground, but services can't easily show Snackbars.
-                         // However, if we want to notify the user, we can try a Toast on the main thread.
                          Handler(Looper.getMainLooper()).post {
                              android.widget.Toast.makeText(this@AudioStreamingService, getString(R.string.noise_suppression_not_available), android.widget.Toast.LENGTH_SHORT).show()
                          }
@@ -136,9 +132,9 @@ class AudioStreamingService : Service() {
 
     private fun updateHearingAidStatus() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-            val deviceType = if(disableHearingAidPriority) AudioDeviceInfo.TYPE_BLUETOOTH_SCO else AudioDeviceInfo.TYPE_HEARING_AID
-            _hearingAidConnected.value = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                .any { it.type == deviceType }
+        val deviceType = if(disableHearingAidPriority) AudioDeviceInfo.TYPE_BLUETOOTH_SCO else AudioDeviceInfo.TYPE_HEARING_AID
+        _hearingAidConnected.value = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .any { it.type == deviceType }
     }
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])

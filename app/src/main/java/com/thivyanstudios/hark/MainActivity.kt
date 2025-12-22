@@ -1,7 +1,5 @@
 package com.thivyanstudios.hark
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -11,21 +9,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.core.content.ContextCompat
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import com.thivyanstudios.hark.screens.BottomNavBar
-import com.thivyanstudios.hark.screens.HomeScreen
-import com.thivyanstudios.hark.screens.SettingsScreen
+import com.thivyanstudios.hark.ui.screens.BottomNavBar
+import com.thivyanstudios.hark.ui.screens.HomeScreen
+import com.thivyanstudios.hark.ui.screens.SettingsScreen
 import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.ui.theme.HarkTheme
-import com.thivyanstudios.hark.viewmodel.MainViewModel
-import com.thivyanstudios.hark.viewmodel.SettingsViewModel
+import com.thivyanstudios.hark.util.PermissionManager
+import com.thivyanstudios.hark.ui.viewmodel.MainViewModel
+import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,13 +38,7 @@ class MainActivity : ComponentActivity() {
     private val mainViewModel: MainViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions.entries.any { !it.value }) {
-            mainViewModel.showPermissionsRequiredMessage(getString(R.string.permissions_required))
-        }
-    }
+    private lateinit var permissionManager: PermissionManager
 
     override fun onStart() {
         super.onStart()
@@ -60,7 +55,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        requestPermissions()
+        permissionManager = PermissionManager(
+            this,
+            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+                permissionManager.handlePermissionsResult(permissions)
+            }
+        ) { mainViewModel.showPermissionsRequiredMessage(getString(R.string.permissions_required)) }
+
+        permissionManager.requestPermissions()
 
         setContent {
             val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
@@ -79,7 +81,13 @@ class MainActivity : ComponentActivity() {
             }
 
             HarkTheme(darkTheme = uiState.isDarkMode) {
-                val navController = rememberNavController()
+                val pagerState = rememberPagerState(pageCount = { 2 })
+                val coroutineScope = rememberCoroutineScope()
+                val currentRoute = when (pagerState.currentPage) {
+                    0 -> "home"
+                    else -> "settings"
+                }
+
                 Scaffold(
                     snackbarHost = {
                         SnackbarHost(snackbarHostState) { data ->
@@ -90,28 +98,39 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     },
-                    bottomBar = { BottomNavBar(navController = navController, hapticFeedbackEnabled = uiState.hapticFeedbackEnabled) },
+                    bottomBar = {
+                        BottomNavBar(
+                            currentRoute = currentRoute,
+                            onNavigate = { route ->
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(if (route == "settings") 1 else 0)
+                                }
+                            },
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                        )
+                    },
                     contentWindowInsets = ScaffoldDefaults.contentWindowInsets
                 ) { innerPadding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = "home",
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
                     ) {
-                        composable("home") {
-                            HomeScreen(
+                        page ->
+                        when(page) {
+                            0 -> HomeScreen(
                                 isStreaming = uiState.isStreaming,
                                 onStreamButtonClick = { toggleStreaming() },
-                                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                                innerPadding = innerPadding
+                                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                            )
+                            1 -> SettingsScreen(
+                                settingsViewModel = settingsViewModel
                             )
                         }
-                        composable("settings") {
-                            SettingsScreen(
-                                settingsViewModel = settingsViewModel,
-                                innerPadding = innerPadding
-                            )
-                        }
+
                     }
+
                 }
             }
         }
@@ -120,33 +139,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toggleStreaming() {
-        if (hasPermissions()) {
+        if (permissionManager.hasPermissions()) {
             mainViewModel.toggleStreaming(getString(R.string.connect_hearing_system_first))
         } else {
-            requestPermissions()
-        }
-    }
-
-    private fun hasPermissions(): Boolean {
-        val requiredPermissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requiredPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        return requiredPermissions.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
-    }
-
-    private fun requestPermissions() {
-        val permissionsToRequest = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-        if (permissionsToRequest.isNotEmpty()) {
-            requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
+            permissionManager.requestPermissions()
         }
     }
 }

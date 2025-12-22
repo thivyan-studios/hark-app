@@ -10,26 +10,37 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Singleton
 class AudioServiceManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
     private val _service = MutableStateFlow<AudioStreamingService?>(null)
     val service = _service.asStateFlow()
 
-    private var bound = false
+    private val isBound = AtomicBoolean(false)
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             val localBinder = binder as AudioStreamingService.LocalBinder
             _service.value = localBinder.getService()
-            bound = true
+            isBound.set(true)
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             _service.value = null
-            bound = false
+            isBound.set(false)
+        }
+
+        override fun onBindingDied(name: ComponentName?) {
+             _service.value = null
+            isBound.set(false)
+        }
+
+        override fun onNullBinding(name: ComponentName?) {
+             _service.value = null
+            isBound.set(false)
         }
     }
 
@@ -38,15 +49,29 @@ class AudioServiceManager @Inject constructor(
         context.startService(intent)
     }
 
-    fun bindService() {
+    fun stopService() {
         val intent = Intent(context, AudioStreamingService::class.java)
-        context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        context.stopService(intent)
+    }
+
+    fun bindService() {
+        if (!isBound.get()) {
+            val intent = Intent(context, AudioStreamingService::class.java)
+            val bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+            if (!bound) {
+                isBound.set(false)
+            }
+        }
     }
 
     fun unbindService() {
-        if (bound) {
-            context.unbindService(connection)
-            bound = false
+        if (isBound.get()) {
+            try {
+                context.unbindService(connection)
+            } catch (e: IllegalArgumentException) {
+                // Service not registered or already unbound
+            }
+            isBound.set(false)
             _service.value = null
         }
     }
