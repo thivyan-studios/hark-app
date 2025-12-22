@@ -39,7 +39,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Default status for debug builds
-        buildConfigField("String", "BUILD_STATUS", "\"ReleaseText\"")
+        buildConfigField("String", "BUILD_STATUS", "\"Release-Candidate\"")
     }
 
     buildTypes {
