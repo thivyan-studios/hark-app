@@ -35,11 +35,13 @@ class MainViewModel @Inject constructor(
             if (service != null) {
                 combine(
                     service.isStreaming,
+                    service.isTestMode, // Observe test mode status
                     service.hearingAidConnected,
                     userPreferencesRepository.userPreferencesFlow
-                ) { isStreaming, hearingAidConnected, prefs ->
+                ) { isStreaming, isTestMode, hearingAidConnected, prefs ->
                     MainUiState(
                         isStreaming = isStreaming,
+                        isTestMode = isTestMode, // Pass it to UI state
                         hearingAidConnected = hearingAidConnected,
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
                         keepScreenOn = prefs.keepScreenOn

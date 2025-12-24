@@ -10,7 +10,7 @@
     <string name="settings_keep_screen_on">Keep screen on when in foreground</string>
     <string name="settings_disable_hearing_aid_priority">Disable Hearing Aid priority</string>
     <string name="settings_microphone_gain">Microphone gain</string>
-    <string name="settings_support_kofi">Support me on Ko-fi ☕</string>
+    <string name="settings_support_kofi">Support me on Ko-fi</string>
     <string name="gain_db_format">%1$s dB</string>
     <string name="settings_noise_suppression">Noise Suppression</string>
     <string name="settings_dynamics_processing">Dynamics Processing (Compressor)</string>

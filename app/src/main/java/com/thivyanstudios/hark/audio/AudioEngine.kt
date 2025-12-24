@@ -22,6 +22,10 @@ class AudioEngine @Inject constructor() {
         streamManager.start(currentConfig)
     }
 
+    fun startTest() {
+        streamManager.startTest(currentConfig)
+    }
+
     fun stop() {
         streamManager.stop()
         audioProcessor.release()

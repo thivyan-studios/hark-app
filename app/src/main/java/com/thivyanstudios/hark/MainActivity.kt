@@ -70,7 +70,9 @@ class MainActivity : ComponentActivity() {
             val snackbarHostState = remember { SnackbarHostState() }
             LaunchedEffect(true) {
                 mainViewModel.snackbarEvents.collect { message ->
-                    snackbarHostState.showSnackbar(message)
+                    // Only show snackbar if there isn't one already showing
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
                 }
             }
 
@@ -121,6 +123,7 @@ class MainActivity : ComponentActivity() {
                         when(page) {
                             0 -> HomeScreen(
                                 isStreaming = uiState.isStreaming,
+                                isTestMode = uiState.isTestMode, // Pass the new parameter
                                 onStreamButtonClick = { toggleStreaming() },
                                 hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
                             )

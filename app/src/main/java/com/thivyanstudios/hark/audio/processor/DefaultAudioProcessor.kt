@@ -57,6 +57,9 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
     }
 
     private fun setupNoiseSuppressor(audioSessionId: Int) {
+        // Skip noise suppressor setup for generated audio (session 0) or invalid sessions
+        if (audioSessionId == 0) return
+
         if (NoiseSuppressor.isAvailable()) {
             try {
                 noiseSuppressor = NoiseSuppressor.create(audioSessionId)
@@ -66,6 +69,7 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
                 events.trySend(AudioEngineEvent.NoiseSuppressorNotAvailable)
             }
         } else {
+            // Only report unavailability if we actually tried to use it on a valid session
             Log.w(TAG, "NoiseSuppressor is not available on this device.")
             events.trySend(AudioEngineEvent.NoiseSuppressorNotAvailable)
         }
