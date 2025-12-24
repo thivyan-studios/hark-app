@@ -65,18 +65,25 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         val audioTrack = createAudioTrack(audioFormat, bufferSize)
         var audioRecord: AudioRecord? = null
 
+        var audioSource: AudioSource? = null
+        var audioSink: AudioSink? = null
+
         try {
             audioRecord = createAudioRecord(channelConfig, audioFormat, bufferSize)
+            
+            // Create wrappers
+            audioSource = AndroidAudioSource(audioRecord)
+            audioSink = AndroidAudioSink(audioTrack)
 
-            audioRecord.startRecording()
-            audioTrack.play()
+            audioSource.start()
+            audioSink.play()
 
-            audioProcessor.process(audioRecord, audioTrack, config) { isRunning.get() }
+            audioProcessor.process(audioSource, audioSink, config) { isRunning.get() }
 
         } catch (e: Exception) {
             Log.e(TAG, "Exception in streaming loop", e)
         } finally {
-            cleanupResources(audioRecord, audioTrack)
+            cleanupResources(audioSource, audioSink)
         }
     }
 
@@ -106,20 +113,20 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         return AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channelConfig, audioFormat, bufferSize)
     }
 
-    private fun cleanupResources(audioRecord: AudioRecord?, audioTrack: AudioTrack) {
+    private fun cleanupResources(audioSource: AudioSource?, audioSink: AudioSink?) {
         Log.d(TAG, "Cleaning up streaming resources.")
 
         try {
-            audioRecord?.stop()
-            audioRecord?.release()
+            audioSource?.stop()
+            audioSource?.release()
         } catch (e: Exception) {
-            Log.e(TAG, "Error releasing AudioRecord", e)
+            Log.e(TAG, "Error releasing AudioSource", e)
         }
         try {
-            audioTrack.stop()
-            audioTrack.release()
+            audioSink?.stop()
+            audioSink?.release()
         } catch (e: Exception) {
-            Log.e(TAG, "Error releasing AudioTrack", e)
+            Log.e(TAG, "Error releasing AudioSink", e)
         }
     }
 

@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -33,15 +35,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import java.text.DecimalFormat
+import kotlin.math.roundToInt
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,11 +62,12 @@ fun SettingsScreen(
     val haptic = LocalHapticFeedback.current
     val versionName by settingsViewModel.versionName.collectAsState()
     val hapticFeedbackEnabled by settingsViewModel.hapticFeedbackEnabled.collectAsState()
-    val isDarkMode by settingsViewModel.isDarkMode.collectAsState()
     val keepScreenOn by settingsViewModel.keepScreenOn.collectAsState()
     val disableHearingAidPriority by settingsViewModel.disableHearingAidPriority.collectAsState()
     val microphoneGain by settingsViewModel.microphoneGain.collectAsState()
     val noiseSuppressionEnabled by settingsViewModel.noiseSuppressionEnabled.collectAsState()
+    val equalizerBands by settingsViewModel.equalizerBands.collectAsState()
+    val dynamicsProcessingEnabled by settingsViewModel.dynamicsProcessingEnabled.collectAsState()
     val df = remember { DecimalFormat("0.0") }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -111,22 +121,6 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = stringResource(R.string.settings_dark_mode), modifier = Modifier.weight(1f).padding(end = 16.dp))
-                    Switch(
-                        checked = isDarkMode,
-                        onCheckedChange = {
-                            if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            settingsViewModel.setIsDarkMode(it)
-                        }
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     Text(text = stringResource(R.string.settings_keep_screen_on), modifier = Modifier.weight(1f).padding(end = 16.dp))
                     Switch(
                         checked = keepScreenOn,
@@ -168,6 +162,22 @@ fun SettingsScreen(
                         }
                     )
                 }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = stringResource(R.string.settings_dynamics_processing), modifier = Modifier.weight(1f).padding(end = 16.dp))
+                    Switch(
+                        checked = dynamicsProcessingEnabled,
+                        onCheckedChange = {
+                            if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            settingsViewModel.setDynamicsProcessingEnabled(it)
+                        }
+                    )
+                }
             }
         }
 
@@ -203,6 +213,92 @@ fun SettingsScreen(
                         if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     }
                 )
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Equalizer",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    val frequencies = listOf("60Hz", "230Hz", "910Hz", "3kHz", "14kHz")
+                    
+                    frequencies.forEachIndexed { index, label ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            val bandValue = equalizerBands.getOrElse(index) { 0f }
+                            
+                            // Vertical Slider implementation using standard Slider rotated
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .width(40.dp)
+                                    .graphicsLayer {
+                                        rotationZ = 270f
+                                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                                    }
+                                    .layout { measurable, constraints ->
+                                        val placeable = measurable.measure(
+                                            Constraints(
+                                                minWidth = 120.dp.roundToPx(),
+                                                maxWidth = 120.dp.roundToPx(),
+                                                minHeight = constraints.minHeight,
+                                                maxHeight = constraints.maxHeight
+                                            )
+                                        )
+                                        layout(placeable.height, placeable.width) {
+                                            placeable.place(
+                                                -((placeable.width - placeable.height) / 2),
+                                                -((placeable.height - placeable.width) / 2)
+                                            )
+                                        }
+                                    }
+                            ) {
+                                Slider(
+                                    value = bandValue,
+                                    onValueChange = { settingsViewModel.setEqualizerBand(index, it) },
+                                    valueRange = -10f..10f,
+                                    onValueChangeFinished = {
+                                        if (hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                )
+                            }
+                            
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                            
+                            Text(
+                                text = "${bandValue.roundToInt()}dB",
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                }
             }
         }
 

@@ -24,7 +24,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import javax.inject.Inject
@@ -88,7 +90,9 @@ class AudioStreamingService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        userPreferencesRepository.disableHearingAidPriority
+        userPreferencesRepository.userPreferencesFlow
+            .map { it.disableHearingAidPriority }
+            .distinctUntilChanged()
             .onEach { newValue ->
                 val hasChanged = newValue != disableHearingAidPriority
                 disableHearingAidPriority = newValue
@@ -99,16 +103,36 @@ class AudioStreamingService : Service() {
             }
             .launchIn(serviceScope)
 
-        userPreferencesRepository.microphoneGain
+        userPreferencesRepository.userPreferencesFlow
+            .map { it.microphoneGain }
+            .distinctUntilChanged()
             .onEach { 
                 val gain = 10.0.pow(it / 20.0).toFloat()
                 audioEngine.setMicrophoneGain(gain)
             }
             .launchIn(serviceScope)
 
-        userPreferencesRepository.noiseSuppressionEnabled
+        userPreferencesRepository.userPreferencesFlow
+            .map { it.noiseSuppressionEnabled }
+            .distinctUntilChanged()
             .onEach { isEnabled ->
                 audioEngine.setNoiseSuppressionEnabled(isEnabled)
+            }
+            .launchIn(serviceScope)
+            
+        userPreferencesRepository.userPreferencesFlow
+            .map { it.equalizerBands }
+            .distinctUntilChanged()
+            .onEach { bands ->
+                audioEngine.setEqualizerBands(bands)
+            }
+            .launchIn(serviceScope)
+            
+        userPreferencesRepository.userPreferencesFlow
+            .map { it.dynamicsProcessingEnabled }
+            .distinctUntilChanged()
+            .onEach { isEnabled ->
+                audioEngine.setDynamicsProcessingEnabled(isEnabled)
             }
             .launchIn(serviceScope)
             
@@ -118,6 +142,11 @@ class AudioStreamingService : Service() {
                     is AudioEngineEvent.NoiseSuppressorNotAvailable -> {
                          Handler(Looper.getMainLooper()).post {
                              android.widget.Toast.makeText(this@AudioStreamingService, getString(R.string.noise_suppression_not_available), android.widget.Toast.LENGTH_SHORT).show()
+                         }
+                    }
+                    is AudioEngineEvent.DynamicsProcessingNotAvailable -> {
+                         Handler(Looper.getMainLooper()).post {
+                             android.widget.Toast.makeText(this@AudioStreamingService, getString(R.string.dynamics_processing_not_available), android.widget.Toast.LENGTH_SHORT).show()
                          }
                     }
                 }
