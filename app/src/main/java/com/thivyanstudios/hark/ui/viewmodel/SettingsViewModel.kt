@@ -12,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -43,7 +44,8 @@ class SettingsViewModel @Inject constructor(
         initialValue = ""
     )
 
-    val hapticFeedbackEnabled: StateFlow<Boolean> = userPreferencesRepository.hapticFeedbackEnabled
+    val hapticFeedbackEnabled: StateFlow<Boolean> = userPreferencesRepository.userPreferencesFlow
+        .map { it.hapticFeedbackEnabled }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -56,20 +58,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    val isDarkMode: StateFlow<Boolean> = userPreferencesRepository.isDarkMode
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = true
-        )
-
-    fun setIsDarkMode(isEnabled: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.setIsDarkMode(isEnabled)
-        }
-    }
-
-    val keepScreenOn: StateFlow<Boolean> = userPreferencesRepository.keepScreenOn
+    val keepScreenOn: StateFlow<Boolean> = userPreferencesRepository.userPreferencesFlow
+        .map { it.keepScreenOn }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -82,7 +72,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    val disableHearingAidPriority: StateFlow<Boolean> = userPreferencesRepository.disableHearingAidPriority
+    val disableHearingAidPriority: StateFlow<Boolean> = userPreferencesRepository.userPreferencesFlow
+        .map { it.disableHearingAidPriority }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -95,7 +86,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    val microphoneGain: StateFlow<Float> = userPreferencesRepository.microphoneGain
+    val microphoneGain: StateFlow<Float> = userPreferencesRepository.userPreferencesFlow
+        .map { it.microphoneGain }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -108,7 +100,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    val noiseSuppressionEnabled: StateFlow<Boolean> = userPreferencesRepository.noiseSuppressionEnabled
+    val noiseSuppressionEnabled: StateFlow<Boolean> = userPreferencesRepository.userPreferencesFlow
+        .map { it.noiseSuppressionEnabled }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -118,6 +111,34 @@ class SettingsViewModel @Inject constructor(
     fun setNoiseSuppressionEnabled(isEnabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setNoiseSuppressionEnabled(isEnabled)
+        }
+    }
+    
+    val dynamicsProcessingEnabled: StateFlow<Boolean> = userPreferencesRepository.userPreferencesFlow
+        .map { it.dynamicsProcessingEnabled }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
+        
+    fun setDynamicsProcessingEnabled(isEnabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDynamicsProcessingEnabled(isEnabled)
+        }
+    }
+
+    val equalizerBands: StateFlow<List<Float>> = userPreferencesRepository.userPreferencesFlow
+        .map { it.equalizerBands }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = listOf(0.0f, 0.0f, 0.0f, 0.0f, 0.0f)
+        )
+
+    fun setEqualizerBand(index: Int, gain: Float) {
+        viewModelScope.launch {
+            userPreferencesRepository.setEqualizerBand(index, gain)
         }
     }
 }

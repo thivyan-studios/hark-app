@@ -36,4 +36,14 @@ class AudioEngine @Inject constructor() {
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
         streamManager.updateConfig(currentConfig)
     }
+    
+    fun setEqualizerBands(bands: List<Float>) {
+        currentConfig = currentConfig.copy(equalizerBands = bands)
+        streamManager.updateConfig(currentConfig)
+    }
+    
+    fun setDynamicsProcessingEnabled(enabled: Boolean) {
+        currentConfig = currentConfig.copy(dynamicsProcessingEnabled = enabled)
+        streamManager.updateConfig(currentConfig)
+    }
 }

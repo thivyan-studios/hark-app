@@ -80,7 +80,7 @@ class MainActivity : ComponentActivity() {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
 
-            HarkTheme(darkTheme = uiState.isDarkMode) {
+            HarkTheme {
                 val pagerState = rememberPagerState(pageCount = { 2 })
                 val coroutineScope = rememberCoroutineScope()
                 val currentRoute = when (pagerState.currentPage) {

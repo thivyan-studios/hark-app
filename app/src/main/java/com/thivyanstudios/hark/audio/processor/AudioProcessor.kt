@@ -1,13 +1,13 @@
 package com.thivyanstudios.hark.audio.processor
 
-import android.media.AudioRecord
-import android.media.AudioTrack
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
+import com.thivyanstudios.hark.audio.stream.AudioSink
+import com.thivyanstudios.hark.audio.stream.AudioSource
 
 interface AudioProcessor {
     fun process(
-        audioRecord: AudioRecord,
-        audioTrack: AudioTrack,
+        audioSource: AudioSource,
+        audioSink: AudioSink,
         config: AudioProcessingConfig,
         isRunning: () -> Boolean
     )

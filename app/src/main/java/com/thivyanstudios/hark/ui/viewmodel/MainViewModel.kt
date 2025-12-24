@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -35,28 +36,20 @@ class MainViewModel @Inject constructor(
                 combine(
                     service.isStreaming,
                     service.hearingAidConnected,
-                    userPreferencesRepository.hapticFeedbackEnabled,
-                    userPreferencesRepository.isDarkMode,
-                    userPreferencesRepository.keepScreenOn
-                ) { isStreaming, hearingAidConnected, hapticFeedbackEnabled, isDarkMode, keepScreenOn ->
+                    userPreferencesRepository.userPreferencesFlow
+                ) { isStreaming, hearingAidConnected, prefs ->
                     MainUiState(
                         isStreaming = isStreaming,
                         hearingAidConnected = hearingAidConnected,
-                        hapticFeedbackEnabled = hapticFeedbackEnabled,
-                        isDarkMode = isDarkMode,
-                        keepScreenOn = keepScreenOn
+                        hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
+                        keepScreenOn = prefs.keepScreenOn
                     )
                 }
             } else {
-                combine(
-                    userPreferencesRepository.hapticFeedbackEnabled,
-                    userPreferencesRepository.isDarkMode,
-                    userPreferencesRepository.keepScreenOn
-                ) { hapticFeedbackEnabled, isDarkMode, keepScreenOn ->
+                userPreferencesRepository.userPreferencesFlow.map { prefs ->
                     MainUiState(
-                        hapticFeedbackEnabled = hapticFeedbackEnabled,
-                        isDarkMode = isDarkMode,
-                        keepScreenOn = keepScreenOn
+                        hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
+                        keepScreenOn = prefs.keepScreenOn
                     )
                 }
             }
