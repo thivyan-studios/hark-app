@@ -19,15 +19,40 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
 
     private var streamingExecutor: ExecutorService? = null
     private val isRunning = AtomicBoolean(false)
+    private var useTestGenerator = false
 
     @SuppressLint("MissingPermission")
     fun start(config: AudioProcessingConfig) {
+        startStreaming(config, false)
+    }
+
+    fun startTest(config: AudioProcessingConfig) {
+        startStreaming(config, true)
+    }
+
+    private fun startStreaming(config: AudioProcessingConfig, isTest: Boolean) {
         if (isRunning.getAndSet(true)) {
             Log.d(TAG, "start() called but already running")
+            // If already running, we check if we need to switch mode.
+            // If we are switching from test to normal or vice versa, we should restart.
+            if (useTestGenerator != isTest) {
+               Log.d(TAG, "Switching streaming mode (Test Mode: $isTest)")
+               // We need to stop current one first, but since we are in start(), 
+               // and we set isRunning to true above, we might be in a weird state if we just call stop() which sets it to false.
+               
+               // Let's rely on the caller to stop first if switching modes is needed.
+               // But wait, the user's issue is that "Test Settings" doesn't stop. 
+               // The Toggle in ViewModel calls stopStreaming() if it believes it is running.
+               // The logic in AudioStreamingService.stopStreaming calls AudioEngine.stop() which calls AudioStreamManager.stop().
+               
+               // If startStreaming is called while running, we generally just return.
+               return
+            }
             return
         }
 
-        Log.d(TAG, "Starting audio stream manager")
+        useTestGenerator = isTest
+        Log.d(TAG, "Starting audio stream manager (Test Mode: $isTest)")
 
         val executor = Executors.newSingleThreadExecutor()
         streamingExecutor = executor
@@ -39,7 +64,10 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     }
 
     fun stop() {
-        if (!isRunning.getAndSet(false)) return
+        if (!isRunning.getAndSet(false)) {
+            Log.d(TAG, "stop() called but not running")
+            return
+        }
         Log.d(TAG, "Stopping audio stream manager")
 
         streamingExecutor?.shutdownNow()
@@ -69,16 +97,24 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         var audioSink: AudioSink? = null
 
         try {
-            audioRecord = createAudioRecord(channelConfig, audioFormat, bufferSize)
+            if (useTestGenerator) {
+                audioSource = PinkNoiseAudioSource()
+            } else {
+                audioRecord = createAudioRecord(channelConfig, audioFormat, bufferSize)
+                audioSource = AndroidAudioSource(audioRecord)
+            }
             
             // Create wrappers
-            audioSource = AndroidAudioSource(audioRecord)
             audioSink = AndroidAudioSink(audioTrack)
 
             audioSource.start()
             audioSink.play()
 
-            audioProcessor.process(audioSource, audioSink, config) { isRunning.get() }
+            // Pass a lambda that checks the AtomicBoolean isRunning
+            // IMPORTANT: The loop inside processor needs to check this lambda frequently.
+            audioProcessor.process(audioSource, audioSink, config) { 
+                isRunning.get() && !Thread.currentThread().isInterrupted 
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Exception in streaming loop", e)

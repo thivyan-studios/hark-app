@@ -39,6 +39,10 @@ class AudioStreamingService : Service() {
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
+
+    // Track if we are in "test mode" so we can distinguish it in the UI if needed
+    private val _isTestMode = MutableStateFlow(false)
+    val isTestMode = _isTestMode.asStateFlow()
     
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository
@@ -178,23 +182,53 @@ class AudioStreamingService : Service() {
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     @SuppressLint("ForegroundServiceType")
     fun startStreaming() {
+        // Stop test stream if it is running to ensure we can switch to mic stream cleanly
+        if (_isTestMode.value) {
+            Log.d(TAG, "Test mode active. Stopping before starting mic stream.")
+            stopStreaming()
+        }
+
         if (_isStreaming.value) {
             Log.d(TAG, "startStreaming called, but already streaming.")
             return
         }
         Log.d(TAG, "startStreaming called.")
         _isStreaming.value = true
+        _isTestMode.value = false // Ensure test mode is off
 
         startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
         wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
 
         audioEngine.start()
     }
+    
+    @SuppressLint("ForegroundServiceType")
+    fun startTestStreaming() {
+        // Stop mic stream if it is running to ensure we can switch to test stream cleanly
+        if (_isStreaming.value) {
+            Log.d(TAG, "Mic streaming active. Stopping before starting test stream.")
+            stopStreaming()
+        }
+
+        if (_isStreaming.value || _isTestMode.value) {
+            Log.d(TAG, "startTestStreaming called, but already streaming.")
+            return
+        }
+        Log.d(TAG, "startTestStreaming called.")
+        // Do not set isStreaming to true, we don't want the UI to update as if we are streaming mic audio
+        _isTestMode.value = true // Ensure test mode is ON
+
+        // Do not start foreground service for test mode as requested
+        wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
+
+        audioEngine.startTest()
+    }
 
     fun stopStreaming() {
-        if (!_isStreaming.value) return
+        if (!_isStreaming.value && !_isTestMode.value) return
         Log.d(TAG, "stopStreaming called.")
         _isStreaming.value = false
+        _isTestMode.value = false
 
         audioEngine.stop()
 

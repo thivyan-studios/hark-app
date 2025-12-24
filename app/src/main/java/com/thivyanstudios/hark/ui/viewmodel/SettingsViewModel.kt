@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.thivyanstudios.hark.BuildConfig
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import com.thivyanstudios.hark.service.AudioServiceManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +22,7 @@ import javax.inject.Inject
 @SuppressLint("MissingPermission")
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val audioServiceManager: AudioServiceManager,
     application: Application
 ) : ViewModel() {
 
@@ -139,6 +141,18 @@ class SettingsViewModel @Inject constructor(
     fun setEqualizerBand(index: Int, gain: Float) {
         viewModelScope.launch {
             userPreferencesRepository.setEqualizerBand(index, gain)
+        }
+    }
+
+    fun toggleTestAudio() {
+        val service = audioServiceManager.service.value
+        if (service?.isTestMode?.value == true) {
+            service?.stopStreaming()
+        } else {
+            if (service?.isStreaming?.value == true) {
+                service?.stopStreaming()
+            }
+            service?.startTestStreaming()
         }
     }
 }
