@@ -45,7 +45,7 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.SquishyBox
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.util.Constants
-import java.text.DecimalFormat
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @SuppressLint("MissingPermission")
@@ -57,7 +57,6 @@ fun SettingsScreen(
     val uriHandler = LocalUriHandler.current
     val haptic = LocalHapticFeedback.current
     val uiState by settingsViewModel.uiState.collectAsState()
-    val df = remember { DecimalFormat("0.0") }
 
     Column(
         modifier = Modifier
@@ -130,8 +129,8 @@ fun SettingsScreen(
                 modifier = Modifier.padding(16.dp)
             ) {
                 val formattedGain = when {
-                    uiState.microphoneGain > 0.01f -> "+${df.format(uiState.microphoneGain)}"
-                    uiState.microphoneGain < -0.01f -> df.format(uiState.microphoneGain)
+                    uiState.microphoneGain > 0.01f -> "+${formatOneDecimal(uiState.microphoneGain)}"
+                    uiState.microphoneGain < -0.01f -> formatOneDecimal(uiState.microphoneGain)
                     else -> "0"
                 }
                 Row(
@@ -200,6 +199,7 @@ fun SettingsScreen(
                                 value = bandValue,
                                 onValueChange = { settingsViewModel.setEqualizerBand(index, it) },
                                 valueRange = -10f..10f,
+                                steps = 19,
                                 onValueChangeFinished = {
                                     if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 },
@@ -291,4 +291,13 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+private fun formatOneDecimal(value: Float): String {
+    val rounded = (value * 10).roundToInt()
+    val absRounded = abs(rounded)
+    val integerPart = absRounded / 10
+    val decimalPart = absRounded % 10
+    val sign = if (rounded < 0) "-" else ""
+    return "$sign$integerPart.$decimalPart"
 }

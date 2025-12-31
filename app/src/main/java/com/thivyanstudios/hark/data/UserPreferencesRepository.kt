@@ -9,8 +9,10 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.thivyanstudios.hark.data.model.UserPreferences
 import com.thivyanstudios.hark.util.Constants
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 import javax.inject.Inject
@@ -52,6 +54,7 @@ class UserPreferencesRepository @Inject constructor(
                 dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false
             )
         }
+        .flowOn(Dispatchers.IO)
 
     suspend fun setHapticFeedbackEnabled(isEnabled: Boolean) {
         dataStore.edit { preferences ->
