@@ -11,9 +11,11 @@ import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.util.Constants
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,41 +25,49 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val audioServiceManager: AudioServiceManager,
-    application: Application
+    private val application: Application
 ) : ViewModel() {
 
-    private val _versionName: String = try {
-        val packageInfo = application.packageManager.getPackageInfo(application.packageName, 0)
-        val currentVersionName = packageInfo.versionName
-        val buildStatus = BuildConfig.BUILD_STATUS
-        application.getString(
-            R.string.version_text,
-            buildStatus,
-            currentVersionName
-        )
-    } catch (e: PackageManager.NameNotFoundException) {
-        e.printStackTrace()
-        application.getString(R.string.version_not_found)
+    private val _versionName = MutableStateFlow("")
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            _versionName.value = try {
+                val packageInfo = application.packageManager.getPackageInfo(application.packageName, 0)
+                val currentVersionName = packageInfo.versionName
+                val buildStatus = BuildConfig.BUILD_STATUS
+                application.getString(
+                    R.string.version_text,
+                    buildStatus,
+                    currentVersionName
+                )
+            } catch (e: PackageManager.NameNotFoundException) {
+                e.printStackTrace()
+                application.getString(R.string.version_not_found)
+            }
+        }
     }
 
-    val uiState: StateFlow<SettingsUiState> = userPreferencesRepository.userPreferencesFlow
-        .map { prefs ->
-            SettingsUiState(
-                versionName = _versionName,
-                hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
-                keepScreenOn = prefs.keepScreenOn,
-                disableHearingAidPriority = prefs.disableHearingAidPriority,
-                microphoneGain = prefs.microphoneGain,
-                noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
-                dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
-                equalizerBands = prefs.equalizerBands
-            )
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(Constants.Preferences.TIMEOUT_MILLIS),
-            initialValue = SettingsUiState(versionName = _versionName)
+    val uiState: StateFlow<SettingsUiState> = combine(
+        userPreferencesRepository.userPreferencesFlow,
+        _versionName
+    ) { prefs, version ->
+        SettingsUiState(
+            versionName = version,
+            hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
+            keepScreenOn = prefs.keepScreenOn,
+            disableHearingAidPriority = prefs.disableHearingAidPriority,
+            microphoneGain = prefs.microphoneGain,
+            noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
+            dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
+            equalizerBands = prefs.equalizerBands
         )
+    }
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(Constants.Preferences.TIMEOUT_MILLIS),
+        initialValue = SettingsUiState()
+    )
 
     fun setHapticFeedbackEnabled(isEnabled: Boolean) {
         viewModelScope.launch {
