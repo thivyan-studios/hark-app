@@ -23,7 +23,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun HomeScreen(
     isStreaming: Boolean,
-    isTestMode: Boolean, // New parameter to know if test is running
+    isTestMode: Boolean,
     onStreamButtonClick: () -> Unit,
     hapticFeedbackEnabled: Boolean,
 ) {
@@ -50,7 +50,7 @@ fun HomeScreen(
         // This is your stream button (ImageView)
         SquishyBox(
             onClick = {
-                if (isButtonEnabled && !isTestMode) {
+                if (isButtonEnabled) {
                     isButtonEnabled = false // Disable immediately on click
                     onStreamButtonClick()
                 }
@@ -59,8 +59,8 @@ fun HomeScreen(
                 .size(120.dp)
                 .align(Alignment.Center),
             backgroundColor = if (isStreaming) Color(0xFF4B5320) else Color.Red,
-            disabledBackgroundColor = Color.Gray, // Specifically set gray for this screen only
-            enabled = isButtonEnabled && !isTestMode // Disabled if test mode is running
+            disabledBackgroundColor = Color.Gray, 
+            enabled = isButtonEnabled
         ) {
             Image(
                 painter = if (isStreaming) {

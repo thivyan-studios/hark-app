@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.thivyanstudios.hark.R
+import com.thivyanstudios.hark.util.Constants.Navigation
 
 @Composable
 fun BottomNavBar(
@@ -34,15 +35,15 @@ fun BottomNavBar(
         AnimatedNavigationBarItem(
             icon = { Icon(painterResource(id = R.drawable.ic_home), contentDescription = stringResource(R.string.nav_home)) },
             label = { Text(stringResource(R.string.nav_home)) },
-            selected = currentRoute == "home",
-            onClick = { onNavigate("home") },
+            selected = currentRoute == Navigation.ROUTE_HOME,
+            onClick = { onNavigate(Navigation.ROUTE_HOME) },
             hapticFeedbackEnabled = hapticFeedbackEnabled
         )
         AnimatedNavigationBarItem(
             icon = { Icon(painterResource(id = R.drawable.ic_settings), contentDescription = stringResource(R.string.nav_settings)) },
             label = { Text(stringResource(R.string.nav_settings)) },
-            selected = currentRoute == "settings",
-            onClick = { onNavigate("settings") },
+            selected = currentRoute == Navigation.ROUTE_SETTINGS,
+            onClick = { onNavigate(Navigation.ROUTE_SETTINGS) },
             hapticFeedbackEnabled = hapticFeedbackEnabled
         )
     }

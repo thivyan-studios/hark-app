@@ -57,9 +57,11 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
     }
 
     private fun setupNoiseSuppressor(audioSessionId: Int) {
-        // Skip noise suppressor setup for generated audio (session 0) or invalid sessions
+        // NoiseSuppressor must be attached to the AudioRecord session (input session).
+        // If the session ID is 0, it means it's a mix or generated source, so we can't attach an HW effect.
         if (audioSessionId == 0) return
 
+        // We check availability first
         if (NoiseSuppressor.isAvailable()) {
             try {
                 noiseSuppressor = NoiseSuppressor.create(audioSessionId)
@@ -70,13 +72,14 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
             }
         } else {
             // Only report unavailability if we actually tried to use it on a valid session
-            Log.w(TAG, "NoiseSuppressor is not available on this device.")
-            events.trySend(AudioEngineEvent.NoiseSuppressorNotAvailable)
+             Log.w(TAG, "NoiseSuppressor is not available on this device.")
+             events.trySend(AudioEngineEvent.NoiseSuppressorNotAvailable)
         }
     }
 
     private fun setupEqualizer(audioSessionId: Int) {
         try {
+            // Equalizer is an output effect, so it attaches to the AudioTrack session.
             equalizer = Equalizer(0, audioSessionId)
             equalizer?.enabled = true
             updateEqualizerBands()
@@ -90,14 +93,14 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
             // DynamicsProcessing.Config.Builder requires precise arguments
             val builder = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
-                1, // channel count
-                false, // preEqInUse
-                0,     // preEqBandCount
-                false, // mbcInUse
-                0,     // mbcBandCount
-                false, // postEqInUse
-                0,     // postEqBandCount
-                true   // limiterInUse
+                1,
+                false,
+                0,
+                false,
+                0,
+                false,
+                0,
+                true   
             )
 
             val config = builder.build()
@@ -105,11 +108,11 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
             // Configure Limiter
             val limiterConfig = config.getLimiterByChannelIndex(0)
             limiterConfig.isEnabled = true
-            limiterConfig.threshold = -10.0f
-            limiterConfig.attackTime = 1.0f
-            limiterConfig.releaseTime = 60.0f
-            limiterConfig.ratio = 10.0f
-            limiterConfig.postGain = 0.0f
+            limiterConfig.threshold = LIMITER_THRESHOLD
+            limiterConfig.attackTime = LIMITER_ATTACK_TIME
+            limiterConfig.releaseTime = LIMITER_RELEASE_TIME
+            limiterConfig.ratio = LIMITER_RATIO
+            limiterConfig.postGain = LIMITER_POST_GAIN
 
             dynamicsProcessing = DynamicsProcessing(0, audioSessionId, config)
             dynamicsProcessing?.enabled = currentConfig.dynamicsProcessingEnabled
@@ -156,5 +159,10 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     companion object {
         private const val TAG = "DefaultAudioProcessor"
+        private const val LIMITER_THRESHOLD = -10.0f
+        private const val LIMITER_ATTACK_TIME = 1.0f
+        private const val LIMITER_RELEASE_TIME = 60.0f
+        private const val LIMITER_RATIO = 10.0f
+        private const val LIMITER_POST_GAIN = 0.0f
     }
 }

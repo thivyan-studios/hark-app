@@ -42,8 +42,12 @@ class PinkNoiseAudioSource : AudioSource {
             b6 = white * 0.115926f
             
             // Normalize roughly to -1.0 to 1.0 (approximated gain adjustment)
-            audioData[offsetInFloats + i] = pink * 0.11f
+            audioData[offsetInFloats + i] = pink * PINK_NOISE_GAIN
         }
         return sizeInFloats
+    }
+
+    companion object {
+        private const val PINK_NOISE_GAIN = 0.11f
     }
 }

@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class AudioServiceManager @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
-    private val _service = MutableStateFlow<AudioStreamingService?>(null)
+    private val _service = MutableStateFlow<AudioStreamingController?>(null)
     val service = _service.asStateFlow()
 
     private val isBound = AtomicBoolean(false)

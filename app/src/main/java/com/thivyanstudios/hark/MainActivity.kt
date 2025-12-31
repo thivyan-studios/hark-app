@@ -8,28 +8,21 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.thivyanstudios.hark.ui.screens.BottomNavBar
-import com.thivyanstudios.hark.ui.screens.HomeScreen
-import com.thivyanstudios.hark.ui.screens.SettingsScreen
 import com.thivyanstudios.hark.service.AudioServiceManager
+import com.thivyanstudios.hark.ui.HarkAppContent
 import com.thivyanstudios.hark.ui.theme.HarkTheme
-import com.thivyanstudios.hark.util.PermissionManager
 import com.thivyanstudios.hark.ui.viewmodel.MainViewModel
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
+import com.thivyanstudios.hark.util.PermissionManager
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-@OptIn(ExperimentalMaterial3Api::class)
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -50,7 +43,6 @@ class MainActivity : ComponentActivity() {
         audioServiceManager.unbindService()
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -66,8 +58,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
-
             val snackbarHostState = remember { SnackbarHostState() }
+
             LaunchedEffect(true) {
                 mainViewModel.snackbarEvents.collect { message ->
                     // Only show snackbar if there isn't one already showing
@@ -76,65 +68,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            if (uiState.keepScreenOn) {
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            } else {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // Handle Screen On/Off Flag
+            LaunchedEffect(uiState.keepScreenOn) {
+                if (uiState.keepScreenOn) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
             }
 
             HarkTheme {
-                val pagerState = rememberPagerState(pageCount = { 2 })
-                val coroutineScope = rememberCoroutineScope()
-                val currentRoute = when (pagerState.currentPage) {
-                    0 -> "home"
-                    else -> "settings"
-                }
-
-                Scaffold(
-                    snackbarHost = {
-                        SnackbarHost(snackbarHostState) { data ->
-                            Snackbar(
-                                snackbarData = data,
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    },
-                    bottomBar = {
-                        BottomNavBar(
-                            currentRoute = currentRoute,
-                            onNavigate = { route ->
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(if (route == "settings") 1 else 0)
-                                }
-                            },
-                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                        )
-                    },
-                    contentWindowInsets = ScaffoldDefaults.contentWindowInsets
-                ) { innerPadding ->
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    ) {
-                        page ->
-                        when(page) {
-                            0 -> HomeScreen(
-                                isStreaming = uiState.isStreaming,
-                                isTestMode = uiState.isTestMode, // Pass the new parameter
-                                onStreamButtonClick = { toggleStreaming() },
-                                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                            )
-                            1 -> SettingsScreen(
-                                settingsViewModel = settingsViewModel
-                            )
-                        }
-
-                    }
-
-                }
+                HarkAppContent(
+                    uiState = uiState,
+                    snackbarHostState = snackbarHostState,
+                    settingsViewModel = settingsViewModel,
+                    onToggleStreaming = { toggleStreaming() }
+                )
             }
         }
 
