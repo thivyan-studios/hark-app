@@ -32,21 +32,25 @@ class AudioEngine @Inject constructor() {
     }
 
     fun setMicrophoneGain(gain: Float) {
+        if (currentConfig.microphoneGain == gain) return
         currentConfig = currentConfig.copy(microphoneGain = gain)
         streamManager.updateConfig(currentConfig)
     }
 
     fun setNoiseSuppressionEnabled(enabled: Boolean) {
+        if (currentConfig.noiseSuppressionEnabled == enabled) return
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
         streamManager.updateConfig(currentConfig)
     }
     
     fun setEqualizerBands(bands: List<Float>) {
+        if (currentConfig.equalizerBands == bands) return
         currentConfig = currentConfig.copy(equalizerBands = bands)
         streamManager.updateConfig(currentConfig)
     }
     
     fun setDynamicsProcessingEnabled(enabled: Boolean) {
+        if (currentConfig.dynamicsProcessingEnabled == enabled) return
         currentConfig = currentConfig.copy(dynamicsProcessingEnabled = enabled)
         streamManager.updateConfig(currentConfig)
     }

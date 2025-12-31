@@ -7,11 +7,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.*
 import android.os.Binder
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import android.util.Log
 import androidx.annotation.RequiresPermission
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
@@ -26,23 +26,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import javax.inject.Inject
 import kotlin.math.pow
 
 @AndroidEntryPoint
-class AudioStreamingService : Service() {
+class AudioStreamingService : Service(), AudioStreamingController {
 
     private val binder = LocalBinder()
     private val _isStreaming = MutableStateFlow(false)
-    val isStreaming = _isStreaming.asStateFlow()
+    override val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
 
     // Track if we are in "test mode" so we can distinguish it in the UI if needed
     private val _isTestMode = MutableStateFlow(false)
-    val isTestMode = _isTestMode.asStateFlow()
+    override val isTestMode = _isTestMode.asStateFlow()
     
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository
@@ -57,24 +56,24 @@ class AudioStreamingService : Service() {
     private var disableHearingAidPriority = false
 
     private val _hearingAidConnected = MutableStateFlow(false)
-    val hearingAidConnected = _hearingAidConnected.asStateFlow()
+    override val hearingAidConnected = _hearingAidConnected.asStateFlow()
 
     private val audioDeviceCallback = object : AudioDeviceCallback() {
+        @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
             updateHearingAidStatus()
             if (_isStreaming.value) {
-                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
-                    checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                if (hasRequiredPermissions()) {
                     restartStreaming()
                 }
             }
         }
 
+        @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
             updateHearingAidStatus()
             if (_isStreaming.value) {
-                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
-                    checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                if (hasRequiredPermissions()) {
                     restartStreaming()
                 }
             }
@@ -85,8 +84,18 @@ class AudioStreamingService : Service() {
         }
     }
 
+    private fun hasRequiredPermissions(): Boolean {
+        val hasRecordAudio = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val hasBluetoothConnect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+        return hasRecordAudio && hasBluetoothConnect
+    }
+
     inner class LocalBinder : Binder() {
-        fun getService(): AudioStreamingService = this@AudioStreamingService
+        fun getService(): AudioStreamingController = this@AudioStreamingService
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -94,49 +103,26 @@ class AudioStreamingService : Service() {
     override fun onCreate() {
         super.onCreate()
 
+        // Consolidated flow collection for user preferences
         userPreferencesRepository.userPreferencesFlow
-            .map { it.disableHearingAidPriority }
             .distinctUntilChanged()
-            .onEach { newValue ->
-                val hasChanged = newValue != disableHearingAidPriority
-                disableHearingAidPriority = newValue
-                if (hasChanged && _isStreaming.value) {
-                    stopStreaming()
+            .onEach { prefs ->
+                // Handle disableHearingAidPriority
+                val newDisablePriority = prefs.disableHearingAidPriority
+                if (newDisablePriority != disableHearingAidPriority) {
+                    disableHearingAidPriority = newDisablePriority
+                    if (_isStreaming.value) {
+                        stopStreaming()
+                    }
+                    updateHearingAidStatus()
                 }
-                updateHearingAidStatus()
-            }
-            .launchIn(serviceScope)
 
-        userPreferencesRepository.userPreferencesFlow
-            .map { it.microphoneGain }
-            .distinctUntilChanged()
-            .onEach { 
-                val gain = 10.0.pow(it / 20.0).toFloat()
+                // Handle Audio Engine Settings
+                val gain = 10.0.pow(prefs.microphoneGain / 20.0).toFloat()
                 audioEngine.setMicrophoneGain(gain)
-            }
-            .launchIn(serviceScope)
-
-        userPreferencesRepository.userPreferencesFlow
-            .map { it.noiseSuppressionEnabled }
-            .distinctUntilChanged()
-            .onEach { isEnabled ->
-                audioEngine.setNoiseSuppressionEnabled(isEnabled)
-            }
-            .launchIn(serviceScope)
-            
-        userPreferencesRepository.userPreferencesFlow
-            .map { it.equalizerBands }
-            .distinctUntilChanged()
-            .onEach { bands ->
-                audioEngine.setEqualizerBands(bands)
-            }
-            .launchIn(serviceScope)
-            
-        userPreferencesRepository.userPreferencesFlow
-            .map { it.dynamicsProcessingEnabled }
-            .distinctUntilChanged()
-            .onEach { isEnabled ->
-                audioEngine.setDynamicsProcessingEnabled(isEnabled)
+                audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
+                audioEngine.setEqualizerBands(prefs.equalizerBands)
+                audioEngine.setDynamicsProcessingEnabled(prefs.dynamicsProcessingEnabled)
             }
             .launchIn(serviceScope)
             
@@ -173,7 +159,6 @@ class AudioStreamingService : Service() {
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     private fun restartStreaming() {
         if (_isStreaming.value) {
-            Log.d(TAG, "Restarting streaming due to device change.")
             stopStreaming()
             startStreaming()
         }
@@ -181,52 +166,48 @@ class AudioStreamingService : Service() {
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     @SuppressLint("ForegroundServiceType")
-    fun startStreaming() {
+    override fun startStreaming() {
         // Stop test stream if it is running to ensure we can switch to mic stream cleanly
         if (_isTestMode.value) {
-            Log.d(TAG, "Test mode active. Stopping before starting mic stream.")
             stopStreaming()
         }
 
         if (_isStreaming.value) {
-            Log.d(TAG, "startStreaming called, but already streaming.")
             return
         }
-        Log.d(TAG, "startStreaming called.")
+        
         _isStreaming.value = true
         _isTestMode.value = false // Ensure test mode is off
 
         startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
-        wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
+        wakeLock?.acquire(10*60*1000L /*10 minutes*/)
 
         audioEngine.start()
     }
     
     @SuppressLint("ForegroundServiceType")
-    fun startTestStreaming() {
+    override fun startTestStreaming() {
         // Stop mic stream if it is running to ensure we can switch to test stream cleanly
         if (_isStreaming.value) {
-            Log.d(TAG, "Mic streaming active. Stopping before starting test stream.")
             stopStreaming()
         }
 
         if (_isStreaming.value || _isTestMode.value) {
-            Log.d(TAG, "startTestStreaming called, but already streaming.")
             return
         }
-        Log.d(TAG, "startTestStreaming called.")
+        
         // Do not set isStreaming to true, we don't want the UI to update as if we are streaming mic audio
         _isTestMode.value = true // Ensure test mode is ON
 
         // Do not start foreground service for test mode as requested
-        wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
+        wakeLock?.acquire(10*60*1000L /*10 minutes*/)
 
         audioEngine.startTest()
     }
 
-    fun stopStreaming() {
+    override fun stopStreaming() {
         if (!_isStreaming.value && !_isTestMode.value) return
-        Log.d(TAG, "stopStreaming called.")
+        
         _isStreaming.value = false
         _isTestMode.value = false
 
@@ -240,8 +221,6 @@ class AudioStreamingService : Service() {
 
     companion object {
         private const val NOTIFICATION_ID = 1
-        private const val TAG = "AudioStreamingService"
-        private const val WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L // 10 minutes
     }
 
     override fun onDestroy() {

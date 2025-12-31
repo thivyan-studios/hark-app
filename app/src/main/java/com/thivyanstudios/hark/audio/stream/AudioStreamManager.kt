@@ -70,13 +70,14 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         }
         Log.d(TAG, "Stopping audio stream manager")
 
-        streamingExecutor?.shutdownNow()
+        streamingExecutor?.shutdown()
         try {
             if (streamingExecutor?.awaitTermination(1, TimeUnit.SECONDS) == false) {
-                Log.e(TAG, "Streaming executor did not terminate in time.")
+                 streamingExecutor?.shutdownNow()
             }
         } catch (e: InterruptedException) {
             Log.e(TAG, "Interrupted while waiting for executor termination", e)
+             streamingExecutor?.shutdownNow()
         }
     }
 
