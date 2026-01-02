@@ -65,7 +65,7 @@ class SettingsViewModel @Inject constructor(
     }
     .stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(Constants.Preferences.TIMEOUT_MILLIS),
+        started = SharingStarted.Eagerly,
         initialValue = SettingsUiState()
     )
 
