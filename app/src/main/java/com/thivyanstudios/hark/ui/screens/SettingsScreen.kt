@@ -3,7 +3,6 @@ package com.thivyanstudios.hark.ui.screens
 import android.annotation.SuppressLint
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,17 +27,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.thivyanstudios.hark.R
@@ -128,9 +125,12 @@ fun SettingsScreen(
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
+                // Local state for immediate slider feedback
+                var sliderValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
+                
                 val formattedGain = when {
-                    uiState.microphoneGain > 0.01f -> "+${formatOneDecimal(uiState.microphoneGain)}"
-                    uiState.microphoneGain < -0.01f -> formatOneDecimal(uiState.microphoneGain)
+                    sliderValue > 0.01f -> "+${formatOneDecimal(sliderValue)}"
+                    sliderValue < -0.01f -> formatOneDecimal(sliderValue)
                     else -> "0"
                 }
                 Row(
@@ -142,11 +142,14 @@ fun SettingsScreen(
                     Text(text = stringResource(R.string.gain_db_format, formattedGain))
                 }
                 Slider(
-                    value = uiState.microphoneGain,
-                    onValueChange = { settingsViewModel.setMicrophoneGain(it) },
+                    value = sliderValue,
+                    onValueChange = { 
+                        sliderValue = it
+                    },
                     valueRange = -10f..30f,
                     steps = 39,
                     onValueChangeFinished = {
+                        settingsViewModel.setMicrophoneGain(sliderValue)
                         if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     }
                 )
@@ -180,60 +183,21 @@ fun SettingsScreen(
                     
                     frequencies.forEachIndexed { index, label ->
                         val bandValue = uiState.equalizerBands.getOrElse(index) { 0f }
+                        // Local state for each band to avoid UI jank during drag
+                        var localBandValue by remember(bandValue) { mutableFloatStateOf(bandValue) }
 
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                        VerticalEqualizerBand(
+                            frequencyLabel = label,
+                            gain = localBandValue,
+                            onGainChange = { 
+                                localBandValue = it
+                            },
+                            onGainChangeFinished = {
+                                settingsViewModel.setEqualizerBand(index, localBandValue)
+                            },
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                             modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = "${bandValue.roundToInt()}dB",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.padding(bottom = 0.dp)
-                            )
-
-                            // Vertical Slider implementation
-                            // We use a custom layout modifier to properly measure and place the rotated slider
-                            // This ensures the slider takes up the intended vertical space without weird padding issues
-                            Slider(
-                                value = bandValue,
-                                onValueChange = { settingsViewModel.setEqualizerBand(index, it) },
-                                valueRange = -10f..10f,
-                                steps = 19,
-                                onValueChangeFinished = {
-                                    if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                },
-                                modifier = Modifier
-                                    .graphicsLayer {
-                                        rotationZ = 270f
-                                        transformOrigin = TransformOrigin.Center
-                                    }
-                                    .layout { measurable, constraints ->
-                                        val placeable = measurable.measure(
-                                            Constraints(
-                                                minWidth = constraints.minHeight,
-                                                maxWidth = constraints.maxHeight,
-                                                minHeight = constraints.minWidth,
-                                                maxHeight = constraints.maxWidth,
-                                            )
-                                        )
-                                        layout(placeable.height, placeable.width) {
-                                            placeable.place(
-                                                -(placeable.width - placeable.height) / 2,
-                                                -(placeable.height - placeable.width) / 2
-                                            )
-                                        }
-                                    }
-                                    .width(200.dp) // This sets the length of the vertical slider
-                                    .height(50.dp) // This sets the touch target width of the vertical slider
-                            )
-                            
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(top = 0.dp)
-                            )
-                        }
+                        )
                     }
                 }
                 
