@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -21,6 +22,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import com.thivyanstudios.hark.util.Constants
 import kotlin.math.roundToInt
 
 @Composable
@@ -29,14 +31,16 @@ fun SettingsSwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     hapticFeedbackEnabled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
     
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp)
+            .alpha(if (enabled) 1f else 0.5f),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -53,7 +57,8 @@ fun SettingsSwitchRow(
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
                 onCheckedChange(it)
-            }
+            },
+            enabled = enabled
         )
     }
 }
@@ -83,8 +88,8 @@ fun VerticalEqualizerBand(
         Slider(
             value = gain,
             onValueChange = onGainChange,
-            valueRange = -10f..10f,
-            steps = 19,
+            valueRange = Constants.Preferences.MIN_EQ_GAIN..Constants.Preferences.MAX_EQ_GAIN,
+            steps = Constants.Preferences.EQ_GAIN_STEPS,
             onValueChangeFinished = {
                 if (hapticFeedbackEnabled) {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)

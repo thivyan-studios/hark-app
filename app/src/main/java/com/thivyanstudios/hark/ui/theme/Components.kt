@@ -31,17 +31,17 @@ fun SquishyBox(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     backgroundColor: Color,
-    disabledBackgroundColor: Color? = null, // Optional custom color for disabled state
+    disabledBackgroundColor: Color? = null,
     cornerRadius: Dp = 12.dp,
     contentAlignment: Alignment = Alignment.Center,
     enabled: Boolean = true,
+    hapticFeedbackEnabled: Boolean = true, // Added preference check
     content: @Composable BoxScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val scale = remember { Animatable(1f) }
     val haptic = LocalHapticFeedback.current
 
-    // Use the provided disabled color, or fallback to the normal background color (no change)
     val targetColor = if (enabled) backgroundColor else (disabledBackgroundColor ?: backgroundColor)
 
     val animatedBackgroundColor by animateColorAsState(
@@ -58,30 +58,27 @@ fun SquishyBox(
                             targetValue = 0.9f,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = 2000f // Slightly faster than Medium (1500f) for snappier feel
+                                stiffness = 2000f
                             )
                         )
                     }
                 }
                 is PressInteraction.Release -> {
                     launch {
-                        // If it's a fast tap and we haven't squished much yet, force the squish
-                        // to ensure the user sees the feedback.
                         if (scale.value > 0.95f) {
                             scale.animateTo(
                                 targetValue = 0.9f,
                                 animationSpec = spring(
                                     dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessHigh // Very fast squish down
+                                    stiffness = Spring.StiffnessHigh
                                 )
                             )
                         }
-                        // Then bounce back up
                         scale.animateTo(
                             targetValue = 1f,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow // Floaty/bouncy return
+                                stiffness = Spring.StiffnessLow
                             )
                         )
                     }
@@ -112,7 +109,9 @@ fun SquishyBox(
                 indication = null,
                 enabled = enabled
             ) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (hapticFeedbackEnabled) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
                 onClick()
             },
         content = content

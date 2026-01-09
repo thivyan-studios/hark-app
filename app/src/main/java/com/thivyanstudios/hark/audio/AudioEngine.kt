@@ -5,6 +5,8 @@ import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
 import com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor
 import com.thivyanstudios.hark.audio.stream.AudioStreamManager
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,6 +14,10 @@ import javax.inject.Singleton
 class AudioEngine @Inject constructor() {
 
     val events = Channel<AudioEngineEvent>(Channel.BUFFERED)
+    
+    // QC: Using SharedFlow for errors/notifications that should be shown as snackbars
+    private val _errorEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val errorEvents = _errorEvents.asSharedFlow()
 
     private val audioProcessor = DefaultAudioProcessor(events)
     private val streamManager = AudioStreamManager(audioProcessor)
@@ -29,6 +35,10 @@ class AudioEngine @Inject constructor() {
     fun stop() {
         streamManager.stop()
         audioProcessor.release()
+    }
+    
+    fun sendError(message: String) {
+        _errorEvents.tryEmit(message)
     }
 
     fun setMicrophoneGain(gain: Float) {

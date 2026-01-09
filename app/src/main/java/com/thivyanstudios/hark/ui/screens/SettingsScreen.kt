@@ -103,14 +103,16 @@ fun SettingsScreen(
                     text = stringResource(R.string.settings_noise_suppression),
                     checked = uiState.noiseSuppressionEnabled,
                     onCheckedChange = settingsViewModel::setNoiseSuppressionEnabled,
-                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                    enabled = uiState.isNoiseSuppressionSupported
                 )
 
                 SettingsSwitchRow(
                     text = stringResource(R.string.settings_dynamics_processing),
                     checked = uiState.dynamicsProcessingEnabled,
                     onCheckedChange = settingsViewModel::setDynamicsProcessingEnabled,
-                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                    enabled = uiState.isDynamicsProcessingSupported
                 )
             }
         }
@@ -125,7 +127,6 @@ fun SettingsScreen(
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
-                // Local state for immediate slider feedback
                 var sliderValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
                 
                 val formattedGain = when {
@@ -146,8 +147,8 @@ fun SettingsScreen(
                     onValueChange = { 
                         sliderValue = it
                     },
-                    valueRange = -10f..30f,
-                    steps = 39,
+                    valueRange = Constants.Preferences.MIN_MIC_GAIN..Constants.Preferences.MAX_MIC_GAIN,
+                    steps = Constants.Preferences.MIC_GAIN_STEPS,
                     onValueChangeFinished = {
                         settingsViewModel.setMicrophoneGain(sliderValue)
                         if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -183,7 +184,6 @@ fun SettingsScreen(
                     
                     frequencies.forEachIndexed { index, label ->
                         val bandValue = uiState.equalizerBands.getOrElse(index) { 0f }
-                        // Local state for each band to avoid UI jank during drag
                         var localBandValue by remember(bandValue) { mutableFloatStateOf(bandValue) }
 
                         VerticalEqualizerBand(
@@ -207,7 +207,8 @@ fun SettingsScreen(
                     onClick = {
                         settingsViewModel.toggleTestAudio()
                     },
-                    backgroundColor = MaterialTheme.colorScheme.primaryContainer
+                    backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled // Internalized haptic call
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -234,7 +235,8 @@ fun SettingsScreen(
             onClick = {
                  uriHandler.openUri("https://ko-fi.com/thivyanstudios")
             },
-            backgroundColor = MaterialTheme.colorScheme.primaryContainer
+            backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled // Internalized haptic call
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

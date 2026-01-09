@@ -10,6 +10,7 @@ import android.os.Process
 import android.util.Log
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
 import com.thivyanstudios.hark.audio.processor.AudioProcessor
+import com.thivyanstudios.hark.util.Constants
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -20,6 +21,10 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     private var streamingExecutor: ExecutorService? = null
     private val isRunning = AtomicBoolean(false)
     private var useTestGenerator = false
+
+    private var activeAudioSource: AudioSource? = null
+    private var activeAudioSink: AudioSink? = null
+    private val lock = Any()
 
     @SuppressLint("MissingPermission")
     fun start(config: AudioProcessingConfig) {
@@ -33,21 +38,6 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     private fun startStreaming(config: AudioProcessingConfig, isTest: Boolean) {
         if (isRunning.getAndSet(true)) {
             Log.d(TAG, "start() called but already running")
-            // If already running, we check if we need to switch mode.
-            // If we are switching from test to normal or vice versa, we should restart.
-            if (useTestGenerator != isTest) {
-               Log.d(TAG, "Switching streaming mode (Test Mode: $isTest)")
-               // We need to stop current one first, but since we are in start(), 
-               // and we set isRunning to true above, we might be in a weird state if we just call stop() which sets it to false.
-               
-               // Let's rely on the caller to stop first if switching modes is needed.
-               // But wait, the user's issue is that "Test Settings" doesn't stop. 
-               // The Toggle in ViewModel calls stopStreaming() if it believes it is running.
-               // The logic in AudioStreamingService.stopStreaming calls AudioEngine.stop() which calls AudioStreamManager.stop().
-               
-               // If startStreaming is called while running, we generally just return.
-               return
-            }
             return
         }
 
@@ -70,6 +60,23 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         }
         Log.d(TAG, "Stopping audio stream manager")
 
+        synchronized(lock) {
+            try {
+                activeAudioSource?.stop()
+                activeAudioSource?.release()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error releasing activeAudioSource in stop()", e)
+            }
+            try {
+                activeAudioSink?.stop()
+                activeAudioSink?.release()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error releasing activeAudioSink in stop()", e)
+            }
+            activeAudioSource = null
+            activeAudioSink = null
+        }
+
         streamingExecutor?.shutdown()
         try {
             if (streamingExecutor?.awaitTermination(1, TimeUnit.SECONDS) == false) {
@@ -89,15 +96,22 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     private fun runStreamingLoop(config: AudioProcessingConfig) {
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val audioFormat = AudioFormat.ENCODING_PCM_FLOAT
-        val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, channelConfig, audioFormat) * BUFFER_SIZE_MULTIPLIER
+        val bufferSize = AudioRecord.getMinBufferSize(
+            Constants.Audio.SAMPLE_RATE, 
+            channelConfig, 
+            audioFormat
+        ) * Constants.Audio.BUFFER_SIZE_MULTIPLIER
 
-        val audioTrack = createAudioTrack(audioFormat, bufferSize)
+        var audioTrack: AudioTrack? = null
         var audioRecord: AudioRecord? = null
 
         var audioSource: AudioSource? = null
         var audioSink: AudioSink? = null
 
         try {
+            // Initialize underlying hardware first
+            audioTrack = createAudioTrack(audioFormat, bufferSize)
+            
             if (useTestGenerator) {
                 audioSource = PinkNoiseAudioSource()
             } else {
@@ -105,14 +119,20 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
                 audioSource = AndroidAudioSource(audioRecord)
             }
             
-            // Create wrappers
             audioSink = AndroidAudioSink(audioTrack)
+
+            synchronized(lock) {
+                if (!isRunning.get()) {
+                    cleanupResources(audioSource, audioSink, audioRecord, audioTrack)
+                    return
+                }
+                activeAudioSource = audioSource
+                activeAudioSink = audioSink
+            }
 
             audioSource.start()
             audioSink.play()
 
-            // Pass a lambda that checks the AtomicBoolean isRunning
-            // IMPORTANT: The loop inside processor needs to check this lambda frequently.
             audioProcessor.process(audioSource, audioSink, config) { 
                 isRunning.get() && !Thread.currentThread().isInterrupted 
             }
@@ -120,7 +140,11 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         } catch (e: Exception) {
             Log.e(TAG, "Exception in streaming loop", e)
         } finally {
-            cleanupResources(audioSource, audioSink)
+            synchronized(lock) {
+                if (activeAudioSource == audioSource) activeAudioSource = null
+                if (activeAudioSink == audioSink) activeAudioSink = null
+            }
+            cleanupResources(audioSource, audioSink, audioRecord, audioTrack)
         }
     }
 
@@ -135,7 +159,7 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
             .setAudioFormat(
                 AudioFormat.Builder()
                     .setEncoding(audioFormat)
-                    .setSampleRate(SAMPLE_RATE)
+                    .setSampleRate(Constants.Audio.SAMPLE_RATE)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build()
             )
@@ -147,12 +171,24 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
 
     @SuppressLint("MissingPermission")
     private fun createAudioRecord(channelConfig: Int, audioFormat: Int, bufferSize: Int): AudioRecord {
-        return AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channelConfig, audioFormat, bufferSize)
+        return AudioRecord(
+            MediaRecorder.AudioSource.MIC, 
+            Constants.Audio.SAMPLE_RATE, 
+            channelConfig, 
+            audioFormat, 
+            bufferSize
+        )
     }
 
-    private fun cleanupResources(audioSource: AudioSource?, audioSink: AudioSink?) {
+    private fun cleanupResources(
+        audioSource: AudioSource?, 
+        audioSink: AudioSink?,
+        audioRecord: AudioRecord?,
+        audioTrack: AudioTrack?
+    ) {
         Log.d(TAG, "Cleaning up streaming resources.")
 
+        // 1. Release high-level wrappers
         try {
             audioSource?.stop()
             audioSource?.release()
@@ -165,11 +201,27 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         } catch (e: Exception) {
             Log.e(TAG, "Error releasing AudioSink", e)
         }
+
+        // 2. Explicitly release underlying hardware resources if they were created but not wrapped or released by wrappers
+        try {
+            if (audioRecord?.state == AudioRecord.STATE_INITIALIZED) {
+                audioRecord.stop()
+            }
+            audioRecord?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing AudioRecord", e)
+        }
+        try {
+            if (audioTrack?.state == AudioTrack.STATE_INITIALIZED) {
+                audioTrack.stop()
+            }
+            audioTrack?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing AudioTrack", e)
+        }
     }
 
     companion object {
         private const val TAG = "AudioStreamManager"
-        private const val SAMPLE_RATE = 44100
-        private const val BUFFER_SIZE_MULTIPLIER = 2
     }
 }

@@ -10,5 +10,9 @@ data class SettingsUiState(
     val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
-    val equalizerBands: List<Float> = List(Constants.Preferences.EQUALIZER_BAND_COUNT) { Constants.Preferences.DEFAULT_GAIN }
+    val equalizerBands: List<Float> = List(Constants.Preferences.EQUALIZER_BAND_COUNT) { Constants.Preferences.DEFAULT_GAIN },
+    
+    // Feature support flags
+    val isNoiseSuppressionSupported: Boolean = true, // Default to true until proven otherwise
+    val isDynamicsProcessingSupported: Boolean = true
 )
