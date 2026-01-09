@@ -21,7 +21,8 @@ class NotificationHelper @Inject constructor(
 
         val name = context.getString(R.string.notification_channel_name)
         val descriptionText = context.getString(R.string.notification_channel_description)
-        val importance = NotificationManager.IMPORTANCE_HIGH
+        // QC: Changed to IMPORTANCE_LOW to prevent sound/vibration on service start
+        val importance = NotificationManager.IMPORTANCE_LOW
         val channel = NotificationChannel(channelId, name, importance).apply {
             description = descriptionText
         }

@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.thivyanstudios.hark.BuildConfig
 import com.thivyanstudios.hark.R
+import com.thivyanstudios.hark.audio.AudioEngine
+import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.util.Constants
@@ -16,7 +18,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -25,10 +31,13 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val audioServiceManager: AudioServiceManager,
+    private val audioEngine: AudioEngine,
     private val application: Application
 ) : ViewModel() {
 
     private val _versionName = MutableStateFlow("")
+    private val _isNoiseSuppressionSupported = MutableStateFlow(true)
+    private val _isDynamicsProcessingSupported = MutableStateFlow(true)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -46,12 +55,34 @@ class SettingsViewModel @Inject constructor(
                 application.getString(R.string.version_not_found)
             }
         }
+
+        // Listen for audio engine events to update feature support
+        audioEngine.events.receiveAsFlow()
+            .onEach { event ->
+                when (event) {
+                    is AudioEngineEvent.NoiseSuppressorAvailability -> {
+                        _isNoiseSuppressionSupported.value = event.isAvailable
+                    }
+                    is AudioEngineEvent.DynamicsProcessingAvailability -> {
+                        _isDynamicsProcessingSupported.value = event.isAvailable
+                    }
+                    AudioEngineEvent.NoiseSuppressorNotAvailable -> {
+                        _isNoiseSuppressionSupported.value = false
+                    }
+                    AudioEngineEvent.DynamicsProcessingNotAvailable -> {
+                        _isDynamicsProcessingSupported.value = false
+                    }
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(
         userPreferencesRepository.userPreferencesFlow,
-        _versionName
-    ) { prefs, version ->
+        _versionName,
+        _isNoiseSuppressionSupported,
+        _isDynamicsProcessingSupported
+    ) { prefs, version, nsSupported, dpSupported ->
         SettingsUiState(
             versionName = version,
             hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
@@ -60,7 +91,9 @@ class SettingsViewModel @Inject constructor(
             microphoneGain = prefs.microphoneGain,
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
-            equalizerBands = prefs.equalizerBands
+            equalizerBands = prefs.equalizerBands,
+            isNoiseSuppressionSupported = nsSupported,
+            isDynamicsProcessingSupported = dpSupported
         )
     }
     .stateIn(

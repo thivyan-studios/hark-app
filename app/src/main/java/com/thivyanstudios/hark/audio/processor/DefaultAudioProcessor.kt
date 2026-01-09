@@ -19,6 +19,10 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
     private var noiseSuppressor: NoiseSuppressor? = null
     private var equalizer: Equalizer? = null
     private var dynamicsProcessing: DynamicsProcessing? = null
+    
+    private var isNoiseSuppressorSupported = false
+    private var isDynamicsProcessingSupported = false
+    
     @Volatile
     private var currentConfig = AudioProcessingConfig()
 
@@ -45,9 +49,23 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     override fun updateConfig(config: AudioProcessingConfig) {
         currentConfig = config
-        noiseSuppressor?.enabled = config.noiseSuppressionEnabled
+        if (isNoiseSuppressorSupported) {
+            try {
+                noiseSuppressor?.enabled = config.noiseSuppressionEnabled
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating NoiseSuppressor", e)
+            }
+        }
+        
         updateEqualizerBands()
-        dynamicsProcessing?.enabled = config.dynamicsProcessingEnabled
+        
+        if (isDynamicsProcessingSupported) {
+            try {
+                dynamicsProcessing?.enabled = config.dynamicsProcessingEnabled
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating DynamicsProcessing", e)
+            }
+        }
     }
 
     private fun setupAudioEffects(inputSessionId: Int, outputSessionId: Int) {
@@ -57,29 +75,34 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
     }
 
     private fun setupNoiseSuppressor(audioSessionId: Int) {
-        // NoiseSuppressor must be attached to the AudioRecord session (input session).
-        // If the session ID is 0, it means it's a mix or generated source, so we can't attach an HW effect.
-        if (audioSessionId == 0) return
+        if (audioSessionId == 0) {
+            isNoiseSuppressorSupported = false
+            events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(false))
+            return
+        }
 
-        // We check availability first
         if (NoiseSuppressor.isAvailable()) {
             try {
+                noiseSuppressor?.release()
                 noiseSuppressor = NoiseSuppressor.create(audioSessionId)
                 noiseSuppressor?.enabled = currentConfig.noiseSuppressionEnabled
+                isNoiseSuppressorSupported = true
+                events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(true))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to create NoiseSuppressor", e)
-                events.trySend(AudioEngineEvent.NoiseSuppressorNotAvailable)
+                isNoiseSuppressorSupported = false
+                events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(false))
             }
         } else {
-            // Only report unavailability if we actually tried to use it on a valid session
              Log.w(TAG, "NoiseSuppressor is not available on this device.")
-             events.trySend(AudioEngineEvent.NoiseSuppressorNotAvailable)
+             isNoiseSuppressorSupported = false
+             events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(false))
         }
     }
 
     private fun setupEqualizer(audioSessionId: Int) {
         try {
-            // Equalizer is an output effect, so it attaches to the AudioTrack session.
+            equalizer?.release()
             equalizer = Equalizer(0, audioSessionId)
             equalizer?.enabled = true
             updateEqualizerBands()
@@ -90,7 +113,6 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     private fun setupDynamicsProcessing(audioSessionId: Int) {
         try {
-            // DynamicsProcessing.Config.Builder requires precise arguments
             val builder = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 1,
@@ -104,8 +126,6 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
             )
 
             val config = builder.build()
-
-            // Configure Limiter
             val limiterConfig = config.getLimiterByChannelIndex(0)
             limiterConfig.isEnabled = true
             limiterConfig.threshold = LIMITER_THRESHOLD
@@ -114,12 +134,15 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
             limiterConfig.ratio = LIMITER_RATIO
             limiterConfig.postGain = LIMITER_POST_GAIN
 
+            dynamicsProcessing?.release()
             dynamicsProcessing = DynamicsProcessing(0, audioSessionId, config)
             dynamicsProcessing?.enabled = currentConfig.dynamicsProcessingEnabled
-
+            isDynamicsProcessingSupported = true
+            events.trySend(AudioEngineEvent.DynamicsProcessingAvailability(true))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create DynamicsProcessing", e)
-            events.trySend(AudioEngineEvent.DynamicsProcessingNotAvailable)
+            isDynamicsProcessingSupported = false
+            events.trySend(AudioEngineEvent.DynamicsProcessingAvailability(false))
         }
     }
 
@@ -134,7 +157,6 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
         for (i in 0 until min(bands.size, numBands.toInt())) {
             val gainDb = bands[i]
-            // Convert dB to millibels (mB) used by Equalizer API
             val gainmB = (gainDb * 100).toInt().toShort()
             val safeGain = max(minEqLevel.toInt(), min(maxEqLevel.toInt(), gainmB.toInt())).toShort()
             eq.setBandLevel(i.toShort(), safeGain)
@@ -155,6 +177,8 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
         equalizer = null
         dynamicsProcessing?.release()
         dynamicsProcessing = null
+        isNoiseSuppressorSupported = false
+        isDynamicsProcessingSupported = false
     }
 
     companion object {

@@ -128,16 +128,23 @@ class AudioStreamingService : Service(), AudioStreamingController {
             
         audioEngine.events.receiveAsFlow()
             .onEach { event ->
+                // QC: Handle availability events by sending errors to the UI via AudioEngine instead of toasts
                 when(event) {
-                    is AudioEngineEvent.NoiseSuppressorNotAvailable -> {
-                         Handler(Looper.getMainLooper()).post {
-                             android.widget.Toast.makeText(this@AudioStreamingService, getString(R.string.noise_suppression_not_available), android.widget.Toast.LENGTH_SHORT).show()
-                         }
+                    is AudioEngineEvent.NoiseSuppressorAvailability -> {
+                        if (!event.isAvailable) {
+                            audioEngine.sendError(getString(R.string.noise_suppression_not_available))
+                        }
                     }
-                    is AudioEngineEvent.DynamicsProcessingNotAvailable -> {
-                         Handler(Looper.getMainLooper()).post {
-                             android.widget.Toast.makeText(this@AudioStreamingService, getString(R.string.dynamics_processing_not_available), android.widget.Toast.LENGTH_SHORT).show()
-                         }
+                    is AudioEngineEvent.DynamicsProcessingAvailability -> {
+                        if (!event.isAvailable) {
+                            audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
+                        }
+                    }
+                    AudioEngineEvent.NoiseSuppressorNotAvailable -> {
+                        audioEngine.sendError(getString(R.string.noise_suppression_not_available))
+                    }
+                    AudioEngineEvent.DynamicsProcessingNotAvailable -> {
+                        audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
                     }
                 }
             }
@@ -180,7 +187,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _isTestMode.value = false // Ensure test mode is off
 
         startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
-        wakeLock?.acquire(10*60*1000L /*10 minutes*/)
+        // QC: Removed timeout to allow continuous streaming
+        wakeLock?.acquire()
 
         audioEngine.start()
     }
@@ -200,7 +208,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _isTestMode.value = true // Ensure test mode is ON
 
         // Do not start foreground service for test mode as requested
-        wakeLock?.acquire(10*60*1000L /*10 minutes*/)
+        // QC: Removed timeout to allow continuous streaming
+        wakeLock?.acquire()
 
         audioEngine.startTest()
     }

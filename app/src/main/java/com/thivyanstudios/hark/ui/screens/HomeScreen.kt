@@ -27,18 +27,15 @@ fun HomeScreen(
     onStreamButtonClick: () -> Unit,
     hapticFeedbackEnabled: Boolean,
 ) {
-    // Local state to manage the button's enabled status for debounce
     var isButtonEnabled by remember { mutableStateOf(true) }
     
-    // Effect to re-enable button immediately when streaming state changes
     LaunchedEffect(isStreaming) {
         isButtonEnabled = true
     }
 
-    // Effect to re-enable button after 5 seconds if it was disabled
     LaunchedEffect(isButtonEnabled) {
         if (!isButtonEnabled) {
-            delay(5000L) // 5 seconds delay
+            delay(5000L)
             isButtonEnabled = true
         }
     }
@@ -47,11 +44,10 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
     ) {
-        // This is your stream button (ImageView)
         SquishyBox(
             onClick = {
                 if (isButtonEnabled) {
-                    isButtonEnabled = false // Disable immediately on click
+                    isButtonEnabled = false
                     onStreamButtonClick()
                 }
             },
@@ -60,7 +56,8 @@ fun HomeScreen(
                 .align(Alignment.Center),
             backgroundColor = if (isStreaming) Color(0xFF4B5320) else Color.Red,
             disabledBackgroundColor = Color.Gray, 
-            enabled = isButtonEnabled
+            enabled = isButtonEnabled,
+            hapticFeedbackEnabled = hapticFeedbackEnabled // QC: Respect user preference
         ) {
             Image(
                 painter = if (isStreaming) {
