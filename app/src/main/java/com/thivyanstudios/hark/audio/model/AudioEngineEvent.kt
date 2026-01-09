@@ -1,10 +1,12 @@
 package com.thivyanstudios.hark.audio.model
 
+/**
+ * Events sent from the Audio Engine to the UI/Service layers.
+ */
 sealed class AudioEngineEvent {
+    /** Indicates if Noise Suppression is supported and its current state. */
     data class NoiseSuppressorAvailability(val isAvailable: Boolean) : AudioEngineEvent()
-    data class DynamicsProcessingAvailability(val isAvailable: Boolean) : AudioEngineEvent()
     
-    // Kept for backward compatibility if needed, but preferred to use the data classes above
-    object NoiseSuppressorNotAvailable : AudioEngineEvent()
-    object DynamicsProcessingNotAvailable : AudioEngineEvent()
+    /** Indicates if Dynamics Processing (Limiter) is supported and its current state. */
+    data class DynamicsProcessingAvailability(val isAvailable: Boolean) : AudioEngineEvent()
 }

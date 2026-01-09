@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.media.*
 import android.os.Binder
 import android.os.Build
@@ -39,7 +40,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
     override val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
 
-    // Track if we are in "test mode" so we can distinguish it in the UI if needed
     private val _isTestMode = MutableStateFlow(false)
     override val isTestMode = _isTestMode.asStateFlow()
     
@@ -77,10 +77,31 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     restartStreaming()
                 }
             }
-            val deviceType = if(disableHearingAidPriority) AudioDeviceInfo.TYPE_BLUETOOTH_SCO else AudioDeviceInfo.TYPE_HEARING_AID
-            if (removedDevices?.any { it.type == deviceType } == true) {
+            
+            val isTargetDeviceRemoved = removedDevices?.any { isCompatibleDevice(it.type) } == true
+            if (isTargetDeviceRemoved) {
                 stopStreaming()
             }
+        }
+    }
+
+    private fun isCompatibleDevice(type: Int): Boolean {
+        return if (disableHearingAidPriority) {
+            when (type) {
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                AudioDeviceInfo.TYPE_USB_HEADSET -> true
+                else -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        type == AudioDeviceInfo.TYPE_BLE_HEADSET || 
+                        type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+                    } else false
+                }
+            }
+        } else {
+            type == AudioDeviceInfo.TYPE_HEARING_AID
         }
     }
 
@@ -103,11 +124,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
     override fun onCreate() {
         super.onCreate()
 
-        // Consolidated flow collection for user preferences
         userPreferencesRepository.userPreferencesFlow
             .distinctUntilChanged()
             .onEach { prefs ->
-                // Handle disableHearingAidPriority
                 val newDisablePriority = prefs.disableHearingAidPriority
                 if (newDisablePriority != disableHearingAidPriority) {
                     disableHearingAidPriority = newDisablePriority
@@ -117,7 +136,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     updateHearingAidStatus()
                 }
 
-                // Handle Audio Engine Settings
                 val gain = 10.0.pow(prefs.microphoneGain / 20.0).toFloat()
                 audioEngine.setMicrophoneGain(gain)
                 audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
@@ -128,7 +146,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
             
         audioEngine.events.receiveAsFlow()
             .onEach { event ->
-                // QC: Handle availability events by sending errors to the UI via AudioEngine instead of toasts
                 when(event) {
                     is AudioEngineEvent.NoiseSuppressorAvailability -> {
                         if (!event.isAvailable) {
@@ -139,12 +156,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         if (!event.isAvailable) {
                             audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
                         }
-                    }
-                    AudioEngineEvent.NoiseSuppressorNotAvailable -> {
-                        audioEngine.sendError(getString(R.string.noise_suppression_not_available))
-                    }
-                    AudioEngineEvent.DynamicsProcessingNotAvailable -> {
-                        audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
                     }
                 }
             }
@@ -158,9 +169,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private fun updateHearingAidStatus() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        val deviceType = if(disableHearingAidPriority) AudioDeviceInfo.TYPE_BLUETOOTH_SCO else AudioDeviceInfo.TYPE_HEARING_AID
-        _hearingAidConnected.value = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-            .any { it.type == deviceType }
+        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        _hearingAidConnected.value = devices.any { isCompatibleDevice(it.type) }
     }
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
@@ -174,7 +184,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     @SuppressLint("ForegroundServiceType")
     override fun startStreaming() {
-        // Stop test stream if it is running to ensure we can switch to mic stream cleanly
         if (_isTestMode.value) {
             stopStreaming()
         }
@@ -184,18 +193,24 @@ class AudioStreamingService : Service(), AudioStreamingController {
         }
         
         _isStreaming.value = true
-        _isTestMode.value = false // Ensure test mode is off
+        _isTestMode.value = false
 
-        startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
-        // QC: Removed timeout to allow continuous streaming
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID, 
+                notificationHelper.createNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
+        }
+        
         wakeLock?.acquire()
-
         audioEngine.start()
     }
     
     @SuppressLint("ForegroundServiceType")
     override fun startTestStreaming() {
-        // Stop mic stream if it is running to ensure we can switch to test stream cleanly
         if (_isStreaming.value) {
             stopStreaming()
         }
@@ -204,13 +219,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
             return
         }
         
-        // Do not set isStreaming to true, we don't want the UI to update as if we are streaming mic audio
-        _isTestMode.value = true // Ensure test mode is ON
-
-        // Do not start foreground service for test mode as requested
-        // QC: Removed timeout to allow continuous streaming
+        _isTestMode.value = true 
         wakeLock?.acquire()
-
         audioEngine.startTest()
     }
 
@@ -225,7 +235,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
         }
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
     }
 
     companion object {
