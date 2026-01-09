@@ -40,6 +40,12 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Default status for debug builds
         buildConfigField("String", "BUILD_STATUS", "\"Release-Candidate\"")
+        
+        externalNativeBuild {
+            cmake {
+                arguments("-DANDROID_STL=c++_shared")
+            }
+        }
     }
 
     buildTypes {
@@ -70,6 +76,13 @@ android {
         viewBinding = true
         compose = true
         buildConfig = true
+        prefab = true // Needed for Oboe
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
     }
 }
 
@@ -100,6 +113,9 @@ dependencies {
 
     // Splash Screen
     implementation(libs.androidx.core.splashscreen)
+    
+    // Oboe
+    implementation(libs.oboe)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

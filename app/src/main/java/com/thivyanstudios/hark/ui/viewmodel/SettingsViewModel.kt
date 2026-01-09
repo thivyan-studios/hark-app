@@ -66,12 +66,6 @@ class SettingsViewModel @Inject constructor(
                     is AudioEngineEvent.DynamicsProcessingAvailability -> {
                         _isDynamicsProcessingSupported.value = event.isAvailable
                     }
-                    AudioEngineEvent.NoiseSuppressorNotAvailable -> {
-                        _isNoiseSuppressionSupported.value = false
-                    }
-                    AudioEngineEvent.DynamicsProcessingNotAvailable -> {
-                        _isDynamicsProcessingSupported.value = false
-                    }
                 }
             }
             .launchIn(viewModelScope)

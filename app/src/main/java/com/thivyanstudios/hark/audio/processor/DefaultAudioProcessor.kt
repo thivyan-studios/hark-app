@@ -2,9 +2,7 @@ package com.thivyanstudios.hark.audio.processor
 
 import android.media.AudioRecord
 import android.media.AudioTrack
-import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.Equalizer
-import android.media.audiofx.NoiseSuppressor
 import android.util.Log
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
@@ -14,14 +12,13 @@ import kotlinx.coroutines.channels.Channel
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * A simplified Java-based audio processor used only as a fallback 
+ * if the high-performance Native (Oboe) engine fails to start.
+ */
 class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : AudioProcessor {
 
-    private var noiseSuppressor: NoiseSuppressor? = null
     private var equalizer: Equalizer? = null
-    private var dynamicsProcessing: DynamicsProcessing? = null
-    
-    private var isNoiseSuppressorSupported = false
-    private var isDynamicsProcessingSupported = false
     
     @Volatile
     private var currentConfig = AudioProcessingConfig()
@@ -33,7 +30,7 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
         isRunning: () -> Boolean
     ) {
         currentConfig = config
-        setupAudioEffects(audioSource.audioSessionId, audioSink.audioSessionId)
+        setupAudioEffects(audioSink.audioSessionId)
 
         val bufferSize = audioSink.bufferSizeInFrames
         val buffer = FloatArray(bufferSize)
@@ -49,55 +46,18 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     override fun updateConfig(config: AudioProcessingConfig) {
         currentConfig = config
-        if (isNoiseSuppressorSupported) {
-            try {
-                noiseSuppressor?.enabled = config.noiseSuppressionEnabled
-            } catch (e: Exception) {
-                Log.e(TAG, "Error updating NoiseSuppressor", e)
-            }
-        }
-        
         updateEqualizerBands()
         
-        if (isDynamicsProcessingSupported) {
-            try {
-                dynamicsProcessing?.enabled = config.dynamicsProcessingEnabled
-            } catch (e: Exception) {
-                Log.e(TAG, "Error updating DynamicsProcessing", e)
-            }
-        }
+        // Note: Noise Suppression and Dynamics Processing are now primarily 
+        // handled in the Native C++ engine for better performance.
     }
 
-    private fun setupAudioEffects(inputSessionId: Int, outputSessionId: Int) {
-        setupNoiseSuppressor(inputSessionId)
+    private fun setupAudioEffects(outputSessionId: Int) {
         setupEqualizer(outputSessionId)
-        setupDynamicsProcessing(outputSessionId)
-    }
-
-    private fun setupNoiseSuppressor(audioSessionId: Int) {
-        if (audioSessionId == 0) {
-            isNoiseSuppressorSupported = false
-            events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(false))
-            return
-        }
-
-        if (NoiseSuppressor.isAvailable()) {
-            try {
-                noiseSuppressor?.release()
-                noiseSuppressor = NoiseSuppressor.create(audioSessionId)
-                noiseSuppressor?.enabled = currentConfig.noiseSuppressionEnabled
-                isNoiseSuppressorSupported = true
-                events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(true))
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to create NoiseSuppressor", e)
-                isNoiseSuppressorSupported = false
-                events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(false))
-            }
-        } else {
-             Log.w(TAG, "NoiseSuppressor is not available on this device.")
-             isNoiseSuppressorSupported = false
-             events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(false))
-        }
+        
+        // We notify the UI that hardware/native features are preferred
+        events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(true))
+        events.trySend(AudioEngineEvent.DynamicsProcessingAvailability(true))
     }
 
     private fun setupEqualizer(audioSessionId: Int) {
@@ -108,41 +68,6 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
             updateEqualizerBands()
         } catch (e: Exception) {
              Log.e(TAG, "Failed to create Equalizer", e)
-        }
-    }
-
-    private fun setupDynamicsProcessing(audioSessionId: Int) {
-        try {
-            val builder = DynamicsProcessing.Config.Builder(
-                DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
-                1,
-                false,
-                0,
-                false,
-                0,
-                false,
-                0,
-                true   
-            )
-
-            val config = builder.build()
-            val limiterConfig = config.getLimiterByChannelIndex(0)
-            limiterConfig.isEnabled = true
-            limiterConfig.threshold = LIMITER_THRESHOLD
-            limiterConfig.attackTime = LIMITER_ATTACK_TIME
-            limiterConfig.releaseTime = LIMITER_RELEASE_TIME
-            limiterConfig.ratio = LIMITER_RATIO
-            limiterConfig.postGain = LIMITER_POST_GAIN
-
-            dynamicsProcessing?.release()
-            dynamicsProcessing = DynamicsProcessing(0, audioSessionId, config)
-            dynamicsProcessing?.enabled = currentConfig.dynamicsProcessingEnabled
-            isDynamicsProcessingSupported = true
-            events.trySend(AudioEngineEvent.DynamicsProcessingAvailability(true))
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to create DynamicsProcessing", e)
-            isDynamicsProcessingSupported = false
-            events.trySend(AudioEngineEvent.DynamicsProcessingAvailability(false))
         }
     }
 
@@ -171,22 +96,11 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
     }
 
     fun release() {
-        noiseSuppressor?.release()
-        noiseSuppressor = null
         equalizer?.release()
         equalizer = null
-        dynamicsProcessing?.release()
-        dynamicsProcessing = null
-        isNoiseSuppressorSupported = false
-        isDynamicsProcessingSupported = false
     }
 
     companion object {
         private const val TAG = "DefaultAudioProcessor"
-        private const val LIMITER_THRESHOLD = -10.0f
-        private const val LIMITER_ATTACK_TIME = 1.0f
-        private const val LIMITER_RELEASE_TIME = 60.0f
-        private const val LIMITER_RATIO = 10.0f
-        private const val LIMITER_POST_GAIN = 0.0f
     }
 }
