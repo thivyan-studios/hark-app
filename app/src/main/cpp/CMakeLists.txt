@@ -11,10 +11,18 @@ find_package(oboe REQUIRED CONFIG)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Configure include directories
+include_directories(
+    dsp
+    engine
+    jni
+)
+
 # Build the main Hark engine
 add_library(hark SHARED
-    hark_audio_engine.cpp
-    jni_bridge.cpp
+    dsp/pink_noise_generator.cpp
+    engine/hark_audio_engine.cpp
+    jni/jni_bridge.cpp
 )
 
 target_link_libraries(hark
