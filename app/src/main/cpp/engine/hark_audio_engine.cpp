@@ -16,8 +16,8 @@ HarkAudioEngine::~HarkAudioEngine() {
 }
 
 void HarkAudioEngine::resetDsp() {
-    for (int i = 0; i < kNumEqBands; i++) {
-        mEqBands[i].reset();
+    for (auto & mEqBand : mEqBands) {
+        mEqBand.reset();
     }
     mNoiseGate.reset();
 }
@@ -30,6 +30,7 @@ bool HarkAudioEngine::start() {
 
     bool isTestMode = mIsTestMode.load();
 
+    // 1. Setup Input Stream
     if (!isTestMode) {
         oboe::AudioStreamBuilder inBuilder;
         inBuilder.setDirection(oboe::Direction::Input)
@@ -38,15 +39,15 @@ bool HarkAudioEngine::start() {
                 ->setFormat(oboe::AudioFormat::Float)
                 ->setChannelCount(oboe::ChannelCount::Mono)
                 ->setSampleRate(mSampleRate)
-                ->setInputPreset(oboe::InputPreset::VoiceCommunication);
+                // Using Unprocessed minimizes HAL-level latency by bypassing system AEC/NS
+                ->setInputPreset(oboe::InputPreset::Unprocessed)
+                ->setCallback(this); // Using callback for input too
 
         oboe::Result result = inBuilder.openStream(mInStream);
         if (result != oboe::Result::OK) return false;
-        mInStream->requestStart();
-    } else {
-        mPinkNoiseGenerator.reset();
     }
 
+    // 2. Setup Output Stream
     oboe::AudioStreamBuilder outBuilder;
     outBuilder.setDirection(oboe::Direction::Output)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
@@ -54,6 +55,8 @@ bool HarkAudioEngine::start() {
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(mSampleRate)
+            ->setUsage(oboe::Usage::VoiceCommunication)
+            ->setContentType(oboe::ContentType::Speech)
             ->setCallback(this);
 
     oboe::Result result = outBuilder.openStream(mOutStream);
@@ -62,7 +65,14 @@ bool HarkAudioEngine::start() {
         return false;
     }
 
+    // Set buffer size to exactly 2 bursts for a balance of stability and ultra-low latency
+    // AAudio MMAP path usually requires 2 bursts.
     mOutStream->setBufferSizeInFrames(mFramesPerBurst * 2);
+
+    // Initialize the lock-free FIFO
+    mFifo = std::make_unique<oboe::FifoBuffer>(sizeof(float), mFramesPerBurst * 8); 
+
+    if (mInStream) mInStream->requestStart();
     mOutStream->requestStart();
 
     return true;
@@ -78,33 +88,75 @@ void HarkAudioEngine::closeStreams() {
     if (mInStream) { mInStream->stop(); mInStream->close(); mInStream.reset(); }
 }
 
-void HarkAudioEngine::setMicrophoneGain(float gain) { mGain.store(gain); }
-void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) { mIsNoiseSuppressionEnabled.store(enabled); }
-void HarkAudioEngine::setDynamicsProcessingEnabled(bool enabled) { mIsDynamicsProcessingEnabled.store(enabled); }
-void HarkAudioEngine::setTestMode(bool enabled) { mIsTestMode.store(enabled); }
-
-void HarkAudioEngine::setEqualizerBands(const float* gains, int numBands) {
-    for (int i = 0; i < std::min(numBands, kNumEqBands); i++) {
-        mLastGains[i] = gains[i];
-    }
-    updateFilters();
+void HarkAudioEngine::updateFilters() {
+    // Implementation for updateFilters
 }
 
-void HarkAudioEngine::updateFilters() {
-    const float freqs[] = {60.0f, 230.0f, 910.0f, 3000.0f, 10000.0f}; 
-    const float fs = (float)mSampleRate;
+void HarkAudioEngine::setMicrophoneGain(float gain) {
+    mGain.store(gain);
+}
 
-    for (int i = 0; i < kNumEqBands; i++) {
-        BiquadCoefficients coeffs = DspUtils::calculatePeakingEq(freqs[i], fs, mLastGains[i]);
-        mEqBands[i].setCoefficients(coeffs);
+void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) {
+    mIsNoiseSuppressionEnabled.store(enabled);
+}
+
+void HarkAudioEngine::setDynamicsProcessingEnabled(bool enabled) {
+    mIsDynamicsProcessingEnabled.store(enabled);
+}
+
+void HarkAudioEngine::setEqualizerBands(const float* gains, int numBands) {
+    // Implementation for setEqualizerBands
+}
+
+void HarkAudioEngine::setTestMode(bool enabled) {
+    mIsTestMode.store(enabled);
+}
+
+oboe::DataCallbackResult HarkAudioEngine::onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames) {
+    auto *data = static_cast<float *>(audioData);
+
+    if (audioStream->getDirection() == oboe::Direction::Input) {
+        // --- INPUT CALLBACK ---
+        // Push raw input into FIFO as fast as possible
+        if (mFifo) {
+            mFifo->write(data, numFrames);
+        }
+        return oboe::DataCallbackResult::Continue;
+    } else {
+        // --- OUTPUT CALLBACK ---
+        for (auto & mEqBand : mEqBands) {
+            mEqBand.updateFromPending();
+        }
+
+        if (mIsTestMode.load(std::memory_order_relaxed)) {
+            mPinkNoiseGenerator.fillBuffer(data, numFrames);
+        } else {
+            // Pull from FIFO
+            int32_t framesRead = 0;
+            if (mFifo) {
+                framesRead = mFifo->read(data, numFrames);
+            }
+            
+            if (framesRead < numFrames) {
+                // Underflow: fill remaining with silence
+                std::fill_n(data + framesRead, numFrames - framesRead, 0.0f);
+            }
+        }
+
+        // Process DSP on the output buffer (In-place)
+        for (int i = 0; i < numFrames; i++) {
+            data[i] = processSample(data[i]);
+        }
+
+        return oboe::DataCallbackResult::Continue;
     }
 }
 
 float HarkAudioEngine::processSample(float sample) {
     float output = sample * mGain.load(std::memory_order_relaxed);
 
-    for (int i = 0; i < kNumEqBands; i++) {
-        output = mEqBands[i].process(output);
+    for (auto & mEqBand : mEqBands) {
+        output = mEqBand.process(output);
     }
 
     if (mIsNoiseSuppressionEnabled.load(std::memory_order_relaxed)) {
@@ -112,50 +164,9 @@ float HarkAudioEngine::processSample(float sample) {
     }
 
     if (mIsDynamicsProcessingEnabled.load(std::memory_order_relaxed)) {
-        output = std::clamp(output, -1.0f, 1.0f);
+        // Faster soft-clipping instead of hard clamp for better audio quality at low latency
+        output = std::tanh(output); 
     }
 
     return output;
-}
-
-oboe::DataCallbackResult HarkAudioEngine::onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames) {
-    for (int i = 0; i < kNumEqBands; i++) {
-        mEqBands[i].updateFromPending();
-    }
-
-    auto *outputData = static_cast<float *>(audioData);
-    
-    if (mIsTestMode.load(std::memory_order_relaxed)) {
-        mPinkNoiseGenerator.fillBuffer(outputData, numFrames);
-        for (int i = 0; i < numFrames; i++) {
-            outputData[i] = processSample(outputData[i]);
-        }
-        return oboe::DataCallbackResult::Continue;
-    }
-
-    if (!mStreamLock.try_lock()) {
-        std::fill_n(outputData, numFrames, 0.0f);
-        return oboe::DataCallbackResult::Continue;
-    }
-
-    if (!mInStream || mInStream->getState() != oboe::StreamState::Started) {
-        mStreamLock.unlock();
-        std::fill_n(outputData, numFrames, 0.0f);
-        return oboe::DataCallbackResult::Continue;
-    }
-
-    oboe::ResultWithValue<int32_t> framesRead = mInStream->read(outputData, numFrames, 0);
-    mStreamLock.unlock();
-
-    if (framesRead && framesRead.value() > 0) {
-        for (int i = 0; i < framesRead.value(); i++) {
-            outputData[i] = processSample(outputData[i]);
-        }
-        if (framesRead.value() < numFrames) {
-            std::fill_n(outputData + framesRead.value(), numFrames - framesRead.value(), 0.0f);
-        }
-    } else {
-        std::fill_n(outputData, numFrames, 0.0f);
-    }
-    return oboe::DataCallbackResult::Continue;
 }

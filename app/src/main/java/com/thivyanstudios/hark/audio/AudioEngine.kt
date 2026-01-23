@@ -16,7 +16,7 @@ private const val TAG = "AudioEngine"
 
 @Singleton
 class AudioEngine @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext context: Context
 ) {
 
     private var isNativeLoaded = false
@@ -67,7 +67,7 @@ class AudioEngine @Inject constructor(
                 sendError("Failed to start Native Audio Engine")
             }
             success
-        } catch (e: UnsatisfiedLinkError) {
+        } catch (_: UnsatisfiedLinkError) {
             sendError("Native method not found: nativeStart")
             false
         }
@@ -113,7 +113,7 @@ class AudioEngine @Inject constructor(
         if (currentConfig.microphoneGain == gain) return
         currentConfig = currentConfig.copy(microphoneGain = gain)
         if (isNativeLoaded) {
-            try { nativeSetMicrophoneGain(gain) } catch (e: UnsatisfiedLinkError) {}
+            try { nativeSetMicrophoneGain(gain) } catch (_: UnsatisfiedLinkError) {}
         }
     }
 
@@ -121,7 +121,7 @@ class AudioEngine @Inject constructor(
         if (currentConfig.noiseSuppressionEnabled == enabled) return
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
         if (isNativeLoaded) {
-            try { nativeSetNoiseSuppressionEnabled(enabled) } catch (e: UnsatisfiedLinkError) {}
+            try { nativeSetNoiseSuppressionEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
         }
     }
     
@@ -129,7 +129,7 @@ class AudioEngine @Inject constructor(
         if (currentConfig.equalizerBands == bands) return
         currentConfig = currentConfig.copy(equalizerBands = bands)
         if (isNativeLoaded) {
-            try { nativeSetEqualizerBands(bands.toFloatArray()) } catch (e: UnsatisfiedLinkError) {}
+            try { nativeSetEqualizerBands(bands.toFloatArray()) } catch (_: UnsatisfiedLinkError) {}
         }
     }
     
@@ -137,13 +137,13 @@ class AudioEngine @Inject constructor(
         if (currentConfig.dynamicsProcessingEnabled == enabled) return
         currentConfig = currentConfig.copy(dynamicsProcessingEnabled = enabled)
         if (isNativeLoaded) {
-            try { nativeSetDynamicsProcessingEnabled(enabled) } catch (e: UnsatisfiedLinkError) {}
+            try { nativeSetDynamicsProcessingEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
         }
     }
 
     fun setTestMode(enabled: Boolean) {
         if (isNativeLoaded) {
-            try { nativeSetTestMode(enabled) } catch (e: UnsatisfiedLinkError) {}
+            try { nativeSetTestMode(enabled) } catch (_: UnsatisfiedLinkError) { }
         }
     }
 
