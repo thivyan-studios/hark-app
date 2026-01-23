@@ -2,6 +2,7 @@
 #define HARK_AUDIO_ENGINE_H
 
 #include <oboe/Oboe.h>
+#include <oboe/FifoBuffer.h>
 #include <mutex>
 #include <memory>
 #include <cstdint>
@@ -36,6 +37,9 @@ private:
 
     int32_t mSampleRate;
     int32_t mFramesPerBurst;
+
+    // Use a lock-free FIFO to transfer data between input and output callbacks
+    std::unique_ptr<oboe::FifoBuffer> mFifo;
 
     std::atomic<float> mGain{1.0f};
     std::atomic<bool> mIsNoiseSuppressionEnabled{false};
