@@ -9,6 +9,7 @@ import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.ui.MainUiState
 import com.thivyanstudios.hark.util.Constants
+import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -39,6 +40,7 @@ class MainViewModel @Inject constructor(
         // QC: Listen for errors from the audio engine and bridge them to snackbars
         audioEngine.errorEvents
             .onEach { message ->
+                HarkLog.e("MainViewModel", "AudioEngine error: $message")
                 _snackbarChannel.send(message)
             }
             .launchIn(viewModelScope)
@@ -49,13 +51,11 @@ class MainViewModel @Inject constructor(
             if (service != null) {
                 combine(
                     service.isStreaming,
-                    service.isTestMode,
                     service.hearingAidConnected,
                     userPreferencesRepository.userPreferencesFlow
-                ) { isStreaming, isTestMode, hearingAidConnected, prefs ->
+                ) { isStreaming, hearingAidConnected, prefs ->
                     MainUiState(
                         isStreaming = isStreaming,
-                        isTestMode = isTestMode,
                         hearingAidConnected = hearingAidConnected,
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
                         keepScreenOn = prefs.keepScreenOn
@@ -81,20 +81,26 @@ class MainViewModel @Inject constructor(
         val service = audioServiceManager.service.value
         if (service != null) {
             if (service.isStreaming.value) {
+                HarkLog.i("MainViewModel", "Requesting to stop streaming")
                 service.stopStreaming()
             } else {
                 if (service.hearingAidConnected.value) {
+                    HarkLog.i("MainViewModel", "Requesting to start streaming")
                     service.startStreaming()
                 } else {
+                    HarkLog.w("MainViewModel", "Streaming requested but hearing aid not connected")
                     viewModelScope.launch {
                         _snackbarChannel.send(connectHearingAidMessage)
                     }
                 }
             }
+        } else {
+            HarkLog.e("MainViewModel", "Toggle streaming failed: Service is null")
         }
     }
 
     fun showPermissionsRequiredMessage(message: String) {
+        HarkLog.w("MainViewModel", "Showing permissions required message")
         viewModelScope.launch {
             _snackbarChannel.send(message)
         }

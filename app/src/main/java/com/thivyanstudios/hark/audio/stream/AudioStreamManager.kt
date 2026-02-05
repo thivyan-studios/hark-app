@@ -20,7 +20,6 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
 
     private var streamingExecutor: ExecutorService? = null
     private val isRunning = AtomicBoolean(false)
-    private var useTestGenerator = false
 
     private var activeAudioSource: AudioSource? = null
     private var activeAudioSink: AudioSink? = null
@@ -28,21 +27,12 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
 
     @SuppressLint("MissingPermission")
     fun start(config: AudioProcessingConfig) {
-        startStreaming(config, false)
-    }
-
-    fun startTest(config: AudioProcessingConfig) {
-        startStreaming(config, true)
-    }
-
-    private fun startStreaming(config: AudioProcessingConfig, isTest: Boolean) {
         if (isRunning.getAndSet(true)) {
             Log.d(TAG, "start() called but already running")
             return
         }
 
-        useTestGenerator = isTest
-        Log.d(TAG, "Starting audio stream manager (Test Mode: $isTest)")
+        Log.d(TAG, "Starting audio stream manager")
 
         val executor = Executors.newSingleThreadExecutor()
         streamingExecutor = executor
@@ -111,14 +101,8 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         try {
             // Initialize underlying hardware first
             audioTrack = createAudioTrack(audioFormat, bufferSize)
-            
-            if (useTestGenerator) {
-                audioSource = PinkNoiseAudioSource()
-            } else {
-                audioRecord = createAudioRecord(channelConfig, audioFormat, bufferSize)
-                audioSource = AndroidAudioSource(audioRecord)
-            }
-            
+            audioRecord = createAudioRecord(channelConfig, audioFormat, bufferSize)
+            audioSource = AndroidAudioSource(audioRecord)
             audioSink = AndroidAudioSink(audioTrack)
 
             synchronized(lock) {

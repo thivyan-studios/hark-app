@@ -23,18 +23,19 @@ import kotlinx.coroutines.delay
 @Composable
 fun HomeScreen(
     isStreaming: Boolean,
-    isTestMode: Boolean,
     onStreamButtonClick: () -> Unit,
     hapticFeedbackEnabled: Boolean,
 ) {
     var isButtonEnabled by remember { mutableStateOf(true) }
     
     LaunchedEffect(isStreaming) {
+        // Re-enable button immediately when streaming state changes
         isButtonEnabled = true
     }
 
     LaunchedEffect(isButtonEnabled) {
         if (!isButtonEnabled) {
+            // Safety timeout to re-enable button if something goes wrong
             delay(5000L)
             isButtonEnabled = true
         }
@@ -54,10 +55,11 @@ fun HomeScreen(
             modifier = Modifier
                 .size(120.dp)
                 .align(Alignment.Center),
+            // QC: Removed disabledBackgroundColor (Gray) to prevent "laggy" visual transition.
+            // The button will now stay Red or Green while transitioning, providing a snappier feel.
             backgroundColor = if (isStreaming) Color(0xFF4B5320) else Color.Red,
-            disabledBackgroundColor = Color.Gray, 
             enabled = isButtonEnabled,
-            hapticFeedbackEnabled = hapticFeedbackEnabled // QC: Respect user preference
+            hapticFeedbackEnabled = hapticFeedbackEnabled
         ) {
             Image(
                 painter = if (isStreaming) {

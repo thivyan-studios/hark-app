@@ -8,10 +8,8 @@ import kotlinx.coroutines.flow.StateFlow
  */
 interface AudioStreamingController {
     val isStreaming: StateFlow<Boolean>
-    val isTestMode: StateFlow<Boolean>
     val hearingAidConnected: StateFlow<Boolean>
 
     fun startStreaming()
     fun stopStreaming()
-    fun startTestStreaming()
 }

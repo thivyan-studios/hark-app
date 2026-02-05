@@ -2,7 +2,9 @@ package com.thivyanstudios.hark.ui.viewmodel
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.thivyanstudios.hark.BuildConfig
@@ -10,8 +12,7 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
-import com.thivyanstudios.hark.service.AudioServiceManager
-import com.thivyanstudios.hark.util.Constants
+import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +23,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -30,7 +30,6 @@ import javax.inject.Inject
 @SuppressLint("MissingPermission")
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val audioServiceManager: AudioServiceManager,
     private val audioEngine: AudioEngine,
     private val application: Application
 ) : ViewModel() {
@@ -85,7 +84,6 @@ class SettingsViewModel @Inject constructor(
             microphoneGain = prefs.microphoneGain,
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
-            equalizerBands = prefs.equalizerBands,
             isNoiseSuppressionSupported = nsSupported,
             isDynamicsProcessingSupported = dpSupported
         )
@@ -97,56 +95,65 @@ class SettingsViewModel @Inject constructor(
     )
 
     fun setHapticFeedbackEnabled(isEnabled: Boolean) {
+        HarkLog.i("SettingsViewModel", "Haptic feedback enabled: $isEnabled")
         viewModelScope.launch {
             userPreferencesRepository.setHapticFeedbackEnabled(isEnabled)
         }
     }
 
     fun setKeepScreenOn(isEnabled: Boolean) {
+        HarkLog.i("SettingsViewModel", "Keep screen on enabled: $isEnabled")
         viewModelScope.launch {
             userPreferencesRepository.setKeepScreenOn(isEnabled)
         }
     }
 
     fun setDisableHearingAidPriority(isEnabled: Boolean) {
+        HarkLog.i("SettingsViewModel", "Disable hearing aid priority enabled: $isEnabled")
         viewModelScope.launch {
             userPreferencesRepository.setDisableHearingAidPriority(isEnabled)
         }
     }
 
     fun setMicrophoneGain(gain: Float) {
+        HarkLog.i("SettingsViewModel", "Microphone gain set to: $gain")
         viewModelScope.launch {
             userPreferencesRepository.setMicrophoneGain(gain)
         }
     }
 
     fun setNoiseSuppressionEnabled(isEnabled: Boolean) {
+        HarkLog.i("SettingsViewModel", "Noise suppression enabled: $isEnabled")
         viewModelScope.launch {
             userPreferencesRepository.setNoiseSuppressionEnabled(isEnabled)
         }
     }
     
     fun setDynamicsProcessingEnabled(isEnabled: Boolean) {
+        HarkLog.i("SettingsViewModel", "Dynamics processing enabled: $isEnabled")
         viewModelScope.launch {
             userPreferencesRepository.setDynamicsProcessingEnabled(isEnabled)
         }
     }
 
-    fun setEqualizerBand(index: Int, gain: Float) {
-        viewModelScope.launch {
-            userPreferencesRepository.setEqualizerBand(index, gain)
-        }
-    }
+    fun generateAndShareLog() {
+        HarkLog.i("SettingsViewModel", "Generating log for sharing")
+        val logFile = HarkLog.getLogFile() ?: return
+        
+        val contentUri = FileProvider.getUriForFile(
+            application,
+            "${application.packageName}.fileprovider",
+            logFile
+        )
 
-    fun toggleTestAudio() {
-        val service = audioServiceManager.service.value
-        if (service?.isTestMode?.value == true) {
-            service?.stopStreaming()
-        } else {
-            if (service?.isStreaming?.value == true) {
-                service?.stopStreaming()
-            }
-            service?.startTestStreaming()
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, contentUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+        
+        val chooser = Intent.createChooser(intent, "Share Hark Log")
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        application.startActivity(chooser)
     }
 }

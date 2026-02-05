@@ -14,8 +14,11 @@
     <string name="gain_db_format">%1$s dB</string>
     <string name="settings_noise_suppression">Noise Suppression</string>
     <string name="settings_dynamics_processing">Dynamics Processing (Compressor)</string>
-    <string name="settings_equalizer">Equalizer</string>
-    <string name="settings_test_audio">Test Settings</string>
+    <string name="settings_generate_log">Generate log</string>
+    <string name="privacy_policy_title">Privacy &amp; Data Handling</string>
+    <string name="privacy_policy_content">Hark is designed with a strong commitment to user privacy, ensuring that all data logging remains local to your device and under your direct control. The application records technical diagnostics, including device hardware specifications, Android version, Bluetooth connectivity status, and app-specific interactions such as setting adjustments and touch events, solely for the purpose of troubleshooting and performance optimization. Importantly, Hark does not automatically transmit, upload, or share this data with any external servers; logs are stored in a temporary session file that is automatically deleted each time the app is restarted. No personally identifiable information, precise location data, or audio content is ever collected or recorded, and diagnostic logs are only transmitted if you explicitly choose to share them via the application settings for support purposes.</string>
+    <string name="accept">Accept</string>
+    <string name="cancel">Cancel</string>
 
     <!-- Bottom Nav -->
     <string name="nav_home">Home</string>

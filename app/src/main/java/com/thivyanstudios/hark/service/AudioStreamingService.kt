@@ -18,6 +18,7 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.math.pow
 
@@ -40,9 +43,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
     override val isStreaming = _isStreaming.asStateFlow()
     private var wakeLock: PowerManager.WakeLock? = null
 
-    private val _isTestMode = MutableStateFlow(false)
-    override val isTestMode = _isTestMode.asStateFlow()
-    
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository
     
@@ -61,6 +61,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+            HarkLog.i("AudioStreamingService", "Audio devices added")
             updateHearingAidStatus()
             if (_isStreaming.value) {
                 if (hasRequiredPermissions()) {
@@ -71,6 +72,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
         @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+            HarkLog.i("AudioStreamingService", "Audio devices removed")
             updateHearingAidStatus()
             if (_isStreaming.value) {
                 if (hasRequiredPermissions()) {
@@ -80,6 +82,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
             
             val isTargetDeviceRemoved = removedDevices?.any { isCompatibleDevice(it.type) } == true
             if (isTargetDeviceRemoved) {
+                HarkLog.i("AudioStreamingService", "Compatible device removed, stopping streaming")
                 stopStreaming()
             }
         }
@@ -119,27 +122,27 @@ class AudioStreamingService : Service(), AudioStreamingController {
         fun getService(): AudioStreamingController = this@AudioStreamingService
     }
 
-    override fun onBind(intent: Intent?): IBinder = binder
+    override fun onBind(intent: Intent?): IBinder {
+        HarkLog.i("AudioStreamingService", "onBind")
+        return binder
+    }
 
     override fun onCreate() {
         super.onCreate()
+        HarkLog.i("AudioStreamingService", "onCreate")
 
         userPreferencesRepository.userPreferencesFlow
             .distinctUntilChanged()
             .onEach { prefs ->
                 val newDisablePriority = prefs.disableHearingAidPriority
                 if (newDisablePriority != disableHearingAidPriority) {
-                    disableHearingAidPriority = newDisablePriority
-                    if (_isStreaming.value) {
-                        stopStreaming()
-                    }
-                    updateHearingAidStatus()
+                    HarkLog.i("AudioStreamingService", "Hearing aid priority preference changed: $newDisablePriority")
+                    disablePriorityChange(newDisablePriority)
                 }
 
                 val gain = 10.0.pow(prefs.microphoneGain / 20.0).toFloat()
                 audioEngine.setMicrophoneGain(gain)
                 audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
-                audioEngine.setEqualizerBands(prefs.equalizerBands)
                 audioEngine.setDynamicsProcessingEnabled(prefs.dynamicsProcessingEnabled)
             }
             .launchIn(serviceScope)
@@ -149,11 +152,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 when(event) {
                     is AudioEngineEvent.NoiseSuppressorAvailability -> {
                         if (!event.isAvailable) {
+                            HarkLog.w("AudioStreamingService", "Noise suppressor not available")
                             audioEngine.sendError(getString(R.string.noise_suppression_not_available))
                         }
                     }
                     is AudioEngineEvent.DynamicsProcessingAvailability -> {
                         if (!event.isAvailable) {
+                            HarkLog.w("AudioStreamingService", "Dynamics processing not available")
                             audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
                         }
                     }
@@ -165,16 +170,28 @@ class AudioStreamingService : Service(), AudioStreamingController {
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hark::AudioStreamingWakeLock")
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, Handler(Looper.getMainLooper()))
+        updateHearingAidStatus()
+    }
+
+    private fun disablePriorityChange(newDisablePriority: Boolean) {
+        disableHearingAidPriority = newDisablePriority
+        if (_isStreaming.value) {
+            stopStreaming()
+        }
+        updateHearingAidStatus()
     }
 
     private fun updateHearingAidStatus() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        _hearingAidConnected.value = devices.any { isCompatibleDevice(it.type) }
+        val isConnected = devices.any { isCompatibleDevice(it.type) }
+        HarkLog.i("AudioStreamingService", "Hearing aid connected: $isConnected")
+        _hearingAidConnected.value = isConnected
     }
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     private fun restartStreaming() {
+        HarkLog.i("AudioStreamingService", "Restarting streaming")
         if (_isStreaming.value) {
             stopStreaming()
             startStreaming()
@@ -184,63 +201,56 @@ class AudioStreamingService : Service(), AudioStreamingController {
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     @SuppressLint("ForegroundServiceType")
     override fun startStreaming() {
-        if (_isTestMode.value) {
-            stopStreaming()
-        }
-
         if (_isStreaming.value) {
+            HarkLog.w("AudioStreamingService", "Start streaming called but already streaming")
             return
         }
         
+        HarkLog.i("AudioStreamingService", "Starting streaming")
         _isStreaming.value = true
-        _isTestMode.value = false
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID, 
-                notificationHelper.createNotification(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
+        serviceScope.launch {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID, 
+                    notificationHelper.createNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
+            }
+            
+            wakeLock?.acquire()
+            withContext(Dispatchers.IO) {
+                audioEngine.start()
+            }
         }
-        
-        wakeLock?.acquire()
-        audioEngine.start()
-    }
-    
-    @SuppressLint("ForegroundServiceType")
-    override fun startTestStreaming() {
-        if (_isStreaming.value) {
-            stopStreaming()
-        }
-
-        if (_isStreaming.value || _isTestMode.value) {
-            return
-        }
-        
-        _isTestMode.value = true 
-        wakeLock?.acquire()
-        audioEngine.startTest()
     }
 
     override fun stopStreaming() {
-        if (!_isStreaming.value && !_isTestMode.value) return
-        
-        _isStreaming.value = false
-        _isTestMode.value = false
-
-        audioEngine.stop()
-
-        if (wakeLock?.isHeld == true) {
-            wakeLock?.release()
+        if (!_isStreaming.value) {
+            HarkLog.w("AudioStreamingService", "Stop streaming called but not streaming")
+            return
         }
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
+        HarkLog.i("AudioStreamingService", "Stopping streaming")
+        _isStreaming.value = false
+
+        serviceScope.launch {
+            withContext(Dispatchers.IO) {
+                audioEngine.stop()
+            }
+
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
         }
     }
 
@@ -249,6 +259,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     }
 
     override fun onDestroy() {
+        HarkLog.i("AudioStreamingService", "onDestroy")
         super.onDestroy()
         serviceScope.cancel()
         stopStreaming()
