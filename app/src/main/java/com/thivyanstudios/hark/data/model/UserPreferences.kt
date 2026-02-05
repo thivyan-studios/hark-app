@@ -6,6 +6,5 @@ data class UserPreferences(
     val disableHearingAidPriority: Boolean,
     val microphoneGain: Float,
     val noiseSuppressionEnabled: Boolean,
-    val equalizerBands: List<Float>,
     val dynamicsProcessingEnabled: Boolean
 )

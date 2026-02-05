@@ -6,12 +6,15 @@ import com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor
 import com.thivyanstudios.hark.audio.stream.AudioStreamManager
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class AudioEngine @Inject constructor() {
+
+    private val _isStreaming = MutableStateFlow(false)
 
     init {
         try {
@@ -33,9 +36,12 @@ class AudioEngine @Inject constructor() {
     private var currentConfig = AudioProcessingConfig()
 
     fun start() {
+        if (_isStreaming.value) return
+        _isStreaming.value = true
+        
         val success = try {
             nativeStart()
-        } catch (e: UnsatisfiedLinkError) {
+        } catch (_: UnsatisfiedLinkError) {
             false
         }
         
@@ -45,14 +51,13 @@ class AudioEngine @Inject constructor() {
         }
     }
 
-    fun startTest() {
-        streamManager.startTest(currentConfig)
-    }
-
     fun stop() {
+        if (!_isStreaming.value) return
+        _isStreaming.value = false
+        
         try {
             nativeStop()
-        } catch (e: UnsatisfiedLinkError) {
+        } catch (_: UnsatisfiedLinkError) {
             // Handle error
         }
         streamManager.stop()
@@ -66,27 +71,21 @@ class AudioEngine @Inject constructor() {
     fun setMicrophoneGain(gain: Float) {
         if (currentConfig.microphoneGain == gain) return
         currentConfig = currentConfig.copy(microphoneGain = gain)
-        try { nativeSetMicrophoneGain(gain) } catch (e: UnsatisfiedLinkError) {}
+        try { nativeSetMicrophoneGain(gain) } catch (_: UnsatisfiedLinkError) {}
         streamManager.updateConfig(currentConfig)
     }
 
     fun setNoiseSuppressionEnabled(enabled: Boolean) {
         if (currentConfig.noiseSuppressionEnabled == enabled) return
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
-        try { nativeSetNoiseSuppressionEnabled(enabled) } catch (e: UnsatisfiedLinkError) {}
-        streamManager.updateConfig(currentConfig)
-    }
-    
-    fun setEqualizerBands(bands: List<Float>) {
-        if (currentConfig.equalizerBands == bands) return
-        currentConfig = currentConfig.copy(equalizerBands = bands)
+        try { nativeSetNoiseSuppressionEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
         streamManager.updateConfig(currentConfig)
     }
     
     fun setDynamicsProcessingEnabled(enabled: Boolean) {
         if (currentConfig.dynamicsProcessingEnabled == enabled) return
         currentConfig = currentConfig.copy(dynamicsProcessingEnabled = enabled)
-        try { nativeSetDynamicsProcessingEnabled(enabled) } catch (e: UnsatisfiedLinkError) {}
+        try { nativeSetDynamicsProcessingEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
         streamManager.updateConfig(currentConfig)
     }
 

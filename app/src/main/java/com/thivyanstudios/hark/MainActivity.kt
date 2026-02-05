@@ -2,6 +2,7 @@ package com.thivyanstudios.hark
 
 import android.os.Build
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,6 +21,7 @@ import com.thivyanstudios.hark.ui.HarkAppContent
 import com.thivyanstudios.hark.ui.theme.HarkTheme
 import com.thivyanstudios.hark.ui.viewmodel.MainViewModel
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
+import com.thivyanstudios.hark.util.HarkLog
 import com.thivyanstudios.hark.util.PermissionManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -36,17 +38,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        HarkLog.i("MainActivity", "onStart")
         audioServiceManager.bindService()
     }
 
     override fun onStop() {
         super.onStop()
+        HarkLog.i("MainActivity", "onStop")
         audioServiceManager.unbindService()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        HarkLog.i("MainActivity", "onDestroy")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        HarkLog.i("MainActivity", "onCreate")
         
         // Keep splash screen until the app is ready to draw
         splashScreen.setKeepOnScreenCondition {
@@ -58,6 +68,7 @@ class MainActivity : ComponentActivity() {
         permissionManager = PermissionManager(
             this,
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+                HarkLog.i("MainActivity", "Permission result: $permissions")
                 permissionManager.handlePermissionsResult(permissions)
             }
         ) { mainViewModel.showPermissionsRequiredMessage(getString(R.string.permissions_required)) }
@@ -99,6 +110,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toggleStreaming() {
+        HarkLog.i("MainActivity", "Toggle streaming button clicked")
         if (permissionManager.hasPermissions()) {
             mainViewModel.toggleStreaming(getString(R.string.connect_hearing_system_first))
         } else {

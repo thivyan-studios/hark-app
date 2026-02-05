@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,17 +18,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +58,30 @@ fun SettingsScreen(
     val uriHandler = LocalUriHandler.current
     val haptic = LocalHapticFeedback.current
     val uiState by settingsViewModel.uiState.collectAsState()
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+
+    if (showPrivacyDialog) {
+        AlertDialog(
+            onDismissRequest = { showPrivacyDialog = false },
+            title = { Text(stringResource(R.string.privacy_policy_title)) },
+            text = { Text(stringResource(R.string.privacy_policy_content)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        settingsViewModel.generateAndShareLog()
+                        showPrivacyDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.accept))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPrivacyDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -84,14 +112,14 @@ fun SettingsScreen(
                     onCheckedChange = settingsViewModel::setHapticFeedbackEnabled,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
                 )
-                
+
                 SettingsSwitchRow(
                     text = stringResource(R.string.settings_keep_screen_on),
                     checked = uiState.keepScreenOn,
                     onCheckedChange = settingsViewModel::setKeepScreenOn,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
                 )
-                
+
                 SettingsSwitchRow(
                     text = stringResource(R.string.settings_disable_hearing_aid_priority),
                     checked = uiState.disableHearingAidPriority,
@@ -128,9 +156,9 @@ fun SettingsScreen(
                 modifier = Modifier.padding(16.dp)
             ) {
                 var sliderValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
-                
+
                 val formattedGain = when {
-                    sliderValue > 0.01f -> "+${formatOneDecimal(sliderValue)}"
+                    sliderValue > 0.01f -> "+${'$'}{formatOneDecimal(sliderValue)}"
                     sliderValue < -0.01f -> formatOneDecimal(sliderValue)
                     else -> "0"
                 }
@@ -144,7 +172,7 @@ fun SettingsScreen(
                 }
                 Slider(
                     value = sliderValue,
-                    onValueChange = { 
+                    onValueChange = {
                         sliderValue = it
                     },
                     valueRange = Constants.Preferences.MIN_MIC_GAIN..Constants.Preferences.MAX_MIC_GAIN,
@@ -157,103 +185,64 @@ fun SettingsScreen(
             }
         }
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        Column(
+            modifier = Modifier.width(IntrinsicSize.Max),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            SquishyBox(
+                onClick = {
+                    showPrivacyDialog = true
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
             ) {
-                Text(
-                    text = stringResource(R.string.settings_equalizer),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 16.dp).align(Alignment.Start)
-                )
-                
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val frequencies = Constants.Preferences.EQUALIZER_FREQUENCIES
-                    
-                    frequencies.forEachIndexed { index, label ->
-                        val bandValue = uiState.equalizerBands.getOrElse(index) { 0f }
-                        var localBandValue by remember(bandValue) { mutableFloatStateOf(bandValue) }
-
-                        VerticalEqualizerBand(
-                            frequencyLabel = label,
-                            gain = localBandValue,
-                            onGainChange = { 
-                                localBandValue = it
-                            },
-                            onGainChangeFinished = {
-                                settingsViewModel.setEqualizerBand(index, localBandValue)
-                            },
-                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                SquishyBox(
-                    onClick = {
-                        settingsViewModel.toggleTestAudio()
-                    },
-                    backgroundColor = MaterialTheme.colorScheme.primaryContainer,
-                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled // Internalized haptic call
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.settings_test_audio),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Filled.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.settings_generate_log),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
             }
-        }
 
-        SquishyBox(
-            onClick = {
-                 uriHandler.openUri("https://ko-fi.com/thivyanstudios")
-            },
-            backgroundColor = MaterialTheme.colorScheme.primaryContainer,
-            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled // Internalized haptic call
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            SquishyBox(
+                onClick = {
+                    uriHandler.openUri("https://ko-fi.com/thivyanstudios")
+                },
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Favorite,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.settings_support_kofi),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    style = MaterialTheme.typography.labelLarge
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Favorite,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.settings_support_kofi),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             }
         }
     }
