@@ -13,9 +13,9 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeInit(JNIEnv *env, jobject t
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_thivyanstudios_hark_audio_AudioEngine_nativeStart(JNIEnv *env, jobject thiz) {
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeStart(JNIEnv *env, jobject thiz, jint sample_rate, jint frames_per_burst) {
     if (engine) {
-        return (jboolean) engine->start();
+        return (jboolean) engine->start(sample_rate, frames_per_burst);
     }
     return JNI_FALSE;
 }

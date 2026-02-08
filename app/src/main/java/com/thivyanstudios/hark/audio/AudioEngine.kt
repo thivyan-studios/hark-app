@@ -1,9 +1,12 @@
 package com.thivyanstudios.hark.audio
 
+import android.content.Context
+import android.media.AudioManager
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
 import com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor
 import com.thivyanstudios.hark.audio.stream.AudioStreamManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,9 +15,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AudioEngine @Inject constructor() {
+class AudioEngine @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
 
     private val _isStreaming = MutableStateFlow(false)
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     init {
         try {
@@ -37,10 +43,16 @@ class AudioEngine @Inject constructor() {
 
     fun start() {
         if (_isStreaming.value) return
+        
+        val sampleRateStr = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)
+        val sampleRate = sampleRateStr?.toIntOrNull() ?: 48000
+        val framesPerBurstStr = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)
+        val framesPerBurst = framesPerBurstStr?.toIntOrNull() ?: 192
+
         _isStreaming.value = true
         
         val success = try {
-            nativeStart()
+            nativeStart(sampleRate, framesPerBurst)
         } catch (_: UnsatisfiedLinkError) {
             false
         }
@@ -91,7 +103,7 @@ class AudioEngine @Inject constructor() {
 
     // Native methods
     private external fun nativeInit()
-    private external fun nativeStart(): Boolean
+    private external fun nativeStart(sampleRate: Int, framesPerBurst: Int): Boolean
     private external fun nativeStop()
     private external fun nativeSetMicrophoneGain(gain: Float)
     private external fun nativeSetNoiseSuppressionEnabled(enabled: Boolean)
