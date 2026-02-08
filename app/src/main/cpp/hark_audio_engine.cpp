@@ -1,6 +1,8 @@
 #include "hark_audio_engine.h"
 #include <android/log.h>
 #include <algorithm>
+#include <cmath>
+#include <oboe/FifoBuffer.h>
 
 #define TAG "HarkAudioEngine"
 
@@ -10,10 +12,15 @@ HarkAudioEngine::~HarkAudioEngine() {
     stop();
 }
 
-bool HarkAudioEngine::start() {
+bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
     std::lock_guard<std::mutex> lock(mStreamLock);
     
     closeStreams();
+
+    // Initialize FIFO Buffer
+    // Capacity should be enough to hold several bursts of data
+    uint32_t fifoCapacity = static_cast<uint32_t>(framesPerBurst) * 8;
+    mFifoBuffer = std::make_unique<oboe::FifoBuffer>(sizeof(float), fifoCapacity);
 
     // Input stream: Microphone
     oboe::AudioStreamBuilder inBuilder;
@@ -22,8 +29,10 @@ bool HarkAudioEngine::start() {
             ->setSharingMode(oboe::SharingMode::Exclusive)
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
-            ->setSampleRate(48000)
-            ->setInputPreset(oboe::InputPreset::VoiceCommunication);
+            ->setSampleRate(sampleRate)
+            ->setInputPreset(oboe::InputPreset::VoiceCommunication)
+            ->setDataCallback(this)
+            ->setErrorCallback(this);
 
     oboe::Result result = inBuilder.openStream(mInStream);
     if (result != oboe::Result::OK) {
@@ -38,8 +47,9 @@ bool HarkAudioEngine::start() {
             ->setSharingMode(oboe::SharingMode::Exclusive)
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
-            ->setSampleRate(48000)
-            ->setCallback(this);
+            ->setSampleRate(sampleRate)
+            ->setDataCallback(this)
+            ->setErrorCallback(this);
 
     result = outBuilder.openStream(mOutStream);
     if (result != oboe::Result::OK) {
@@ -48,7 +58,7 @@ bool HarkAudioEngine::start() {
         return false;
     }
 
-    mOutStream->setBufferSizeInFrames(mOutStream->getFramesPerBurst() * 2);
+    mOutStream->setBufferSizeInFrames(framesPerBurst * 2);
 
     result = mInStream->requestStart();
     if (result != oboe::Result::OK) {
@@ -82,7 +92,13 @@ void HarkAudioEngine::closeStreams() {
 }
 
 void HarkAudioEngine::setMicrophoneGain(float gain) { mGain = gain; }
-void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) { mIsNoiseSuppressionEnabled = enabled; }
+
+void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) {
+    mIsNoiseSuppressionEnabled = enabled;
+    // Noise suppression is primarily handled by the system via InputPreset::VoiceCommunication
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Noise suppression %s", enabled ? "enabled" : "disabled");
+}
+
 void HarkAudioEngine::setDynamicsProcessingEnabled(bool enabled) { mIsDynamicsProcessingEnabled = enabled; }
 
 oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
@@ -90,40 +106,68 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         void *audioData,
         int32_t numFrames) {
 
-    auto *outputData = static_cast<float *>(audioData);
-
-    // If input stream isn't ready, just output silence
-    if (!mInStream || mInStream->getState() != oboe::StreamState::Started) {
-        std::fill_n(outputData, numFrames, 0.0f);
-        return oboe::DataCallbackResult::Continue;
-    }
-
-    // Direct relay: Read from microphone and write to outputData
-    // We use a small timeout (0) to avoid blocking the audio thread
-    oboe::ResultWithValue<int32_t> framesRead = mInStream->read(outputData, numFrames, 0);
-
-    if (framesRead && framesRead.value() > 0) {
-        int32_t actualFrames = framesRead.value();
-
-        for (int i = 0; i < actualFrames; i++) {
-            // Apply gain
-            outputData[i] *= mGain;
-
-            // Simple limiter (Dynamics Processing)
-            if (mIsDynamicsProcessingEnabled) {
-                if (outputData[i] > 1.0f) outputData[i] = 1.0f;
-                else if (outputData[i] < -1.0f) outputData[i] = -1.0f;
-            }
-        }
-
-        // If we read fewer frames than requested, fill the rest with silence
-        if (actualFrames < numFrames) {
-            std::fill_n(outputData + actualFrames, numFrames - actualFrames, 0.0f);
-        }
+    if (audioStream->getDirection() == oboe::Direction::Input) {
+        // Input Callback: Push data into FIFO
+        mFifoBuffer->write(audioData, numFrames);
     } else {
-        // If read failed or returned 0, output silence
-        std::fill_n(outputData, numFrames, 0.0f);
+        // Output Callback: Pull data from FIFO
+        auto *outputData = static_cast<float *>(audioData);
+        int32_t framesRead = mFifoBuffer->read(outputData, numFrames);
+
+        if (framesRead > 0) {
+            for (int i = 0; i < framesRead; i++) {
+                // Apply gain
+                outputData[i] *= mGain;
+
+                // Soft-knee limiter (Dynamics Processing)
+                if (mIsDynamicsProcessingEnabled) {
+                    outputData[i] = applySoftKneeLimiter(outputData[i]);
+                }
+            }
+
+            // If we read fewer frames than requested, fill the rest with silence
+            if (framesRead < numFrames) {
+                std::fill_n(outputData + framesRead, numFrames - framesRead, 0.0f);
+            }
+        } else {
+            // FIFO empty, output silence
+            std::fill_n(outputData, numFrames, 0.0f);
+        }
     }
 
     return oboe::DataCallbackResult::Continue;
+}
+
+float HarkAudioEngine::applySoftKneeLimiter(float input) {
+    // Simple soft-knee compressor/limiter
+    const float threshold = 0.8f;
+    const float kneeWidth = 0.2f;
+    const float attack = 0.01f;
+    const float release = 0.1f;
+
+    float absInput = std::abs(input);
+
+    // Envelope follower
+    if (absInput > mEnvelope) {
+        mEnvelope = absInput * attack + mEnvelope * (1.0f - attack);
+    } else {
+        mEnvelope = absInput * release + mEnvelope * (1.0f - release);
+    }
+
+    if (mEnvelope <= threshold - kneeWidth / 2.0f) {
+        return input; // No compression
+    } else if (mEnvelope >= threshold + kneeWidth / 2.0f) {
+        // Hard limiting above the knee
+        return (input > 0) ? threshold : -threshold;
+    } else {
+        // Soft knee region
+        float diff = mEnvelope - (threshold - kneeWidth / 2.0f);
+        float reduction = (diff * diff) / (2.0f * kneeWidth);
+        float gain = 1.0f - reduction / mEnvelope;
+        return input * gain;
+    }
+}
+
+void HarkAudioEngine::onErrorAfterClose(oboe::AudioStream *audioStream, oboe::Result error) {
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "Stream error: %s", oboe::convertToText(error));
 }

@@ -158,7 +158,7 @@ fun SettingsScreen(
                 var sliderValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
 
                 val formattedGain = when {
-                    sliderValue > 0.01f -> "+${'$'}{formatOneDecimal(sliderValue)}"
+                    sliderValue > 0.01f -> "+${formatOneDecimal(sliderValue)}"
                     sliderValue < -0.01f -> formatOneDecimal(sliderValue)
                     else -> "0"
                 }

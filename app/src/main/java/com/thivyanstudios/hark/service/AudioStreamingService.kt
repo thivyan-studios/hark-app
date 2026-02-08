@@ -58,6 +58,19 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val _hearingAidConnected = MutableStateFlow(false)
     override val hearingAidConnected = _hearingAidConnected.asStateFlow()
 
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                HarkLog.i("AudioStreamingService", "Audio focus lost, stopping streaming")
+                stopStreaming()
+            }
+        }
+    }
+
+    private var audioFocusRequest: AudioFocusRequest? = null
+
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
@@ -205,6 +218,11 @@ class AudioStreamingService : Service(), AudioStreamingController {
             HarkLog.w("AudioStreamingService", "Start streaming called but already streaming")
             return
         }
+
+        if (!requestAudioFocus()) {
+            HarkLog.w("AudioStreamingService", "Could not acquire audio focus, aborting start")
+            return
+        }
         
         HarkLog.i("AudioStreamingService", "Starting streaming")
         _isStreaming.value = true
@@ -235,6 +253,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         
         HarkLog.i("AudioStreamingService", "Stopping streaming")
         _isStreaming.value = false
+        abandonAudioFocus()
 
         serviceScope.launch {
             withContext(Dispatchers.IO) {
@@ -251,6 +270,42 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 @Suppress("DEPRECATION")
                 stopForeground(true)
             }
+        }
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(attributes)
+                .setAcceptsDelayedFocusGain(false)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+            
+            audioManager.requestAudioFocus(audioFocusRequest!!)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+            )
+        }
+        return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(audioFocusChangeListener)
         }
     }
 
