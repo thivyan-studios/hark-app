@@ -1,8 +1,10 @@
+@file:Suppress("UnstableApiUsage")
+
 import java.util.Properties
+import com.android.build.api.dsl.ApplicationExtension
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -21,7 +23,7 @@ versionPropertiesFile.inputStream().use {
 val appVersionCode = versionProperties.getProperty("APP_VERSION_CODE", "1").toInt()
 val appVersionName: String = versionProperties.getProperty("APP_VERSION_NAME", "0.1.0")
 
-android {
+configure<ApplicationExtension> {
     namespace = "com.thivyanstudios.hark"
     compileSdk = 36
 
@@ -66,10 +68,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = "11"
     }
 
     buildFeatures {
