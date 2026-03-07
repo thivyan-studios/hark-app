@@ -255,20 +255,20 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _isStreaming.value = false
         abandonAudioFocus()
 
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
+
         serviceScope.launch {
             withContext(Dispatchers.IO) {
                 audioEngine.stop()
-            }
-
-            if (wakeLock?.isHeld == true) {
-                wakeLock?.release()
-            }
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-            } else {
-                @Suppress("DEPRECATION")
-                stopForeground(true)
             }
         }
     }
@@ -315,11 +315,11 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     override fun onDestroy() {
         HarkLog.i("AudioStreamingService", "onDestroy")
-        super.onDestroy()
-        serviceScope.cancel()
         stopStreaming()
+        serviceScope.cancel()
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
+        super.onDestroy()
     }
 
 }

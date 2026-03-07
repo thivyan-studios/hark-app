@@ -16,6 +16,9 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     @Volatile
     private var currentConfig = AudioProcessingConfig()
+    
+    // Pre-allocated buffer to reduce GC pressure during audio processing
+    private var processingBuffer: FloatArray? = null
 
     override fun process(
         audioSource: AudioSource,
@@ -27,7 +30,13 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
         setupAudioEffects()
 
         val bufferSize = audioSink.bufferSizeInFrames
-        val buffer = FloatArray(bufferSize)
+        
+        // Only allocate if necessary
+        if (processingBuffer == null || processingBuffer?.size != bufferSize) {
+            processingBuffer = FloatArray(bufferSize)
+        }
+        
+        val buffer = processingBuffer!!
 
         while (isRunning()) {
             val read = audioSource.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING)
@@ -40,9 +49,6 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     override fun updateConfig(config: AudioProcessingConfig) {
         currentConfig = config
-        
-        // Note: Noise Suppression and Dynamics Processing are now primarily 
-        // handled in the Native C++ engine for better performance.
     }
 
     private fun setupAudioEffects() {
@@ -53,12 +59,15 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     private fun applyGain(buffer: FloatArray, size: Int) {
         val currentGain = currentConfig.microphoneGain
+        if (currentGain == 1.0f) return // Optimization: skip if gain is unity
+        
         for (i in 0 until size) {
             buffer[i] *= currentGain
         }
     }
 
     fun release() {
+        processingBuffer = null
     }
 
     companion object {

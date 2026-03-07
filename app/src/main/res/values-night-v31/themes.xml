@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Hark.Starting" parent="Theme.SplashScreen">
+        <!-- Use the inset drawable to prevent clipping -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/logo</item>
+
+        <!-- Removed windowSplashScreenIconBackgroundColor to have no background behind the SVG -->
+
+        <!-- Required for animated icons. -->
+        <item name="windowSplashScreenAnimationDuration">200</item>
+
+        <!-- Set the theme of the Activity that directly follows your splash screen. -->
+        <item name="postSplashScreenTheme">@style/Theme.Hark</item>
+    </style>
+</resources>
