@@ -3,6 +3,7 @@
 
 #include <oboe/Oboe.h>
 #include <mutex>
+#include <atomic>
 #include <memory>
 #include <cstdint>
 
@@ -37,11 +38,12 @@ private:
 
     std::unique_ptr<oboe::FifoBuffer> mFifoBuffer;
 
-    float mGain = 1.0f;
-    bool mIsNoiseSuppressionEnabled = false;
-    bool mIsDynamicsProcessingEnabled = false;
+    // Use atomic for thread-safe access from audio thread without locking
+    std::atomic<float> mGain{1.0f};
+    std::atomic<bool> mIsNoiseSuppressionEnabled{false};
+    std::atomic<bool> mIsDynamicsProcessingEnabled{false};
 
-    // Soft-knee compressor state
+    // Soft-knee compressor state (only accessed on audio thread)
     float mEnvelope = 0.0f;
 
     std::mutex mStreamLock;

@@ -6,6 +6,7 @@ import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
 import com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor
 import com.thivyanstudios.hark.audio.stream.AudioStreamManager
+import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -18,18 +19,10 @@ import javax.inject.Singleton
 class AudioEngine @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-
     private val _isStreaming = MutableStateFlow(false)
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    init {
-        try {
-            System.loadLibrary("hark")
-            nativeInit()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
+    private var isNativeLibraryLoaded = false
 
     val events = Channel<AudioEngineEvent>(Channel.BUFFERED)
     
@@ -41,9 +34,23 @@ class AudioEngine @Inject constructor(
 
     private var currentConfig = AudioProcessingConfig()
 
+    private fun loadNativeLibrary() {
+        if (isNativeLibraryLoaded) return
+        try {
+            System.loadLibrary("hark")
+            nativeInit()
+            isNativeLibraryLoaded = true
+            HarkLog.i(TAG, "Native library loaded successfully")
+        } catch (e: Exception) {
+            HarkLog.e(TAG, "Failed to load native library", e)
+        }
+    }
+
     fun start() {
         if (_isStreaming.value) return
         
+        loadNativeLibrary()
+
         val sampleRateStr = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)
         val sampleRate = sampleRateStr?.toIntOrNull() ?: 48000
         val framesPerBurstStr = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)
@@ -51,15 +58,21 @@ class AudioEngine @Inject constructor(
 
         _isStreaming.value = true
         
-        val success = try {
-            nativeStart(sampleRate, framesPerBurst)
-        } catch (_: UnsatisfiedLinkError) {
-            false
+        var success = false
+        if (isNativeLibraryLoaded) {
+            try {
+                success = nativeStart(sampleRate, framesPerBurst)
+            } catch (e: UnsatisfiedLinkError) {
+                HarkLog.e(TAG, "Native start failed: UnsatisfiedLinkError", e)
+            }
         }
         
         if (!success) {
-            sendError("Failed to start Oboe Native Engine")
+            HarkLog.w(TAG, "Falling back to Java/Kotlin audio engine")
+            sendError("Failed to start High-Performance Engine. Using fallback.")
             streamManager.start(currentConfig)
+        } else {
+            HarkLog.i(TAG, "Native audio engine started successfully")
         }
     }
 
@@ -67,10 +80,12 @@ class AudioEngine @Inject constructor(
         if (!_isStreaming.value) return
         _isStreaming.value = false
         
-        try {
-            nativeStop()
-        } catch (_: UnsatisfiedLinkError) {
-            // Handle error
+        if (isNativeLibraryLoaded) {
+            try {
+                nativeStop()
+            } catch (e: UnsatisfiedLinkError) {
+                HarkLog.e(TAG, "Native stop failed", e)
+            }
         }
         streamManager.stop()
         audioProcessor.release()
@@ -83,21 +98,30 @@ class AudioEngine @Inject constructor(
     fun setMicrophoneGain(gain: Float) {
         if (currentConfig.microphoneGain == gain) return
         currentConfig = currentConfig.copy(microphoneGain = gain)
-        try { nativeSetMicrophoneGain(gain) } catch (_: UnsatisfiedLinkError) {}
+        
+        if (isNativeLibraryLoaded) {
+            try { nativeSetMicrophoneGain(gain) } catch (_: UnsatisfiedLinkError) {}
+        }
         streamManager.updateConfig(currentConfig)
     }
 
     fun setNoiseSuppressionEnabled(enabled: Boolean) {
         if (currentConfig.noiseSuppressionEnabled == enabled) return
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
-        try { nativeSetNoiseSuppressionEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
+        
+        if (isNativeLibraryLoaded) {
+            try { nativeSetNoiseSuppressionEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
+        }
         streamManager.updateConfig(currentConfig)
     }
     
     fun setDynamicsProcessingEnabled(enabled: Boolean) {
         if (currentConfig.dynamicsProcessingEnabled == enabled) return
         currentConfig = currentConfig.copy(dynamicsProcessingEnabled = enabled)
-        try { nativeSetDynamicsProcessingEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
+        
+        if (isNativeLibraryLoaded) {
+            try { nativeSetDynamicsProcessingEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
+        }
         streamManager.updateConfig(currentConfig)
     }
 
@@ -108,4 +132,8 @@ class AudioEngine @Inject constructor(
     private external fun nativeSetMicrophoneGain(gain: Float)
     private external fun nativeSetNoiseSuppressionEnabled(enabled: Boolean)
     private external fun nativeSetDynamicsProcessingEnabled(enabled: Boolean)
+
+    companion object {
+        private const val TAG = "AudioEngine"
+    }
 }
