@@ -24,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -42,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.thivyanstudios.hark.R
+import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.SquishyBox
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.util.Constants
@@ -63,10 +63,10 @@ fun SettingsScreen(
         AlertDialog(
             icon = { Icon(imageVector = Icons.Filled.BugReport, contentDescription = null) },
             onDismissRequest = { showPrivacyDialog = false },
-            title = { Text(stringResource(R.string.privacy_policy_title)) },
+            title = { HarkText(stringResource(R.string.privacy_policy_title)) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text(stringResource(R.string.privacy_policy_content))
+                    HarkText(stringResource(R.string.privacy_policy_content))
                 }
             },
             confirmButton = {
@@ -76,12 +76,12 @@ fun SettingsScreen(
                         showPrivacyDialog = false
                     }
                 ) {
-                    Text(stringResource(R.string.accept))
+                    HarkText(stringResource(R.string.accept))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showPrivacyDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    HarkText(stringResource(R.string.cancel))
                 }
             }
         )
@@ -94,7 +94,7 @@ fun SettingsScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
+        HarkText(
             text = uiState.versionName,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
@@ -171,8 +171,8 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = stringResource(R.string.settings_microphone_gain), modifier = Modifier.weight(1f).padding(end = 16.dp))
-                    Text(text = stringResource(R.string.gain_db_format, formattedGain))
+                    HarkText(text = stringResource(R.string.settings_microphone_gain), modifier = Modifier.weight(1f).padding(end = 16.dp))
+                    HarkText(text = stringResource(R.string.gain_db_format, formattedGain))
                 }
                 Slider(
                     value = sliderValue,
@@ -214,7 +214,7 @@ fun SettingsScreen(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
+                    HarkText(
                         text = stringResource(R.string.settings_generate_log),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelLarge
@@ -241,7 +241,7 @@ fun SettingsScreen(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
+                    HarkText(
                         text = stringResource(R.string.settings_support_kofi),
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         style = MaterialTheme.typography.labelLarge
