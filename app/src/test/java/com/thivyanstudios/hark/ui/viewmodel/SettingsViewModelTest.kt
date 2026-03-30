@@ -10,7 +10,6 @@ import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.data.model.UserPreferences
-import com.thivyanstudios.hark.service.AudioServiceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -38,13 +37,12 @@ class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
     private lateinit var userPreferencesRepository: UserPreferencesRepository
-    private lateinit var audioServiceManager: AudioServiceManager
     private lateinit var audioEngine: AudioEngine
     private lateinit var application: Application
     private lateinit var viewModel: SettingsViewModel
 
     private val prefsFlow = MutableStateFlow(UserPreferences())
-    private val audioEngineEvents = Channel<AudioEngineEvent>()
+    private val audioEngineEvents = Channel<AudioEngineEvent>(Channel.UNLIMITED)
 
     @Before
     fun setup() {
@@ -53,7 +51,6 @@ class SettingsViewModelTest {
         userPreferencesRepository = mock {
             on { userPreferencesFlow } doReturn prefsFlow
         }
-        audioServiceManager = mock()
         audioEngine = mock {
             on { events } doReturn audioEngineEvents
         }
@@ -68,7 +65,7 @@ class SettingsViewModelTest {
             on { getString(R.string.version_text, BuildConfig.BUILD_STATUS, "1.0.0") } doReturn "Release-Candidate 1.0.0"
         }
 
-        viewModel = SettingsViewModel(userPreferencesRepository, audioServiceManager, audioEngine, application)
+        viewModel = SettingsViewModel(userPreferencesRepository, audioEngine, application)
     }
 
     @After
@@ -100,6 +97,13 @@ class SettingsViewModelTest {
         viewModel.setMicrophoneGain(10f)
         advanceUntilIdle()
         verify(userPreferencesRepository).setMicrophoneGain(10f)
+    }
+
+    @Test
+    fun `setBypassBluetoothChecks calls repository`() = runTest {
+        viewModel.setBypassBluetoothChecks(true)
+        advanceUntilIdle()
+        verify(userPreferencesRepository).setBypassBluetoothChecks(true)
     }
 
     @Test

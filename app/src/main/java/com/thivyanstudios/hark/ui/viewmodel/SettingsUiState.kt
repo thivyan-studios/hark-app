@@ -10,8 +10,10 @@ data class SettingsUiState(
     val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
+    val bypassBluetoothChecks: Boolean = false,
     
     // Feature support flags
     val isNoiseSuppressionSupported: Boolean = true, // Default to true until proven otherwise
-    val isDynamicsProcessingSupported: Boolean = true
+    val isDynamicsProcessingSupported: Boolean = true,
+    val isDeveloperOptionsEnabled: Boolean = false
 )

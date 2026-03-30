@@ -4,7 +4,14 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import androidx.core.content.FileProvider
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.thivyanstudios.hark.BuildConfig
@@ -37,6 +44,19 @@ class SettingsViewModel @Inject constructor(
     private val _versionName = MutableStateFlow("")
     private val _isNoiseSuppressionSupported = MutableStateFlow(true)
     private val _isDynamicsProcessingSupported = MutableStateFlow(true)
+    private val _isDeveloperOptionsEnabled = MutableStateFlow(false)
+
+    private val devSettingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            updateDeveloperOptionsStatus()
+        }
+    }
+
+    private val lifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onStart(owner: LifecycleOwner) {
+            updateDeveloperOptionsStatus()
+        }
+    }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -53,6 +73,20 @@ class SettingsViewModel @Inject constructor(
                 e.printStackTrace()
                 application.getString(R.string.version_not_found)
             }
+            
+            updateDeveloperOptionsStatus()
+        }
+
+        // Register observer for developer settings changes
+        application.contentResolver.registerContentObserver(
+            Settings.Global.getUriFor(Settings.Global.DEVELOPMENT_SETTINGS_ENABLED),
+            false,
+            devSettingsObserver
+        )
+
+        // Observe app lifecycle to catch changes when returning from settings
+        Handler(Looper.getMainLooper()).post {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
         }
 
         // Listen for audio engine events to update feature support
@@ -70,12 +104,29 @@ class SettingsViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
+    private fun updateDeveloperOptionsStatus() {
+        val isEnabled = Settings.Global.getInt(
+            application.contentResolver,
+            Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0
+        ) != 0
+        
+        _isDeveloperOptionsEnabled.value = isEnabled
+        
+        // If developer options are disabled, force the bypass check preference to false
+        if (!isEnabled) {
+            viewModelScope.launch {
+                userPreferencesRepository.setBypassBluetoothChecks(false)
+            }
+        }
+    }
+
     val uiState: StateFlow<SettingsUiState> = combine(
         userPreferencesRepository.userPreferencesFlow,
         _versionName,
         _isNoiseSuppressionSupported,
-        _isDynamicsProcessingSupported
-    ) { prefs, version, nsSupported, dpSupported ->
+        _isDynamicsProcessingSupported,
+        _isDeveloperOptionsEnabled
+    ) { prefs, version, nsSupported, dpSupported, devEnabled ->
         SettingsUiState(
             versionName = version,
             hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
@@ -84,8 +135,10 @@ class SettingsViewModel @Inject constructor(
             microphoneGain = prefs.microphoneGain,
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
+            bypassBluetoothChecks = prefs.bypassBluetoothChecks,
             isNoiseSuppressionSupported = nsSupported,
-            isDynamicsProcessingSupported = dpSupported
+            isDynamicsProcessingSupported = dpSupported,
+            isDeveloperOptionsEnabled = devEnabled
         )
     }
     .stateIn(
@@ -136,6 +189,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setBypassBluetoothChecks(isEnabled: Boolean) {
+        HarkLog.i("SettingsViewModel", "Bypass bluetooth checks enabled: $isEnabled")
+        viewModelScope.launch {
+            userPreferencesRepository.setBypassBluetoothChecks(isEnabled)
+        }
+    }
+
     fun generateAndShareLog() {
         HarkLog.i("SettingsViewModel", "Generating log for sharing")
         val logFile = HarkLog.getLogFile() ?: return
@@ -155,5 +215,11 @@ class SettingsViewModel @Inject constructor(
         val chooser = Intent.createChooser(intent, "Share Hark Log")
         chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         application.startActivity(chooser)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        application.contentResolver.unregisterContentObserver(devSettingsObserver)
+        ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
     }
 }
