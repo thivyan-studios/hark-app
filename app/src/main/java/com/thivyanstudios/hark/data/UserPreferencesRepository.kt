@@ -29,6 +29,7 @@ class UserPreferencesRepository @Inject constructor(
         val MICROPHONE_GAIN = floatPreferencesKey("microphone_gain")
         val NOISE_SUPPRESSION_ENABLED = booleanPreferencesKey("noise_suppression_enabled")
         val DYNAMICS_PROCESSING_ENABLED = booleanPreferencesKey("dynamics_processing_enabled")
+        val BYPASS_BLUETOOTH_CHECKS = booleanPreferencesKey("bypass_bluetooth_checks")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -46,7 +47,8 @@ class UserPreferencesRepository @Inject constructor(
                 disableHearingAidPriority = preferences[PreferenceKeys.DISABLE_HEARING_AID_PRIORITY] ?: false,
                 microphoneGain = preferences[PreferenceKeys.MICROPHONE_GAIN] ?: Constants.Preferences.DEFAULT_GAIN,
                 noiseSuppressionEnabled = preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] ?: false,
-                dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false
+                dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false,
+                bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false
             )
         }
         .flowOn(Dispatchers.IO)
@@ -84,6 +86,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setDynamicsProcessingEnabled(isEnabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] = isEnabled
+        }
+    }
+
+    suspend fun setBypassBluetoothChecks(isEnabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] = isEnabled
         }
     }
 }

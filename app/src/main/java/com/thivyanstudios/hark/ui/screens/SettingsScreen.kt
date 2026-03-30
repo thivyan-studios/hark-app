@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -54,7 +52,6 @@ import kotlin.math.roundToInt
 fun SettingsScreen(
     settingsViewModel: SettingsViewModel = hiltViewModel(),
 ) {
-    val uriHandler = LocalUriHandler.current
     val haptic = LocalHapticFeedback.current
     val uiState by settingsViewModel.uiState.collectAsState()
     var showPrivacyDialog by remember { mutableStateOf(false) }
@@ -146,6 +143,14 @@ fun SettingsScreen(
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                     enabled = uiState.isDynamicsProcessingSupported
                 )
+                
+                SettingsSwitchRow(
+                    text = stringResource(R.string.settings_bypass_bluetooth_checks),
+                    checked = uiState.bypassBluetoothChecks,
+                    onCheckedChange = settingsViewModel::setBypassBluetoothChecks,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                    enabled = uiState.isDeveloperOptionsEnabled
+                )
             }
         }
 
@@ -198,8 +203,7 @@ fun SettingsScreen(
                     showPrivacyDialog = true
                 },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
+                    .fillMaxWidth(),
                 backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                 hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
             ) {
@@ -217,33 +221,6 @@ fun SettingsScreen(
                     HarkText(
                         text = stringResource(R.string.settings_generate_log),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-            }
-
-            SquishyBox(
-                onClick = {
-                    uriHandler.openUri("https://ko-fi.com/thivyanstudios")
-                },
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.primaryContainer,
-                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Favorite,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    HarkText(
-                        text = stringResource(R.string.settings_support_kofi),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                         style = MaterialTheme.typography.labelLarge
                     )
                 }

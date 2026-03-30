@@ -1,5 +1,6 @@
 package com.thivyanstudios.hark
 
+import android.annotation.SuppressLint
 import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
@@ -112,6 +113,7 @@ class MainActivity : ComponentActivity() {
     private fun toggleStreaming() {
         HarkLog.i("MainActivity", "Toggle streaming button clicked")
         if (permissionManager.hasPermissions()) {
+            @SuppressLint("MissingPermission")
             mainViewModel.toggleStreaming(getString(R.string.connect_hearing_system_first))
         } else {
             permissionManager.requestPermissions()

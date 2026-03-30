@@ -1,10 +1,13 @@
 package com.thivyanstudios.hark.data.model
 
+import com.thivyanstudios.hark.util.Constants
+
 data class UserPreferences(
-    val hapticFeedbackEnabled: Boolean,
-    val keepScreenOn: Boolean,
-    val disableHearingAidPriority: Boolean,
-    val microphoneGain: Float,
-    val noiseSuppressionEnabled: Boolean,
-    val dynamicsProcessingEnabled: Boolean
+    val hapticFeedbackEnabled: Boolean = false,
+    val keepScreenOn: Boolean = false,
+    val disableHearingAidPriority: Boolean = false,
+    val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
+    val noiseSuppressionEnabled: Boolean = false,
+    val dynamicsProcessingEnabled: Boolean = false,
+    val bypassBluetoothChecks: Boolean = false
 )
