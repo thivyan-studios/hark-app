@@ -12,4 +12,5 @@ interface AudioProcessor {
         isRunning: () -> Boolean
     )
     fun updateConfig(config: AudioProcessingConfig)
+    fun release()
 }

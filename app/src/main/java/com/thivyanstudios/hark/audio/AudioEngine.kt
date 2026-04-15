@@ -4,33 +4,37 @@ import android.content.Context
 import android.media.AudioManager
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
-import com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor
+import com.thivyanstudios.hark.audio.processor.AudioProcessor
 import com.thivyanstudios.hark.audio.stream.AudioStreamManager
+import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class AudioEngine @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val audioProcessor: AudioProcessor,
+    private val streamManager: AudioStreamManager,
+    val events: Channel<AudioEngineEvent>,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private val _isStreaming = MutableStateFlow(false)
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var isNativeLibraryLoaded = false
 
-    val events = Channel<AudioEngineEvent>(Channel.BUFFERED)
-    
     private val _errorEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val errorEvents = _errorEvents.asSharedFlow()
-
-    private val audioProcessor = DefaultAudioProcessor(events)
-    private val streamManager = AudioStreamManager(audioProcessor)
 
     private var currentConfig = AudioProcessingConfig()
 

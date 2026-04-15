@@ -11,25 +11,30 @@ import com.thivyanstudios.hark.MainActivity
 import com.thivyanstudios.hark.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class NotificationHelper @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context
 ) {
+    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val channelId = "hark_channel"
 
-    fun createNotification(): Notification {
-        val channelId = "hark_channel"
+    init {
+        createNotificationChannel()
+    }
 
+    private fun createNotificationChannel() {
         val name = context.getString(R.string.notification_channel_name)
         val descriptionText = context.getString(R.string.notification_channel_description)
-        // QC: Changed to IMPORTANCE_LOW to prevent sound/vibration on service start
         val importance = NotificationManager.IMPORTANCE_LOW
         val channel = NotificationChannel(channelId, name, importance).apply {
             description = descriptionText
         }
-        val notificationManager: NotificationManager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
+    }
 
+    fun createNotification(): Notification {
         val pendingIntent: PendingIntent = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
@@ -43,7 +48,6 @@ class NotificationHelper @Inject constructor(
             .setWhen(System.currentTimeMillis())
             .setUsesChronometer(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setRequestPromotedOngoing(true)
             .build()
     }
 }

@@ -71,7 +71,7 @@ configure<ApplicationExtension> {
     }
 
     buildFeatures {
-        viewBinding = true
+        viewBinding = false
         compose = true
         buildConfig = true
         prefab = true // Needed for Oboe
@@ -90,11 +90,11 @@ configure<ApplicationExtension> {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // AppCompat is needed for Theme.Material3.DayNight.NoActionBar
     implementation(libs.androidx.appcompat)
+    // Material is needed for Material3 themes in XML
     implementation(libs.material)
-    implementation(libs.androidx.activity)
-    implementation(libs.androidx.constraintlayout)
-
+    
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.process)
@@ -108,7 +108,9 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
-    implementation(libs.androidx.compose.material.icons.extended)
+    
+    // Removed material-icons-extended to reduce bloat (using local XML instead)
+    // implementation(libs.androidx.compose.material.icons.extended)
 
     // Hilt
     implementation(libs.hilt.android)
