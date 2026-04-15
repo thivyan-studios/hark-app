@@ -10,6 +10,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
 import javax.inject.Singleton
 
 private const val SETTINGS_PREFERENCES_NAME = "settings"
@@ -27,7 +28,10 @@ object SettingsModule {
 
     @Provides
     @Singleton
-    fun provideUserPreferencesRepository(dataStore: DataStore<Preferences>): UserPreferencesRepository {
-        return UserPreferencesRepository(dataStore)
+    fun provideUserPreferencesRepository(
+        dataStore: DataStore<Preferences>,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher
+    ): UserPreferencesRepository {
+        return UserPreferencesRepository(dataStore, ioDispatcher)
     }
 }

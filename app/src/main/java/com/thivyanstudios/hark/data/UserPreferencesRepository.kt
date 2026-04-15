@@ -1,14 +1,17 @@
 package com.thivyanstudios.hark.data
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import com.thivyanstudios.hark.data.model.UserPreferences
+import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.util.Constants
-import kotlinx.coroutines.Dispatchers
+import com.thivyanstudios.hark.util.HarkLog
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
@@ -19,7 +22,8 @@ import javax.inject.Singleton
 
 @Singleton
 class UserPreferencesRepository @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    private val dataStore: DataStore<Preferences>,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
 
     private object PreferenceKeys {
@@ -35,6 +39,7 @@ class UserPreferencesRepository @Inject constructor(
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
         .catch { exception ->
             if (exception is IOException) {
+                HarkLog.e(TAG, "Error reading preferences", exception)
                 emit(emptyPreferences())
             } else {
                 throw exception
@@ -51,47 +56,45 @@ class UserPreferencesRepository @Inject constructor(
                 bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false
             )
         }
-        .flowOn(Dispatchers.IO)
+        .flowOn(ioDispatcher)
 
-    suspend fun setHapticFeedbackEnabled(isEnabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[PreferenceKeys.HAPTIC_FEEDBACK_ENABLED] = isEnabled
-        }
+    suspend fun setHapticFeedbackEnabled(isEnabled: Boolean) = update {
+        it[PreferenceKeys.HAPTIC_FEEDBACK_ENABLED] = isEnabled
     }
 
-    suspend fun setKeepScreenOn(isEnabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[PreferenceKeys.KEEP_SCREEN_ON] = isEnabled
-        }
+    suspend fun setKeepScreenOn(isEnabled: Boolean) = update {
+        it[PreferenceKeys.KEEP_SCREEN_ON] = isEnabled
     }
 
-    suspend fun setDisableHearingAidPriority(isEnabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[PreferenceKeys.DISABLE_HEARING_AID_PRIORITY] = isEnabled
-        }
+    suspend fun setDisableHearingAidPriority(isEnabled: Boolean) = update {
+        it[PreferenceKeys.DISABLE_HEARING_AID_PRIORITY] = isEnabled
     }
 
-    suspend fun setMicrophoneGain(gain: Float) {
-        dataStore.edit { preferences ->
-            preferences[PreferenceKeys.MICROPHONE_GAIN] = gain
-        }
+    suspend fun setMicrophoneGain(gain: Float) = update {
+        it[PreferenceKeys.MICROPHONE_GAIN] = gain
     }
 
-    suspend fun setNoiseSuppressionEnabled(isEnabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] = isEnabled
-        }
+    suspend fun setNoiseSuppressionEnabled(isEnabled: Boolean) = update {
+        it[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] = isEnabled
     }
     
-    suspend fun setDynamicsProcessingEnabled(isEnabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] = isEnabled
+    suspend fun setDynamicsProcessingEnabled(isEnabled: Boolean) = update {
+        it[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] = isEnabled
+    }
+
+    suspend fun setBypassBluetoothChecks(isEnabled: Boolean) = update {
+        it[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] = isEnabled
+    }
+
+    private suspend fun update(action: (MutablePreferences) -> Unit) {
+        try {
+            dataStore.edit { action(it) }
+        } catch (e: Exception) {
+            HarkLog.e(TAG, "Failed to update preferences", e)
         }
     }
 
-    suspend fun setBypassBluetoothChecks(isEnabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] = isEnabled
-        }
+    companion object {
+        private const val TAG = "UserPreferencesRepository"
     }
 }

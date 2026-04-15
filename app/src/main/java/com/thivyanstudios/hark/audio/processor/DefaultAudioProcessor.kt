@@ -66,7 +66,7 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
         }
     }
 
-    fun release() {
+    override fun release() {
         processingBuffer = null
     }
 

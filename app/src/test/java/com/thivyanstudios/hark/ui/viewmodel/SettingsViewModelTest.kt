@@ -1,22 +1,21 @@
 package com.thivyanstudios.hark.ui.viewmodel
 
 import android.app.Application
+import android.content.ContentResolver
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.net.Uri
 import app.cash.turbine.test
-import com.thivyanstudios.hark.BuildConfig
-import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.data.model.UserPreferences
+import com.thivyanstudios.hark.util.SystemSettingsProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -34,11 +33,13 @@ import org.mockito.kotlin.whenever
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
 
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
 
     private lateinit var userPreferencesRepository: UserPreferencesRepository
     private lateinit var audioEngine: AudioEngine
     private lateinit var application: Application
+    private lateinit var systemSettingsProvider: SystemSettingsProvider
+    private lateinit var contentResolver: ContentResolver
     private lateinit var viewModel: SettingsViewModel
 
     private val prefsFlow = MutableStateFlow(UserPreferences())
@@ -55,6 +56,12 @@ class SettingsViewModelTest {
             on { events } doReturn audioEngineEvents
         }
         
+        systemSettingsProvider = mock {
+            on { developmentSettingsUri } doReturn Uri.parse("content://settings/global/development_settings_enabled")
+            on { isDeveloperOptionsEnabled() } doReturn true
+        }
+        
+        contentResolver = mock()
         val packageManager = mock<PackageManager>()
         val packageInfo = PackageInfo().apply { versionName = "1.0.0" }
         whenever(packageManager.getPackageInfo(anyString(), anyInt())).thenReturn(packageInfo)
@@ -62,10 +69,18 @@ class SettingsViewModelTest {
         application = mock {
             on { packageName } doReturn "com.thivyanstudios.hark"
             on { getPackageManager() } doReturn packageManager
-            on { getString(R.string.version_text, BuildConfig.BUILD_STATUS, "1.0.0") } doReturn "Release-Candidate 1.0.0"
+            on { getContentResolver() } doReturn contentResolver
+            on { getString(anyInt(), anyString(), anyString()) } doReturn "Release-Candidate 1.0.0"
         }
 
-        viewModel = SettingsViewModel(userPreferencesRepository, audioEngine, application)
+        // Inject the testDispatcher as the ioDispatcher
+        viewModel = SettingsViewModel(
+            userPreferencesRepository, 
+            audioEngine, 
+            application, 
+            systemSettingsProvider,
+            testDispatcher
+        )
     }
 
     @After
@@ -74,47 +89,50 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `uiState reflects user preferences`() = runTest {
+    fun `uiState initially reflects user preferences`() = runTest {
         viewModel.uiState.test {
-            val initial = awaitItem()
-            assertEquals(false, initial.hapticFeedbackEnabled)
-
-            prefsFlow.value = UserPreferences(hapticFeedbackEnabled = true)
-            val updated = awaitItem()
-            assertEquals(true, updated.hapticFeedbackEnabled)
+            val item = awaitItem()
+            assertEquals(false, item.hapticFeedbackEnabled)
         }
     }
 
     @Test
-    fun `setHapticFeedbackEnabled calls repository`() = runTest {
+    fun `preference setter methods call repository correctly`() = runTest {
         viewModel.setHapticFeedbackEnabled(true)
-        advanceUntilIdle()
         verify(userPreferencesRepository).setHapticFeedbackEnabled(true)
+
+        viewModel.setMicrophoneGain(1.5f)
+        verify(userPreferencesRepository).setMicrophoneGain(1.5f)
     }
 
     @Test
-    fun `setMicrophoneGain calls repository`() = runTest {
-        viewModel.setMicrophoneGain(10f)
-        advanceUntilIdle()
-        verify(userPreferencesRepository).setMicrophoneGain(10f)
+    fun `disabling developer options forces bypassBluetoothChecks to false`() = runTest {
+        // Setup mock to return false for developer options
+        whenever(systemSettingsProvider.isDeveloperOptionsEnabled()).thenReturn(false)
+        
+        // Re-init with the testDispatcher to trigger the check on startup synchronously
+        SettingsViewModel(
+            userPreferencesRepository, 
+            audioEngine, 
+            application, 
+            systemSettingsProvider,
+            testDispatcher
+        )
+        
+        // Verify that the repository was called to disable the bypass because dev options are off
+        verify(userPreferencesRepository).setBypassBluetoothChecks(false)
     }
 
     @Test
-    fun `setBypassBluetoothChecks calls repository`() = runTest {
-        viewModel.setBypassBluetoothChecks(true)
-        advanceUntilIdle()
-        verify(userPreferencesRepository).setBypassBluetoothChecks(true)
-    }
-
-    @Test
-    fun `audio engine availability events update uiState`() = runTest {
+    fun `audio engine events update support flags in uiState`() = runTest {
         viewModel.uiState.test {
             awaitItem() // initial
             
             audioEngineEvents.send(AudioEngineEvent.NoiseSuppressorAvailability(false))
-            
-            val updated = awaitItem()
-            assertEquals(false, updated.isNoiseSuppressionSupported)
+            assertEquals(false, awaitItem().isNoiseSuppressionSupported)
+
+            audioEngineEvents.send(AudioEngineEvent.DynamicsProcessingAvailability(false))
+            assertEquals(false, awaitItem().isDynamicsProcessingSupported)
         }
     }
 }

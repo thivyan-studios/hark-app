@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -20,7 +18,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.HarkText
 
 @Composable
@@ -68,7 +68,7 @@ fun SettingsSwitchRow(
             thumbContent = if (checked) {
                 {
                     Icon(
-                        imageVector = Icons.Filled.Check,
+                        painter = painterResource(R.drawable.ic_check),
                         contentDescription = null,
                         modifier = Modifier.size(SwitchDefaults.IconSize),
                     )

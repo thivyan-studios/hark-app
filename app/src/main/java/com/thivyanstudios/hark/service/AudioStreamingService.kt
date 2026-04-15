@@ -18,10 +18,12 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import com.thivyanstudios.hark.di.IoDispatcher
+import com.thivyanstudios.hark.di.MainDispatcher
 import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +43,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val binder = LocalBinder()
     private val _isStreaming = MutableStateFlow(false)
     override val isStreaming = _isStreaming.asStateFlow()
+    
     private var wakeLock: PowerManager.WakeLock? = null
 
     @Inject
@@ -52,7 +55,15 @@ class AudioStreamingService : Service(), AudioStreamingController {
     @Inject
     lateinit var notificationHelper: NotificationHelper
 
-    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    @Inject
+    @MainDispatcher
+    lateinit var mainDispatcher: CoroutineDispatcher
+
+    @Inject
+    @IoDispatcher
+    lateinit var ioDispatcher: CoroutineDispatcher
+
+    private lateinit var serviceScope: CoroutineScope
     private var disableHearingAidPriority = false
 
     private val _hearingAidConnected = MutableStateFlow(false)
@@ -63,7 +74,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
             AudioManager.AUDIOFOCUS_LOSS,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                HarkLog.i("AudioStreamingService", "Audio focus lost, stopping streaming")
+                HarkLog.i(TAG, "Audio focus lost, stopping streaming")
                 stopStreaming()
             }
         }
@@ -74,29 +85,24 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-            HarkLog.i("AudioStreamingService", "Audio devices added")
+            HarkLog.i(TAG, "Audio devices added")
             updateHearingAidStatus()
-            if (_isStreaming.value) {
-                if (hasRequiredPermissions()) {
-                    restartStreaming()
-                }
+            if (_isStreaming.value && hasRequiredPermissions()) {
+                restartStreaming()
             }
         }
 
         @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-            HarkLog.i("AudioStreamingService", "Audio devices removed")
+            HarkLog.i(TAG, "Audio devices removed")
             updateHearingAidStatus()
-            if (_isStreaming.value) {
-                if (hasRequiredPermissions()) {
-                    restartStreaming()
-                }
-            }
             
             val isTargetDeviceRemoved = removedDevices?.any { isCompatibleDevice(it.type) } == true
             if (isTargetDeviceRemoved) {
-                HarkLog.i("AudioStreamingService", "Compatible device removed, stopping streaming")
+                HarkLog.i(TAG, "Compatible device removed, stopping streaming")
                 stopStreaming()
+            } else if (_isStreaming.value && hasRequiredPermissions()) {
+                restartStreaming()
             }
         }
     }
@@ -136,20 +142,21 @@ class AudioStreamingService : Service(), AudioStreamingController {
     }
 
     override fun onBind(intent: Intent?): IBinder {
-        HarkLog.i("AudioStreamingService", "onBind")
+        HarkLog.i(TAG, "onBind")
         return binder
     }
 
     override fun onCreate() {
         super.onCreate()
-        HarkLog.i("AudioStreamingService", "onCreate")
+        HarkLog.i(TAG, "onCreate")
+        serviceScope = CoroutineScope(mainDispatcher + SupervisorJob())
 
         userPreferencesRepository.userPreferencesFlow
             .distinctUntilChanged()
             .onEach { prefs ->
                 val newDisablePriority = prefs.disableHearingAidPriority
                 if (newDisablePriority != disableHearingAidPriority) {
-                    HarkLog.i("AudioStreamingService", "Hearing aid priority preference changed: $newDisablePriority")
+                    HarkLog.i(TAG, "Hearing aid priority preference changed: $newDisablePriority")
                     disablePriorityChange(newDisablePriority)
                 }
 
@@ -165,13 +172,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 when(event) {
                     is AudioEngineEvent.NoiseSuppressorAvailability -> {
                         if (!event.isAvailable) {
-                            HarkLog.w("AudioStreamingService", "Noise suppressor not available")
+                            HarkLog.w(TAG, "Noise suppressor not available")
                             audioEngine.sendError(getString(R.string.noise_suppression_not_available))
                         }
                     }
                     is AudioEngineEvent.DynamicsProcessingAvailability -> {
                         if (!event.isAvailable) {
-                            HarkLog.w("AudioStreamingService", "Dynamics processing not available")
+                            HarkLog.w(TAG, "Dynamics processing not available")
                             audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
                         }
                     }
@@ -198,13 +205,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         val isConnected = devices.any { isCompatibleDevice(it.type) }
-        HarkLog.i("AudioStreamingService", "Hearing aid connected: $isConnected")
+        HarkLog.i(TAG, "Hearing aid connected: $isConnected")
         _hearingAidConnected.value = isConnected
     }
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     private fun restartStreaming() {
-        HarkLog.i("AudioStreamingService", "Restarting streaming")
+        HarkLog.i(TAG, "Restarting streaming")
         if (_isStreaming.value) {
             stopStreaming()
             startStreaming()
@@ -214,44 +221,43 @@ class AudioStreamingService : Service(), AudioStreamingController {
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     @SuppressLint("ForegroundServiceType")
     override fun startStreaming() {
-        if (_isStreaming.value) {
-            HarkLog.w("AudioStreamingService", "Start streaming called but already streaming")
-            return
-        }
+        if (_isStreaming.value) return
 
         if (!requestAudioFocus()) {
-            HarkLog.w("AudioStreamingService", "Could not acquire audio focus, aborting start")
+            HarkLog.w(TAG, "Could not acquire audio focus, aborting start")
             return
         }
         
-        HarkLog.i("AudioStreamingService", "Starting streaming")
+        HarkLog.i(TAG, "Starting streaming")
         _isStreaming.value = true
 
         serviceScope.launch {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(
-                    NOTIFICATION_ID, 
-                    notificationHelper.createNotification(),
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                )
-            } else {
-                startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
-            }
-            
-            wakeLock?.acquire()
-            withContext(Dispatchers.IO) {
-                audioEngine.start()
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(
+                        NOTIFICATION_ID, 
+                        notificationHelper.createNotification(),
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    )
+                } else {
+                    startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
+                }
+                
+                wakeLock?.acquire()
+                withContext(ioDispatcher) {
+                    audioEngine.start()
+                }
+            } catch (e: Exception) {
+                HarkLog.e(TAG, "Failed to start streaming", e)
+                stopStreaming()
             }
         }
     }
 
     override fun stopStreaming() {
-        if (!_isStreaming.value) {
-            HarkLog.w("AudioStreamingService", "Stop streaming called but not streaming")
-            return
-        }
+        if (!_isStreaming.value) return
         
-        HarkLog.i("AudioStreamingService", "Stopping streaming")
+        HarkLog.i(TAG, "Stopping streaming")
         _isStreaming.value = false
         abandonAudioFocus()
 
@@ -267,7 +273,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         }
 
         serviceScope.launch {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 audioEngine.stop()
             }
         }
@@ -309,12 +315,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
         }
     }
 
-    companion object {
-        private const val NOTIFICATION_ID = 1
-    }
-
     override fun onDestroy() {
-        HarkLog.i("AudioStreamingService", "onDestroy")
+        HarkLog.i(TAG, "onDestroy")
         stopStreaming()
         serviceScope.cancel()
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
@@ -322,4 +324,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
         super.onDestroy()
     }
 
+    companion object {
+        private const val TAG = "AudioStreamingService"
+        private const val NOTIFICATION_ID = 1
+    }
 }

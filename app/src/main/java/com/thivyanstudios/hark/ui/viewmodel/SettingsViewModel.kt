@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -19,9 +18,11 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.util.HarkLog
+import com.thivyanstudios.hark.util.SystemSettingsProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -38,7 +39,9 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val audioEngine: AudioEngine,
-    private val application: Application
+    private val application: Application,
+    private val systemSettingsProvider: SystemSettingsProvider,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
     private val _versionName = MutableStateFlow("")
@@ -46,9 +49,11 @@ class SettingsViewModel @Inject constructor(
     private val _isDynamicsProcessingSupported = MutableStateFlow(true)
     private val _isDeveloperOptionsEnabled = MutableStateFlow(false)
 
-    private val devSettingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) {
-            updateDeveloperOptionsStatus()
+    private val devSettingsObserver by lazy {
+        object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                updateDeveloperOptionsStatus()
+            }
         }
     }
 
@@ -59,7 +64,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             _versionName.value = try {
                 val packageInfo = application.packageManager.getPackageInfo(application.packageName, 0)
                 val currentVersionName = packageInfo.versionName
@@ -77,16 +82,17 @@ class SettingsViewModel @Inject constructor(
             updateDeveloperOptionsStatus()
         }
 
-        // Register observer for developer settings changes
-        application.contentResolver.registerContentObserver(
-            Settings.Global.getUriFor(Settings.Global.DEVELOPMENT_SETTINGS_ENABLED),
-            false,
-            devSettingsObserver
-        )
-
-        // Observe app lifecycle to catch changes when returning from settings
-        Handler(Looper.getMainLooper()).post {
-            ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
+        // Only register if we're not in a unit test environment
+        if (Looper.myLooper() != null) {
+           try {
+               application.contentResolver.registerContentObserver(
+                   systemSettingsProvider.developmentSettingsUri,
+                   false,
+                   devSettingsObserver
+               )
+           } catch (e: Exception) {
+               HarkLog.w("SettingsViewModel", "Failed to register content observer")
+           }
         }
 
         // Listen for audio engine events to update feature support
@@ -105,16 +111,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun updateDeveloperOptionsStatus() {
-        val isEnabled = Settings.Global.getInt(
-            application.contentResolver,
-            Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0
-        ) != 0
-        
+        val isEnabled = systemSettingsProvider.isDeveloperOptionsEnabled()
         _isDeveloperOptionsEnabled.value = isEnabled
         
         // If developer options are disabled, force the bypass check preference to false
         if (!isEnabled) {
-            viewModelScope.launch {
+            viewModelScope.launch(ioDispatcher) {
                 userPreferencesRepository.setBypassBluetoothChecks(false)
             }
         }
@@ -148,56 +150,48 @@ class SettingsViewModel @Inject constructor(
     )
 
     fun setHapticFeedbackEnabled(isEnabled: Boolean) {
-        HarkLog.i("SettingsViewModel", "Haptic feedback enabled: $isEnabled")
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setHapticFeedbackEnabled(isEnabled)
         }
     }
 
     fun setKeepScreenOn(isEnabled: Boolean) {
-        HarkLog.i("SettingsViewModel", "Keep screen on enabled: $isEnabled")
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setKeepScreenOn(isEnabled)
         }
     }
 
     fun setDisableHearingAidPriority(isEnabled: Boolean) {
-        HarkLog.i("SettingsViewModel", "Disable hearing aid priority enabled: $isEnabled")
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setDisableHearingAidPriority(isEnabled)
         }
     }
 
     fun setMicrophoneGain(gain: Float) {
-        HarkLog.i("SettingsViewModel", "Microphone gain set to: $gain")
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setMicrophoneGain(gain)
         }
     }
 
     fun setNoiseSuppressionEnabled(isEnabled: Boolean) {
-        HarkLog.i("SettingsViewModel", "Noise suppression enabled: $isEnabled")
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setNoiseSuppressionEnabled(isEnabled)
         }
     }
     
     fun setDynamicsProcessingEnabled(isEnabled: Boolean) {
-        HarkLog.i("SettingsViewModel", "Dynamics processing enabled: $isEnabled")
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setDynamicsProcessingEnabled(isEnabled)
         }
     }
 
     fun setBypassBluetoothChecks(isEnabled: Boolean) {
-        HarkLog.i("SettingsViewModel", "Bypass bluetooth checks enabled: $isEnabled")
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setBypassBluetoothChecks(isEnabled)
         }
     }
 
     fun generateAndShareLog() {
-        HarkLog.i("SettingsViewModel", "Generating log for sharing")
         val logFile = HarkLog.getLogFile() ?: return
         
         val contentUri = FileProvider.getUriForFile(
@@ -219,7 +213,10 @@ class SettingsViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        application.contentResolver.unregisterContentObserver(devSettingsObserver)
-        ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
+        try {
+            application.contentResolver.unregisterContentObserver(devSettingsObserver)
+        } catch (e: Exception) {
+            // Ignored
+        }
     }
 }
