@@ -4,24 +4,47 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemColors
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.util.Constants.Navigation
@@ -30,63 +53,91 @@ import com.thivyanstudios.hark.util.Constants.Navigation
 fun BottomNavBar(
     currentRoute: String,
     onNavigate: (String) -> Unit,
-    hapticFeedbackEnabled: Boolean
+    hapticFeedbackEnabled: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    NavigationBar {
-        AnimatedNavigationBarItem(
-            iconResId = R.drawable.ic_home,
-            labelResId = R.string.nav_home,
-            selected = currentRoute == Navigation.ROUTE_HOME,
-            onClick = { onNavigate(Navigation.ROUTE_HOME) },
-            hapticFeedbackEnabled = hapticFeedbackEnabled
-        )
-        AnimatedNavigationBarItem(
-            iconResId = R.drawable.ic_settings,
-            labelResId = R.string.nav_settings,
-            selected = currentRoute == Navigation.ROUTE_SETTINGS,
-            onClick = { onNavigate(Navigation.ROUTE_SETTINGS) },
-            hapticFeedbackEnabled = hapticFeedbackEnabled
-        )
+    val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp + navigationBarsPadding, start = 24.dp, end = 24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .height(68.dp),
+            shape = RoundedCornerShape(34.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 8.dp,
+            shadowElevation = 12.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AnimatedNavigationBarItem(
+                    icon = Icons.Rounded.Mic,
+                    labelResId = R.string.nav_stream,
+                    selected = currentRoute == Navigation.ROUTE_HOME,
+                    onClick = { onNavigate(Navigation.ROUTE_HOME) },
+                    hapticFeedbackEnabled = hapticFeedbackEnabled
+                )
+                AnimatedNavigationBarItem(
+                    icon = Icons.Rounded.RecordVoiceOver,
+                    labelResId = R.string.nav_transcribe,
+                    selected = currentRoute == Navigation.ROUTE_TRANSCRIBE,
+                    onClick = { onNavigate(Navigation.ROUTE_TRANSCRIBE) },
+                    hapticFeedbackEnabled = hapticFeedbackEnabled
+                )
+                AnimatedNavigationBarItem(
+                    icon = Icons.Rounded.Settings,
+                    labelResId = R.string.nav_settings,
+                    selected = currentRoute == Navigation.ROUTE_SETTINGS,
+                    onClick = { onNavigate(Navigation.ROUTE_SETTINGS) },
+                    hapticFeedbackEnabled = hapticFeedbackEnabled
+                )
+            }
+        }
     }
 }
 
 @Composable
-fun RowScope.AnimatedNavigationBarItem(
+fun AnimatedNavigationBarItem(
     selected: Boolean,
     onClick: () -> Unit,
-    iconResId: Int,
+    icon: ImageVector,
     labelResId: Int,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    alwaysShowLabel: Boolean = true,
-    colors: NavigationBarItemColors = NavigationBarItemDefaults.colors(),
     hapticFeedbackEnabled: Boolean
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    // Animation for the "Pressed" state (Squishy feel)
     val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.85f else 1f,
+        targetValue = if (isPressed) 0.88f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
         ), label = "PressScale"
     )
 
-    // Animation for the "Selected" state (M3E Pop-out feel)
     val selectedScale by animateFloatAsState(
-        targetValue = if (selected) 1.2f else 1f,
+        targetValue = if (selected) 1.1f else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
+            dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
         ), label = "SelectedScale"
     )
 
-    // Smooth color transition for the icon
     val iconColor by animateColorAsState(
         targetValue = if (selected) 
-            MaterialTheme.colorScheme.onSecondaryContainer 
+            MaterialTheme.colorScheme.primary
         else 
             MaterialTheme.colorScheme.onSurfaceVariant,
         label = "IconColor"
@@ -94,40 +145,51 @@ fun RowScope.AnimatedNavigationBarItem(
 
     val haptic = LocalHapticFeedback.current
 
-    NavigationBarItem(
-        selected = selected,
-        onClick = {
-            if (hapticFeedbackEnabled && !selected) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled
+            ) {
+                if (hapticFeedbackEnabled && !selected) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                onClick()
             }
-            onClick()
-        },
-        icon = {
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             Icon(
-                painter = painterResource(id = iconResId),
+                imageVector = icon,
                 contentDescription = stringResource(labelResId),
                 tint = iconColor,
                 modifier = Modifier
+                    .size(26.dp)
                     .graphicsLayer {
                         scaleX = pressScale * selectedScale
                         scaleY = pressScale * selectedScale
                     }
             )
-        },
-        label = {
+            Spacer(modifier = Modifier.height(2.dp))
             HarkText(
                 text = stringResource(labelResId),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                ),
+                color = iconColor,
                 modifier = Modifier.graphicsLayer {
                     alpha = if (selected) 1f else 0.8f
                     scaleX = pressScale
-                    scaleY = pressScale
+                    scaleY = scaleX
                 }
             )
-        },
-        modifier = modifier,
-        enabled = enabled,
-        alwaysShowLabel = alwaysShowLabel,
-        colors = colors,
-        interactionSource = interactionSource
-    )
+        }
+    }
 }

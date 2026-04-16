@@ -9,5 +9,8 @@ data class UserPreferences(
     val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
-    val bypassBluetoothChecks: Boolean = false
+    val bypassBluetoothChecks: Boolean = false,
+    val whisperThreads: Int = 4,
+    val whisperLanguage: String = "en",
+    val whisperTranslate: Boolean = false
 )

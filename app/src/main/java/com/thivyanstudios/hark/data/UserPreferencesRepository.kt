@@ -34,6 +34,9 @@ class UserPreferencesRepository @Inject constructor(
         val NOISE_SUPPRESSION_ENABLED = booleanPreferencesKey("noise_suppression_enabled")
         val DYNAMICS_PROCESSING_ENABLED = booleanPreferencesKey("dynamics_processing_enabled")
         val BYPASS_BLUETOOTH_CHECKS = booleanPreferencesKey("bypass_bluetooth_checks")
+        val WHISPER_THREADS = androidx.datastore.preferences.core.intPreferencesKey("whisper_threads")
+        val WHISPER_LANGUAGE = androidx.datastore.preferences.core.stringPreferencesKey("whisper_language")
+        val WHISPER_TRANSLATE = booleanPreferencesKey("whisper_translate")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -53,7 +56,10 @@ class UserPreferencesRepository @Inject constructor(
                 microphoneGain = preferences[PreferenceKeys.MICROPHONE_GAIN] ?: Constants.Preferences.DEFAULT_GAIN,
                 noiseSuppressionEnabled = preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] ?: false,
                 dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false,
-                bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false
+                bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false,
+                whisperThreads = preferences[PreferenceKeys.WHISPER_THREADS] ?: 4,
+                whisperLanguage = preferences[PreferenceKeys.WHISPER_LANGUAGE] ?: "en",
+                whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false
             )
         }
         .flowOn(ioDispatcher)
@@ -84,6 +90,18 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setBypassBluetoothChecks(isEnabled: Boolean) = update {
         it[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] = isEnabled
+    }
+
+    suspend fun setWhisperThreads(threads: Int) = update {
+        it[PreferenceKeys.WHISPER_THREADS] = threads
+    }
+
+    suspend fun setWhisperLanguage(language: String) = update {
+        it[PreferenceKeys.WHISPER_LANGUAGE] = language
+    }
+
+    suspend fun setWhisperTranslate(isEnabled: Boolean) = update {
+        it[PreferenceKeys.WHISPER_TRANSLATE] = isEnabled
     }
 
     private suspend fun update(action: (MutablePreferences) -> Unit) {

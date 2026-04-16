@@ -2,48 +2,31 @@ package com.thivyanstudios.hark.ui.screens
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.SquishyBox
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.util.Constants
-import kotlin.math.abs
-import kotlin.math.roundToInt
+
+import java.util.Locale
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,13 +40,21 @@ fun SettingsScreen(
 
     if (showPrivacyDialog) {
         AlertDialog(
-            icon = { Icon(painter = painterResource(R.drawable.ic_bug_report), contentDescription = null) },
             onDismissRequest = { showPrivacyDialog = false },
-            title = { HarkText(stringResource(R.string.privacy_policy_title)) },
+            title = { 
+                HarkText(
+                    text = stringResource(R.string.privacy_policy_title),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                ) 
+            },
             text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    HarkText(stringResource(R.string.privacy_policy_content))
-                }
+                HarkText(
+                    text = stringResource(R.string.privacy_policy_content),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 20.sp
+                    )
+                )
             },
             confirmButton = {
                 TextButton(
@@ -72,42 +63,58 @@ fun SettingsScreen(
                         showPrivacyDialog = false
                     }
                 ) {
-                    HarkText(stringResource(R.string.accept))
+                    HarkText(
+                        text = stringResource(R.string.accept),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showPrivacyDialog = false }) {
-                    HarkText(stringResource(R.string.cancel))
+                    HarkText(
+                        text = stringResource(R.string.cancel),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
-            }
+            },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
         )
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        HarkText(
-            text = uiState.versionName,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        Surface(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
+            Spacer(modifier = Modifier.height(64.dp))
+            
+            HarkText(
+                text = "SETTINGS",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    letterSpacing = 4.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Section: Experience
+            SettingsGroup(title = "Experience") {
                 SettingsSwitchRow(
                     text = stringResource(R.string.settings_haptic_feedback),
+                    icon = Icons.Default.Vibration,
                     checked = uiState.hapticFeedbackEnabled,
                     onCheckedChange = settingsViewModel::setHapticFeedbackEnabled,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
@@ -115,20 +122,18 @@ fun SettingsScreen(
 
                 SettingsSwitchRow(
                     text = stringResource(R.string.settings_keep_screen_on),
+                    icon = Icons.Default.Lightbulb,
                     checked = uiState.keepScreenOn,
                     onCheckedChange = settingsViewModel::setKeepScreenOn,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
                 )
+            }
 
-                SettingsSwitchRow(
-                    text = stringResource(R.string.settings_disable_hearing_aid_priority),
-                    checked = uiState.disableHearingAidPriority,
-                    onCheckedChange = settingsViewModel::setDisableHearingAidPriority,
-                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                )
-
+            // Section: Audio
+            SettingsGroup(title = "Audio Engine") {
                 SettingsSwitchRow(
                     text = stringResource(R.string.settings_noise_suppression),
+                    icon = Icons.Default.FilterList,
                     checked = uiState.noiseSuppressionEnabled,
                     onCheckedChange = settingsViewModel::setNoiseSuppressionEnabled,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
@@ -137,102 +142,251 @@ fun SettingsScreen(
 
                 SettingsSwitchRow(
                     text = stringResource(R.string.settings_dynamics_processing),
+                    icon = Icons.Default.GraphicEq,
                     checked = uiState.dynamicsProcessingEnabled,
                     onCheckedChange = settingsViewModel::setDynamicsProcessingEnabled,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                     enabled = uiState.isDynamicsProcessingSupported
                 )
                 
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Microphone Gain Slider
+                Column(modifier = Modifier.padding(horizontal = 4.dp)) {
+                    var sliderValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
+                    val formattedGain = when {
+                        sliderValue > 0.01f -> "+${formatOneDecimal(sliderValue)}"
+                        sliderValue < -0.01f -> formatOneDecimal(sliderValue)
+                        else -> "0"
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Mic, 
+                                contentDescription = null, 
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            HarkText(text = stringResource(R.string.settings_microphone_gain))
+                        }
+                        HarkText(
+                            text = stringResource(R.string.gain_db_format, formattedGain),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Slider(
+                        value = sliderValue,
+                        onValueChange = { sliderValue = it },
+                        valueRange = Constants.Preferences.MIN_MIC_GAIN..Constants.Preferences.MAX_MIC_GAIN,
+                        steps = Constants.Preferences.MIC_GAIN_STEPS,
+                        onValueChangeFinished = {
+                            settingsViewModel.setMicrophoneGain(sliderValue)
+                            if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    )
+                }
+            }
+
+            // Section: Connectivity
+            SettingsGroup(title = "Connectivity") {
+                SettingsSwitchRow(
+                    text = stringResource(R.string.settings_disable_hearing_aid_priority),
+                    icon = Icons.Default.Hearing,
+                    checked = uiState.disableHearingAidPriority,
+                    onCheckedChange = settingsViewModel::setDisableHearingAidPriority,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                )
+
                 SettingsSwitchRow(
                     text = stringResource(R.string.settings_bypass_bluetooth_checks),
+                    icon = Icons.Default.Bluetooth,
                     checked = uiState.bypassBluetoothChecks,
                     onCheckedChange = settingsViewModel::setBypassBluetoothChecks,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                     enabled = uiState.isDeveloperOptionsEnabled
                 )
             }
-        }
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                var sliderValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
-
-                val formattedGain = when {
-                    sliderValue > 0.01f -> "+${formatOneDecimal(sliderValue)}"
-                    sliderValue < -0.01f -> formatOneDecimal(sliderValue)
-                    else -> "0"
-                }
+            // Section: Whisper AI
+            SettingsGroup(title = "Whisper AI Engine") {
+                // Language Selection
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    HarkText(text = stringResource(R.string.settings_microphone_gain), modifier = Modifier.weight(1f).padding(end = 16.dp))
-                    HarkText(text = stringResource(R.string.gain_db_format, formattedGain))
-                }
-                Slider(
-                    value = sliderValue,
-                    onValueChange = {
-                        sliderValue = it
-                    },
-                    valueRange = Constants.Preferences.MIN_MIC_GAIN..Constants.Preferences.MAX_MIC_GAIN,
-                    steps = Constants.Preferences.MIC_GAIN_STEPS,
-                    onValueChangeFinished = {
-                        settingsViewModel.setMicrophoneGain(sliderValue)
-                        if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Language,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        HarkText(
+                            text = "Model Language",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
-                )
-            }
-        }
+                    
+                    var expanded by remember { mutableStateOf(false) }
+                    val languages = listOf("en" to "English", "auto" to "Auto-Detect")
+                    
+                    Box {
+                        TextButton(onClick = { expanded = true }) {
+                            HarkText(
+                                text = languages.find { it.first == uiState.whisperLanguage }?.second ?: "English",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        }
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            languages.forEach { (code, name) ->
+                                DropdownMenuItem(
+                                    text = { Text(name) },
+                                    onClick = {
+                                        settingsViewModel.setWhisperLanguage(code)
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
 
-        Column(
-            modifier = Modifier.width(IntrinsicSize.Max),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+                SettingsSwitchRow(
+                    text = "Translate to English",
+                    icon = Icons.Default.Translate,
+                    checked = uiState.whisperTranslate,
+                    onCheckedChange = settingsViewModel::setWhisperTranslate,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                    enabled = uiState.whisperLanguage != "en"
+                )
+
+                // Thread Count Slider
+                Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Memory,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            HarkText(text = "CPU Threads")
+                        }
+                        HarkText(
+                            text = "${uiState.whisperThreads}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Slider(
+                        value = uiState.whisperThreads.toFloat(),
+                        onValueChange = { settingsViewModel.setWhisperThreads(it.toInt()) },
+                        valueRange = 1f..8f,
+                        steps = 6,
+                        onValueChangeFinished = {
+                            if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Support Button
             SquishyBox(
-                onClick = {
-                    showPrivacyDialog = true
-                },
-                modifier = Modifier
-                    .fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+                onClick = { showPrivacyDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
                 hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_bug_report),
+                        Icons.Default.BugReport,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
                     HarkText(
                         text = stringResource(R.string.settings_generate_log),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelLarge
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            HarkText(
+                text = "Version ${uiState.versionName}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium
+            )
+            
+            Spacer(modifier = Modifier.height(180.dp)) // Leave room for navbar
+        }
+    }
+}
+
+@Composable
+fun SettingsGroup(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = Modifier.padding(bottom = 24.dp)) {
+        HarkText(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 1.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                content()
             }
         }
     }
 }
 
 private fun formatOneDecimal(value: Float): String {
-    val rounded = (value * 10).roundToInt()
-    val absRounded = abs(rounded)
-    val integerPart = absRounded / 10
-    val decimalPart = absRounded % 10
-    val sign = if (rounded < 0) "-" else ""
-    return "$sign$integerPart.$decimalPart"
+    return String.format(Locale.US, "%.1f", value)
 }

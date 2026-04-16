@@ -1,5 +1,6 @@
 package com.thivyanstudios.hark.service
 
+import com.thivyanstudios.hark.ui.SoundEvent
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -9,7 +10,10 @@ import kotlinx.coroutines.flow.StateFlow
 interface AudioStreamingController {
     val isStreaming: StateFlow<Boolean>
     val hearingAidConnected: StateFlow<Boolean>
+    val transcription: StateFlow<String>
+    val activeSoundEvents: StateFlow<List<SoundEvent>>
 
     fun startStreaming()
     fun stopStreaming()
+    fun clearTranscription()
 }

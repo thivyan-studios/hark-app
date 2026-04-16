@@ -43,7 +43,16 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val binder = LocalBinder()
     private val _isStreaming = MutableStateFlow(false)
     override val isStreaming = _isStreaming.asStateFlow()
-    
+
+    private val _transcription = MutableStateFlow("")
+    override val transcription = _transcription.asStateFlow()
+
+    private val _activeSoundEvents = MutableStateFlow<List<com.thivyanstudios.hark.ui.SoundEvent>>(emptyList())
+    override val activeSoundEvents = _activeSoundEvents.asStateFlow()
+
+    private val fullTranscript = StringBuilder()
+    private var lastTranscriptionTime = 0L
+
     private var wakeLock: PowerManager.WakeLock? = null
 
     @Inject
@@ -245,11 +254,164 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 
                 wakeLock?.acquire()
                 withContext(ioDispatcher) {
+                    // Initialize Whisper before starting engine
+                    prepareWhisper()
                     audioEngine.start()
+                    startTranscriptionLoop()
                 }
             } catch (e: Exception) {
                 HarkLog.e(TAG, "Failed to start streaming", e)
                 stopStreaming()
+            }
+        }
+    }
+
+    private suspend fun prepareWhisper() = withContext(ioDispatcher) {
+        val modelName = "ggml-tiny.en-q5_1.bin"
+        val modelFile = java.io.File(filesDir, modelName)
+        if (!modelFile.exists()) {
+            HarkLog.i(TAG, "Copying Whisper model from assets...")
+            assets.open(modelName).use { input ->
+                modelFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+        }
+        HarkLog.i(TAG, "Initializing Whisper with model: ${modelFile.absolutePath}")
+        val success = audioEngine.initWhisper(modelFile.absolutePath)
+        if (!success) {
+            HarkLog.e(TAG, "Failed to initialize Whisper")
+        }
+    }
+
+    override fun clearTranscription() {
+        fullTranscript.setLength(0)
+        _transcription.value = ""
+        _activeSoundEvents.value = emptyList()
+    }
+
+    private fun updateSoundEvents(transcription: String) {
+        val currentEvents = _activeSoundEvents.value.toMutableList()
+        val now = System.currentTimeMillis()
+        
+        // Remove events older than 3 seconds
+        currentEvents.removeAll { now - it.timestamp > 3000 }
+
+        val lowerText = transcription.lowercase()
+        val detectedLabels = mutableListOf<String>()
+
+        if (lowerText.contains("[music]") || lowerText.contains("♪")) detectedLabels.add("Music")
+        if (lowerText.contains("[laughing]") || lowerText.contains("(laughter)")) detectedLabels.add("Laughter")
+        if (lowerText.contains("[clapping]") || lowerText.contains("[applause]")) detectedLabels.add("Applause")
+        if (lowerText.contains("[doorbell]")) detectedLabels.add("Doorbell")
+        if (lowerText.contains("[dog barking]")) detectedLabels.add("Dog Bark")
+        if (lowerText.contains("[siren]")) detectedLabels.add("Siren")
+
+        detectedLabels.forEach { label ->
+            if (currentEvents.none { it.label == label }) {
+                currentEvents.add(com.thivyanstudios.hark.ui.SoundEvent(label, now))
+            } else {
+                // Update timestamp for existing event to keep it alive
+                val index = currentEvents.indexOfFirst { it.label == label }
+                currentEvents[index] = currentEvents[index].copy(timestamp = now)
+            }
+        }
+
+        _activeSoundEvents.value = currentEvents
+    }
+
+    private fun startTranscriptionLoop() {
+        serviceScope.launch(ioDispatcher) {
+            // Get current preferences
+            var threads = 4
+            var language = "en"
+            var translate = false
+
+            // Subscribe to preference changes
+            launch {
+                userPreferencesRepository.userPreferencesFlow.collect { prefs ->
+                    threads = prefs.whisperThreads
+                    language = prefs.whisperLanguage
+                    translate = prefs.whisperTranslate
+                }
+            }
+
+            // Increased buffer to 15 seconds to handle potential processing delays
+            val maxBufferSize = 16000 * 15 
+            val audioBuffer = FloatArray(maxBufferSize)
+            var accumulatedSamples = 0
+            
+            fullTranscript.setLength(0)
+            
+            while (_isStreaming.value) {
+                // 1. Read available data from the native FIFO
+                val spaceRemaining = maxBufferSize - accumulatedSamples
+                if (spaceRemaining > 0) {
+                    val read = audioEngine.readTranscriptionData(audioBuffer, accumulatedSamples, spaceRemaining)
+                    if (read > 0) {
+                        accumulatedSamples += read
+                    }
+                }
+                
+                // 2. Decide if we should transcribe
+                // We target chunks of ~1.0s to 1.5s for a good balance of latency and context
+                if (accumulatedSamples >= 16000) { 
+                    val startTime = System.currentTimeMillis()
+                    val audioToProcess = audioBuffer.copyOfRange(0, accumulatedSamples)
+                    
+                    val result = audioEngine.transcribe(
+                        audioData = audioToProcess,
+                        threads = threads,
+                        language = language,
+                        translate = translate
+                    )
+                    val duration = System.currentTimeMillis() - startTime
+                    
+                    // Basic sound event detection based on Whisper results
+                    updateSoundEvents(result)
+
+                    val isSilence = result.contains("[SILENCE]") || result.contains("[EMPTY]")
+                    val isNoResult = result.contains("[NO_RESULT]")
+                    val isError = result.startsWith("ERROR")
+                    
+                    if (!isError && !isSilence && !isNoResult && result.isNotBlank()) {
+                        val cleanedResult = result.trim()
+                        if (cleanedResult.isNotEmpty()) {
+                            if (fullTranscript.isNotEmpty()) {
+                                fullTranscript.append(" ")
+                            }
+                            fullTranscript.append(cleanedResult)
+                            _transcription.value = fullTranscript.toString()
+                            lastTranscriptionTime = System.currentTimeMillis()
+                        }
+                        // On success, we consume all audio used
+                        accumulatedSamples = 0
+                    } else if (isSilence || isNoResult) {
+                        // If it's silent/empty, we don't want the buffer to grow indefinitely.
+                        // If we have more than 2.5s of audio that's been ruled silent, 
+                        // keep only the last 500ms to maintain potential word-start context.
+                        if (accumulatedSamples >= 40000) {
+                            val keepSamples = 8000 // 500ms
+                            System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
+                            accumulatedSamples = keepSamples
+                        }
+                    } else if (accumulatedSamples >= maxBufferSize - 16000) {
+                        // Safety: if buffer is nearly full and we still have no result,
+                        // we're likely in a very noisy environment or falling way behind.
+                        // Discard half the buffer to recover.
+                        val discardSize = maxBufferSize / 2
+                        System.arraycopy(audioBuffer, discardSize, audioBuffer, 0, maxBufferSize - discardSize)
+                        accumulatedSamples = maxBufferSize - discardSize
+                        HarkLog.w(TAG, "Transcription buffer overflow, discarding old data.")
+                    }
+                    
+                    // Adaptive delay: if transcription is slow, don't wait as long
+                    val loopDelay = if (duration > 1000) 100L else 300L
+                    kotlinx.coroutines.delay(loopDelay)
+                } else {
+                    // Not enough data yet, wait a bit
+                    kotlinx.coroutines.delay(200)
+                }
             }
         }
     }
@@ -260,6 +422,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
         HarkLog.i(TAG, "Stopping streaming")
         _isStreaming.value = false
         abandonAudioFocus()
+        
+        fullTranscript.setLength(0)
+        _transcription.value = ""
 
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
@@ -275,6 +440,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         serviceScope.launch {
             withContext(ioDispatcher) {
                 audioEngine.stop()
+                audioEngine.releaseWhisper()
             }
         }
     }

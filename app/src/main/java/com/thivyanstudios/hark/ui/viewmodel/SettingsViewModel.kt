@@ -10,7 +10,6 @@ import android.os.Looper
 import androidx.core.content.FileProvider
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.thivyanstudios.hark.BuildConfig
@@ -54,12 +53,6 @@ class SettingsViewModel @Inject constructor(
             override fun onChange(selfChange: Boolean) {
                 updateDeveloperOptionsStatus()
             }
-        }
-    }
-
-    private val lifecycleObserver = object : DefaultLifecycleObserver {
-        override fun onStart(owner: LifecycleOwner) {
-            updateDeveloperOptionsStatus()
         }
     }
 
@@ -138,6 +131,9 @@ class SettingsViewModel @Inject constructor(
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
             bypassBluetoothChecks = prefs.bypassBluetoothChecks,
+            whisperThreads = prefs.whisperThreads,
+            whisperLanguage = prefs.whisperLanguage,
+            whisperTranslate = prefs.whisperTranslate,
             isNoiseSuppressionSupported = nsSupported,
             isDynamicsProcessingSupported = dpSupported,
             isDeveloperOptionsEnabled = devEnabled
@@ -188,6 +184,24 @@ class SettingsViewModel @Inject constructor(
     fun setBypassBluetoothChecks(isEnabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setBypassBluetoothChecks(isEnabled)
+        }
+    }
+
+    fun setWhisperThreads(threads: Int) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setWhisperThreads(threads)
+        }
+    }
+
+    fun setWhisperLanguage(language: String) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setWhisperLanguage(language)
+        }
+    }
+
+    fun setWhisperTranslate(isEnabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setWhisperTranslate(isEnabled)
         }
     }
 

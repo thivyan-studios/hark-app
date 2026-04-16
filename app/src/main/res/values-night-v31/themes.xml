@@ -1,11 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
     <style name="Theme.Hark.Starting" parent="Theme.SplashScreen">
         <!-- Use the inset drawable to prevent clipping -->
         <item name="windowSplashScreenAnimatedIcon">@drawable/logo</item>
-
-        <!-- Removed windowSplashScreenIconBackgroundColor to have no background behind the SVG -->
 
         <!-- Required for animated icons. -->
         <item name="windowSplashScreenAnimationDuration">200</item>

@@ -109,6 +109,16 @@ class AudioEngine @Inject constructor(
         streamManager.updateConfig(currentConfig)
     }
 
+    fun setAmbientGain(gain: Float) {
+        if (currentConfig.ambientGain == gain) return
+        currentConfig = currentConfig.copy(ambientGain = gain)
+        
+        if (isNativeLibraryLoaded) {
+            try { nativeSetAmbientGain(gain) } catch (_: UnsatisfiedLinkError) {}
+        }
+        streamManager.updateConfig(currentConfig)
+    }
+
     fun setNoiseSuppressionEnabled(enabled: Boolean) {
         if (currentConfig.noiseSuppressionEnabled == enabled) return
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
@@ -129,13 +139,58 @@ class AudioEngine @Inject constructor(
         streamManager.updateConfig(currentConfig)
     }
 
+    fun readTranscriptionData(target: FloatArray, offset: Int = 0, numFrames: Int = target.size): Int {
+        if (isNativeLibraryLoaded) {
+            return try {
+                nativeReadTranscriptionData(target, offset, numFrames)
+            } catch (e: UnsatisfiedLinkError) {
+                0
+            }
+        }
+        return 0
+    }
+
+    fun initWhisper(modelPath: String): Boolean {
+        loadNativeLibrary()
+        return if (isNativeLibraryLoaded) {
+            try {
+                nativeInitWhisper(modelPath)
+            } catch (e: UnsatisfiedLinkError) {
+                false
+            }
+        } else false
+    }
+
+    fun transcribe(audioData: FloatArray, threads: Int, language: String, translate: Boolean, len: Int = audioData.size): String {
+        return if (isNativeLibraryLoaded) {
+            try {
+                nativeTranscribe(audioData, len, threads, language, translate)
+            } catch (e: UnsatisfiedLinkError) {
+                "ERROR: JNI fail"
+            }
+        } else "ERROR: Lib not loaded"
+    }
+
+    fun releaseWhisper() {
+        if (isNativeLibraryLoaded) {
+            try {
+                nativeReleaseWhisper()
+            } catch (_: UnsatisfiedLinkError) {}
+        }
+    }
+
     // Native methods
     private external fun nativeInit()
     private external fun nativeStart(sampleRate: Int, framesPerBurst: Int): Boolean
     private external fun nativeStop()
     private external fun nativeSetMicrophoneGain(gain: Float)
+    private external fun nativeSetAmbientGain(gain: Float)
     private external fun nativeSetNoiseSuppressionEnabled(enabled: Boolean)
     private external fun nativeSetDynamicsProcessingEnabled(enabled: Boolean)
+    private external fun nativeReadTranscriptionData(target: FloatArray, offset: Int, numFrames: Int): Int
+    private external fun nativeInitWhisper(modelPath: String): Boolean
+    private external fun nativeTranscribe(audioData: FloatArray, len: Int, threads: Int, language: String, translate: Boolean): String
+    private external fun nativeReleaseWhisper()
 
     companion object {
         private const val TAG = "AudioEngine"

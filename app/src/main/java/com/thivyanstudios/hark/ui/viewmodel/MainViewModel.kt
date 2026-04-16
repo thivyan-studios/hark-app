@@ -52,14 +52,18 @@ class MainViewModel @Inject constructor(
                 combine(
                     service.isStreaming,
                     service.hearingAidConnected,
+                    service.transcription,
+                    service.activeSoundEvents,
                     userPreferencesRepository.userPreferencesFlow
-                ) { isStreaming, hearingAidConnected, prefs ->
+                ) { isStreaming, hearingAidConnected, transcription, activeSoundEvents, prefs ->
                     MainUiState(
                         isStreaming = isStreaming,
                         hearingAidConnected = hearingAidConnected,
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
                         keepScreenOn = prefs.keepScreenOn,
-                        bypassBluetoothChecks = prefs.bypassBluetoothChecks
+                        bypassBluetoothChecks = prefs.bypassBluetoothChecks,
+                        transcription = transcription,
+                        activeSoundEvents = activeSoundEvents
                     )
                 }
             } else {
@@ -109,5 +113,9 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _snackbarChannel.send(message)
         }
+    }
+
+    fun clearTranscription() {
+        audioServiceManager.service.value?.clearTranscription()
     }
 }
