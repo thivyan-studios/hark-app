@@ -59,10 +59,17 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     private fun applyGain(buffer: FloatArray, size: Int) {
         val currentGain = currentConfig.microphoneGain
-        if (currentGain == 1.0f) return // Optimization: skip if gain is unity
+        val ambientGain = currentConfig.ambientGain
         
         for (i in 0 until size) {
-            buffer[i] *= currentGain
+            // In the fallback processor, we simulate the same logic as native
+            // Primary path (gain) + Ambient path (ambientGain)
+            val primary = buffer[i] * currentGain
+            val ambient = buffer[i] * ambientGain
+            
+            // Basic mix and clip
+            val mixed = primary + ambient
+            buffer[i] = mixed.coerceIn(-1.0f, 1.0f)
         }
     }
 

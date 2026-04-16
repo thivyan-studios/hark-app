@@ -19,7 +19,10 @@ public:
     bool start(int32_t sampleRate, int32_t framesPerBurst);
     void stop();
 
+    int32_t readTranscriptionData(float *target, int32_t numFrames);
+
     void setMicrophoneGain(float gain);
+    void setAmbientGain(float gain);
     void setNoiseSuppressionEnabled(bool enabled);
     void setDynamicsProcessingEnabled(bool enabled);
 
@@ -37,9 +40,11 @@ private:
     std::shared_ptr<oboe::AudioStream> mOutStream;
 
     std::unique_ptr<oboe::FifoBuffer> mFifoBuffer;
+    std::unique_ptr<oboe::FifoBuffer> mTranscriptionFifo;
 
     // Use atomic for thread-safe access from audio thread without locking
     std::atomic<float> mGain{1.0f};
+    std::atomic<float> mAmbientGain{0.0f};
     std::atomic<bool> mIsNoiseSuppressionEnabled{false};
     std::atomic<bool> mIsDynamicsProcessingEnabled{false};
 
@@ -49,7 +54,14 @@ private:
     std::mutex mStreamLock;
 
     void closeStreams();
+    float applySpeechEnhancement(float input);
     float applySoftKneeLimiter(float input);
+
+    // Resampling for transcription
+    void pushToTranscriptionFifo(const float* data, int32_t numFrames);
+    int32_t mSampleRate = 48000;
+    double mResampleAccumulator = 0;
+    float mResampleBuffer[2048]{}; // Pre-allocated buffer for resampling
 };
 
 #endif //HARK_AUDIO_ENGINE_H

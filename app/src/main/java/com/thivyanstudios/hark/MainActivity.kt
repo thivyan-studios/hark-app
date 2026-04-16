@@ -102,7 +102,8 @@ class MainActivity : ComponentActivity() {
                     uiState = uiState,
                     snackbarHostState = snackbarHostState,
                     settingsViewModel = settingsViewModel,
-                    onToggleStreaming = { toggleStreaming() }
+                    onToggleStreaming = { toggleStreaming() },
+                    onClearTranscription = { mainViewModel.clearTranscription() }
                 )
             }
         }

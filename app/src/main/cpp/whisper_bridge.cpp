@@ -81,7 +81,7 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeInitWhisper(JNIEnv *env, jo
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, jobject thiz, jfloatArray audio_data, jint len) {
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, jobject thiz, jfloatArray audio_data, jint len, jint threads, jstring language, jboolean translate) {
     std::lock_guard<std::mutex> lock(g_whisper_mutex);
 
     if (g_whisper_ctx == nullptr) {
@@ -92,6 +92,10 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
         return env->NewStringUTF("[EMPTY]");
     }
 
+    const char * lang_str = env->GetStringUTFChars(language, nullptr);
+    std::string lang(lang_str);
+    env->ReleaseStringUTFChars(language, lang_str);
+
     float * p_audio = env->GetFloatArrayElements(audio_data, nullptr);
 
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
@@ -99,9 +103,9 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     params.print_special = false;
     params.print_realtime = false;
     params.print_timestamps = false;
-    params.translate = false;
-    params.language = "en";
-    params.n_threads = 4;
+    params.translate = (bool) translate;
+    params.language = lang.c_str();
+    params.n_threads = (int) threads;
     params.suppress_blank = true;
     params.suppress_nst = true;
     params.no_context = true;

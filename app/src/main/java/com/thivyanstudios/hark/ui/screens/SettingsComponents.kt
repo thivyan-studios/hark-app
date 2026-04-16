@@ -23,9 +23,14 @@ import androidx.compose.ui.unit.dp
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.HarkText
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.vector.ImageVector
+
 @Composable
 fun SettingsSwitchRow(
     text: String,
+    icon: ImageVector,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     hapticFeedbackEnabled: Boolean,
@@ -33,25 +38,25 @@ fun SettingsSwitchRow(
     enabled: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
-    
-    // Expressive scale animation for the entire row when toggled
-    val rowScale by animateFloatAsState(
-        targetValue = 1f,
-        label = "RowScale"
-    )
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp) // More spacious M3E padding
-            .alpha(if (enabled) 1f else 0.5f)
-            .scale(rowScale),
+            .padding(vertical = 12.dp)
+            .alpha(if (enabled) 1f else 0.5f),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
         HarkText(
             text = text,
-            style = MaterialTheme.typography.titleMedium, // M3E uses stronger titles for rows
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 16.dp)

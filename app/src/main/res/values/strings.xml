@@ -16,14 +16,18 @@
     <string name="settings_dynamics_processing">Dynamics Processing (Compressor)</string>
     <string name="settings_generate_log">Generate log</string>
     <string name="settings_bypass_bluetooth_checks">Bypass Bluetooth Checks</string>
-    <string name="privacy_policy_title">Privacy &amp; Data Handling</string>
-    <string name="privacy_policy_content">HARK is designed with a strong commitment to user privacy, ensuring that all data logging remains local to your device. The application records technical diagnostics, including device hardware specifications, Android version, Bluetooth connectivity status, and app-specific interactions such as setting adjustments, solely for the purpose of troubleshooting and performance optimization. Importantly, HARK does not automatically transmit, upload, or share this data with any external servers; logs are stored in a temporary session file that is automatically deleted each time the app is restarted. No personally identifiable information, precise location data, or audio content is ever collected or recorded, and diagnostic logs are only transmitted if you explicitly choose to share them via the application settings for support purposes.</string>
+    <string name="privacy_policy_title">Privacy &amp; Logs</string>
+    <string name="privacy_policy_content">HARK logs technical diagnostics locally to optimize performance. These logs stay on your device, contain no audio or personal data, and are cleared when the app restarts. They are only shared if you manually choose to send them for support.</string>
     <string name="accept">Accept</string>
     <string name="cancel">Cancel</string>
 
     <!-- Bottom Nav -->
-    <string name="nav_home">Home</string>
+    <string name="nav_stream">Stream</string>
+    <string name="nav_transcribe">Transcribe</string>
     <string name="nav_settings">Settings</string>
+
+    <!-- Transcribe Screen -->
+    <string name="transcribe_empty_text">Waiting for speech...</string>
 
     <!-- Home Screen -->
     <string name="cd_stream_button">Button to stream</string>

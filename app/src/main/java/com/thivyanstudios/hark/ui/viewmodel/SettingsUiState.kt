@@ -12,8 +12,13 @@ data class SettingsUiState(
     val dynamicsProcessingEnabled: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
     
+    // Whisper Settings
+    val whisperThreads: Int = 4,
+    val whisperLanguage: String = "en",
+    val whisperTranslate: Boolean = false,
+    
     // Feature support flags
-    val isNoiseSuppressionSupported: Boolean = true, // Default to true until proven otherwise
+    val isNoiseSuppressionSupported: Boolean = true,
     val isDynamicsProcessingSupported: Boolean = true,
     val isDeveloperOptionsEnabled: Boolean = false
 )
