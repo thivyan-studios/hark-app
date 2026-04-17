@@ -73,6 +73,7 @@ fun HarkAppContent(
                 }
                 composable(Navigation.ROUTE_TRANSCRIBE) {
                     TranscribeScreen(
+                        isStreaming = uiState.isStreaming,
                         transcription = uiState.transcription,
                         activeSoundEvents = uiState.activeSoundEvents,
                         onClearTranscription = onClearTranscription

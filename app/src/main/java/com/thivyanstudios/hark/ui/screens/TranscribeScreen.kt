@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -34,6 +33,7 @@ import com.thivyanstudios.hark.ui.theme.HarkText
 
 @Composable
 fun TranscribeScreen(
+    isStreaming: Boolean,
     transcription: String,
     activeSoundEvents: List<SoundEvent>,
     onClearTranscription: () -> Unit
@@ -112,15 +112,19 @@ fun TranscribeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    val icon = Icons.Rounded.RecordVoiceOver
+                    val title = if (isStreaming) stringResource(R.string.transcribe_empty_text) else stringResource(R.string.transcribe_mic_off)
+                    val subtitle = if (isStreaming) "Speak clearly to begin real-time transcription" else "Tap the mic on Stream to start"
+
                     Icon(
-                        imageVector = Icons.Rounded.RecordVoiceOver,
+                        imageVector = icon,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     HarkText(
-                        text = stringResource(R.string.transcribe_empty_text),
+                        text = title,
                         style = MaterialTheme.typography.headlineSmall.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             textAlign = TextAlign.Center
@@ -128,7 +132,7 @@ fun TranscribeScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     HarkText(
-                        text = "Speak clearly to begin real-time transcription",
+                        text = subtitle,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                             textAlign = TextAlign.Center
@@ -157,7 +161,7 @@ fun TranscribeScreen(
                             )
                             
                             // Visual indicator for "still listening"
-                            if (transcription.isNotEmpty()) {
+                            if (isStreaming && transcription.isNotEmpty()) {
                                 Box(
                                     modifier = Modifier
                                         .padding(top = 16.dp)
