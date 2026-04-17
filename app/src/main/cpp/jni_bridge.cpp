@@ -67,6 +67,16 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeSetDynamicsProcessingEnable
 }
 
 extern "C"
+JNIEXPORT void JNICALL
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeSetTranscriptModeEnabled(JNIEnv *env,
+                                                                             jobject thiz,
+                                                                             jboolean enabled) {
+    if (engine) {
+        engine->setTranscriptModeEnabled(enabled);
+    }
+}
+
+extern "C"
 JNIEXPORT jint JNICALL
 Java_com_thivyanstudios_hark_audio_AudioEngine_nativeReadTranscriptionData(JNIEnv *env, jobject thiz,
                                                                          jfloatArray target,

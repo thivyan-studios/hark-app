@@ -6,6 +6,7 @@ data class MainUiState(
     val hapticFeedbackEnabled: Boolean = false,
     val keepScreenOn: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
+    val transcriptModeEnabled: Boolean = false,
     val transcription: String = "",
     val activeSoundEvents: List<SoundEvent> = emptyList()
 )

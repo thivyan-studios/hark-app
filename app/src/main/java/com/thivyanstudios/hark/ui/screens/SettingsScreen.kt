@@ -148,6 +148,14 @@ fun SettingsScreen(
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                     enabled = uiState.isDynamicsProcessingSupported
                 )
+
+                SettingsSwitchRow(
+                    text = stringResource(R.string.settings_transcript_mode),
+                    icon = Icons.Default.SpeakerNotesOff,
+                    checked = uiState.transcriptModeEnabled,
+                    onCheckedChange = settingsViewModel::setTranscriptModeEnabled,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 

@@ -10,6 +10,7 @@ data class UserPreferences(
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
+    val transcriptModeEnabled: Boolean = false,
     val whisperThreads: Int = 4,
     val whisperLanguage: String = "en",
     val whisperTranslate: Boolean = false

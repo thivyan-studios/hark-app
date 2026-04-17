@@ -131,6 +131,7 @@ class SettingsViewModel @Inject constructor(
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
             bypassBluetoothChecks = prefs.bypassBluetoothChecks,
+            transcriptModeEnabled = prefs.transcriptModeEnabled,
             whisperThreads = prefs.whisperThreads,
             whisperLanguage = prefs.whisperLanguage,
             whisperTranslate = prefs.whisperTranslate,
@@ -184,6 +185,12 @@ class SettingsViewModel @Inject constructor(
     fun setBypassBluetoothChecks(isEnabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setBypassBluetoothChecks(isEnabled)
+        }
+    }
+
+    fun setTranscriptModeEnabled(isEnabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setTranscriptModeEnabled(isEnabled)
         }
     }
 

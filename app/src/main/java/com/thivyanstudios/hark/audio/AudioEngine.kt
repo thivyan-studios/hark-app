@@ -139,6 +139,12 @@ class AudioEngine @Inject constructor(
         streamManager.updateConfig(currentConfig)
     }
 
+    fun setTranscriptModeEnabled(enabled: Boolean) {
+        if (isNativeLibraryLoaded) {
+            try { nativeSetTranscriptModeEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
+        }
+    }
+
     fun readTranscriptionData(target: FloatArray, offset: Int = 0, numFrames: Int = target.size): Int {
         if (isNativeLibraryLoaded) {
             return try {
@@ -187,6 +193,7 @@ class AudioEngine @Inject constructor(
     private external fun nativeSetAmbientGain(gain: Float)
     private external fun nativeSetNoiseSuppressionEnabled(enabled: Boolean)
     private external fun nativeSetDynamicsProcessingEnabled(enabled: Boolean)
+    private external fun nativeSetTranscriptModeEnabled(enabled: Boolean)
     private external fun nativeReadTranscriptionData(target: FloatArray, offset: Int, numFrames: Int): Int
     private external fun nativeInitWhisper(modelPath: String): Boolean
     private external fun nativeTranscribe(audioData: FloatArray, len: Int, threads: Int, language: String, translate: Boolean): String
