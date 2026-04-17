@@ -62,6 +62,7 @@ class MainViewModel @Inject constructor(
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
                         keepScreenOn = prefs.keepScreenOn,
                         bypassBluetoothChecks = prefs.bypassBluetoothChecks,
+                        transcriptModeEnabled = prefs.transcriptModeEnabled,
                         transcription = transcription,
                         activeSoundEvents = activeSoundEvents
                     )
@@ -71,7 +72,8 @@ class MainViewModel @Inject constructor(
                     MainUiState(
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
                         keepScreenOn = prefs.keepScreenOn,
-                        bypassBluetoothChecks = prefs.bypassBluetoothChecks
+                        bypassBluetoothChecks = prefs.bypassBluetoothChecks,
+                        transcriptModeEnabled = prefs.transcriptModeEnabled
                     )
                 }
             }
@@ -91,7 +93,7 @@ class MainViewModel @Inject constructor(
                 service.stopStreaming()
             } else {
                 // Check if we should bypass bluetooth connection checks
-                val shouldBypass = uiState.value.bypassBluetoothChecks
+                val shouldBypass = uiState.value.bypassBluetoothChecks || uiState.value.transcriptModeEnabled
                 
                 if (shouldBypass || service.hearingAidConnected.value) {
                     HarkLog.i("MainViewModel", "Requesting to start streaming (bypass=$shouldBypass)")

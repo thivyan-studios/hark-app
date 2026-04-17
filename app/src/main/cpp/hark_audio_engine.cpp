@@ -91,6 +91,9 @@ void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) {
 void HarkAudioEngine::setDynamicsProcessingEnabled(bool enabled) {
     mIsDynamicsProcessingEnabled.store(enabled, std::memory_order_release);
 }
+void HarkAudioEngine::setTranscriptModeEnabled(bool enabled) {
+    mIsTranscriptModeEnabled.store(enabled, std::memory_order_release);
+}
 
 oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         oboe::AudioStream *audioStream,
@@ -115,6 +118,12 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         pushToTranscriptionFifo(gainedData.data(), numFrames);
     } else {
         auto *outputData = static_cast<float *>(audioData);
+
+        if (mIsTranscriptModeEnabled.load(std::memory_order_acquire)) {
+            std::fill_n(outputData, numFrames, 0.0f);
+            return oboe::DataCallbackResult::Continue;
+        }
+
         int32_t framesRead = mFifoBuffer->read(outputData, numFrames);
 
         float currentGain = mGain.load(std::memory_order_acquire);

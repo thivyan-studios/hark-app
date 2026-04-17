@@ -25,6 +25,7 @@ public:
     void setAmbientGain(float gain);
     void setNoiseSuppressionEnabled(bool enabled);
     void setDynamicsProcessingEnabled(bool enabled);
+    void setTranscriptModeEnabled(bool enabled);
 
     // From oboe::AudioStreamDataCallback
     oboe::DataCallbackResult onAudioReady(
@@ -47,6 +48,7 @@ private:
     std::atomic<float> mAmbientGain{0.0f};
     std::atomic<bool> mIsNoiseSuppressionEnabled{false};
     std::atomic<bool> mIsDynamicsProcessingEnabled{false};
+    std::atomic<bool> mIsTranscriptModeEnabled{false};
 
     // Soft-knee compressor state (only accessed on audio thread)
     float mEnvelope = 0.0f;

@@ -34,6 +34,7 @@ class UserPreferencesRepository @Inject constructor(
         val NOISE_SUPPRESSION_ENABLED = booleanPreferencesKey("noise_suppression_enabled")
         val DYNAMICS_PROCESSING_ENABLED = booleanPreferencesKey("dynamics_processing_enabled")
         val BYPASS_BLUETOOTH_CHECKS = booleanPreferencesKey("bypass_bluetooth_checks")
+        val TRANSCRIPT_MODE_ENABLED = booleanPreferencesKey("transcript_mode_enabled")
         val WHISPER_THREADS = androidx.datastore.preferences.core.intPreferencesKey("whisper_threads")
         val WHISPER_LANGUAGE = androidx.datastore.preferences.core.stringPreferencesKey("whisper_language")
         val WHISPER_TRANSLATE = booleanPreferencesKey("whisper_translate")
@@ -57,6 +58,7 @@ class UserPreferencesRepository @Inject constructor(
                 noiseSuppressionEnabled = preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] ?: false,
                 dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false,
                 bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false,
+                transcriptModeEnabled = preferences[PreferenceKeys.TRANSCRIPT_MODE_ENABLED] ?: false,
                 whisperThreads = preferences[PreferenceKeys.WHISPER_THREADS] ?: 4,
                 whisperLanguage = preferences[PreferenceKeys.WHISPER_LANGUAGE] ?: "en",
                 whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false
@@ -90,6 +92,10 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setBypassBluetoothChecks(isEnabled: Boolean) = update {
         it[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] = isEnabled
+    }
+
+    suspend fun setTranscriptModeEnabled(isEnabled: Boolean) = update {
+        it[PreferenceKeys.TRANSCRIPT_MODE_ENABLED] = isEnabled
     }
 
     suspend fun setWhisperThreads(threads: Int) = update {
