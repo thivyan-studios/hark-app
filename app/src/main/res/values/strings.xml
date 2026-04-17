@@ -29,6 +29,7 @@
 
     <!-- Transcribe Screen -->
     <string name="transcribe_empty_text">Waiting for speech...</string>
+    <string name="transcribe_mic_off">Turn on microphone to transcribe</string>
 
     <!-- Home Screen -->
     <string name="cd_stream_button">Button to stream</string>
