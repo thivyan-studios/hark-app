@@ -13,6 +13,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -57,18 +59,12 @@ fun SettingsScreen(
                 )
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
+                ConfirmLogButton(
+                    onConfirm = {
                         settingsViewModel.generateAndShareLog()
                         showPrivacyDialog = false
                     }
-                ) {
-                    HarkText(
-                        text = stringResource(R.string.accept),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showPrivacyDialog = false }) {
@@ -97,7 +93,7 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(100.dp))
             
             HarkText(
                 text = "SETTINGS",
@@ -320,33 +316,31 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Support Button
+            // Support Button - Larger and more rectangular
             SquishyBox(
                 onClick = { showPrivacyDialog = true },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .width(260.dp)
+                    .height(56.dp),
                 backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
+                cornerRadius = 16.dp,
                 hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Icon(
                         Icons.Default.BugReport,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(22.dp)
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     HarkText(
                         text = stringResource(R.string.settings_generate_log),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
             }
@@ -354,13 +348,41 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(32.dp))
             
             HarkText(
-                text = "Version ${uiState.versionName}",
+                text = uiState.versionName,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelMedium
             )
             
             Spacer(modifier = Modifier.height(180.dp)) // Leave room for navbar
         }
+
+        // Fading Header Overlay to prevent UI from scrolling into status bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.background,
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
+                            Color.Transparent
+                        )
+                    )
+                )
+                .align(Alignment.TopCenter)
+        )
+    }
+}
+
+@Composable
+fun ConfirmLogButton(onConfirm: () -> Unit) {
+    TextButton(onClick = onConfirm) {
+        HarkText(
+            text = stringResource(R.string.accept),
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+        )
     }
 }
 

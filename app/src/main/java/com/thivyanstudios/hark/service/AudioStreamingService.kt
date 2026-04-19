@@ -268,7 +268,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     }
 
     private suspend fun prepareWhisper() = withContext(ioDispatcher) {
-        val modelName = "ggml-tiny.en-q5_1.bin"
+        val modelName = "ggml-base-q8_0.bin"
         val modelFile = java.io.File(filesDir, modelName)
         if (!modelFile.exists()) {
             HarkLog.i(TAG, "Copying Whisper model from assets...")
