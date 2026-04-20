@@ -8,7 +8,8 @@ data class MainUiState(
     val bypassBluetoothChecks: Boolean = false,
     val transcriptModeEnabled: Boolean = false,
     val transcription: String = "",
-    val activeSoundEvents: List<SoundEvent> = emptyList()
+    val activeSoundEvents: List<SoundEvent> = emptyList(),
+    val audioLevel: Float = 0f // Normalized 0.0 to 1.0
 )
 
 data class SoundEvent(

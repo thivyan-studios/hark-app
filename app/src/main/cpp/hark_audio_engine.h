@@ -6,6 +6,7 @@
 #include <atomic>
 #include <memory>
 #include <cstdint>
+#include <vector>
 
 namespace oboe {
     class FifoBuffer;
@@ -20,6 +21,7 @@ public:
     void stop();
 
     int32_t readTranscriptionData(float *target, int32_t numFrames);
+    float getTranscriptionLevel();
 
     void setMicrophoneGain(float gain);
     void setAmbientGain(float gain);
@@ -49,6 +51,9 @@ private:
     std::atomic<bool> mIsNoiseSuppressionEnabled{false};
     std::atomic<bool> mIsDynamicsProcessingEnabled{false};
     std::atomic<bool> mIsTranscriptModeEnabled{false};
+
+    // Live audio level for transcription gating/visuals
+    std::atomic<float> mTranscriptionLevel{0.0f};
 
     // Soft-knee compressor state (only accessed on audio thread)
     float mEnvelope = 0.0f;

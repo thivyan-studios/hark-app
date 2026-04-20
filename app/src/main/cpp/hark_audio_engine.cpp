@@ -83,6 +83,10 @@ int32_t HarkAudioEngine::readTranscriptionData(float *target, int32_t numFrames)
     return mTranscriptionFifo->read(target, numFrames);
 }
 
+float HarkAudioEngine::getTranscriptionLevel() {
+    return mTranscriptionLevel.load(std::memory_order_acquire);
+}
+
 void HarkAudioEngine::setMicrophoneGain(float gain) { mGain.store(gain, std::memory_order_release); }
 void HarkAudioEngine::setAmbientGain(float gain) { mAmbientGain.store(gain, std::memory_order_release); }
 void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) {
@@ -108,13 +112,24 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         auto *inputData = static_cast<const float*>(audioData);
 
         // Boost gain specifically for transcription on emulators if needed
-        // Many emulators have extremely low input volumes.
         float transcriptionGain = currentGain * 10.0f;
 
+        float sumSquares = 0.0f;
         std::vector<float> gainedData(numFrames);
         for (int i = 0; i < numFrames; ++i) {
-            gainedData[i] = inputData[i] * transcriptionGain;
+            float sample = inputData[i] * transcriptionGain;
+            gainedData[i] = sample;
+            sumSquares += sample * sample;
         }
+
+        // Calculate RMS level for visualization/gating
+        float rms = std::sqrt(sumSquares / static_cast<float>(numFrames));
+
+        // Exponential moving average for smoothing the level
+        float alpha = 0.1f;
+        float currentLevel = mTranscriptionLevel.load(std::memory_order_acquire);
+        mTranscriptionLevel.store(currentLevel * (1.0f - alpha) + rms * alpha, std::memory_order_release);
+
         pushToTranscriptionFifo(gainedData.data(), numFrames);
     } else {
         auto *outputData = static_cast<float *>(audioData);

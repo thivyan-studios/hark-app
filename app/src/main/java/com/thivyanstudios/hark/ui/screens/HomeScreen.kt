@@ -33,19 +33,20 @@ fun HomeScreen(
     isStreaming: Boolean,
     onStreamButtonClick: () -> Unit,
     hapticFeedbackEnabled: Boolean,
+    audioLevel: Float = 0f
 ) {
     var isButtonEnabled by remember { mutableStateOf(true) }
     
     val infiniteTransition = rememberInfiniteTransition(label = "PulseTransition")
     
-    // Pulse animation for the rings
-    val pulseScale by infiniteTransition.animateFloat(
+    // Base pulse animation
+    val basePulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.8f,
+        targetValue = 1.2f,
         animationSpec = infiniteRepeatable(
             animation = tween(2000, easing = LinearOutSlowInEasing),
             repeatMode = RepeatMode.Restart
-        ), label = "PulseScale"
+        ), label = "BasePulseScale"
     )
     
     val pulseAlpha by infiniteTransition.animateFloat(
@@ -57,8 +58,15 @@ fun HomeScreen(
         ), label = "PulseAlpha"
     )
 
+    // Reactive level scale - adds to the base pulse when there's sound
+    val levelScale by animateFloatAsState(
+        targetValue = audioLevel * 2.5f, // Amplify for visual effect
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+        label = "LevelScale"
+    )
+
     val buttonColor by animateColorAsState(
-        targetValue = if (isStreaming) Color(0xFF4CAF50) else Color(0xFFF44336), // Green when on, Red when off
+        targetValue = if (isStreaming) Color(0xFF4CAF50) else Color(0xFFF44336), 
         animationSpec = spring(stiffness = Spring.StiffnessLow),
         label = "ButtonColor"
     )
@@ -87,7 +95,7 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             HarkText(
-                text = if (isStreaming) "LISTENING" else "READY",
+                text = if (isStreaming) "STREAMING" else "READY",
                 style = MaterialTheme.typography.labelLarge.copy(
                     letterSpacing = 4.sp,
                     fontWeight = FontWeight.Bold,
@@ -96,9 +104,9 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             HarkText(
-                text = if (isStreaming) "Capturing audio..." else "Tap the mic to start",
+                text = if (isStreaming) "Tap to stop" else "Tap the mic to start",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
             )
         }
@@ -115,8 +123,10 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(120.dp)
                             .graphicsLayer {
-                                scaleX = pulseScale + (index * 0.2f)
-                                scaleY = pulseScale + (index * 0.2f)
+                                // Mix the base pulse with the live audio level
+                                val finalScale = basePulseScale + (index * 0.15f) + levelScale
+                                scaleX = finalScale
+                                scaleY = finalScale
                                 alpha = pulseAlpha / (index + 1)
                             }
                             .background(buttonColor.copy(alpha = 0.4f), CircleShape)
@@ -155,30 +165,34 @@ fun HomeScreen(
             }
         }
         
-        // Connectivity Hint at the bottom
+        // Activity Chip at the bottom
         val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 120.dp + navigationBarsPadding) // Adjusted to be above floating navbar
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(20.dp))
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        val isCapturing = isStreaming && audioLevel > 0.005f
+        
+        if (isStreaming) {
+            Row(
                 modifier = Modifier
-                    .size(8.dp)
-                    .background(
-                        if (isStreaming) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline,
-                        CircleShape
-                    )
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                if (isStreaming) "Whisper AI Active" else "Whisper AI Inactive",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 120.dp + navigationBarsPadding)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            if (isCapturing) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline,
+                            CircleShape
+                        )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isCapturing) "Whisper is Active" else "Whisper is Idle",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

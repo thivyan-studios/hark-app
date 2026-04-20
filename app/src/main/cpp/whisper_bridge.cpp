@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 #include <fstream>
 #include <mutex>
+#include <cmath>
+#include <algorithm>
 #include "whisper/whisper.h"
 #include "whisper/ggml.h"
 #include "whisper/ggml-cpu.h"
@@ -21,7 +23,6 @@ static std::vector<char> g_model_buffer;
 void whisper_log_callback(enum ggml_log_level level, const char * text, void * user_data) {
     (void)level;
     (void)user_data;
-    // Lower priority for internal logs to reduce noise
     __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Whisper Internal: %s", text);
 }
 
@@ -42,7 +43,6 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeInitWhisper(JNIEnv *env, jo
     const char * path = env->GetStringUTFChars(model_path, nullptr);
     LOGI("Loading Whisper model: %s", path);
 
-    // Read file into buffer to avoid mmap alignment issues on Android
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         LOGE("Failed to open model file");
@@ -64,8 +64,6 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeInitWhisper(JNIEnv *env, jo
 
     LOGI("Model buffer size: %lld bytes. Initializing context...", (long long)size);
 
-    // Use whisper_init_from_buffer_with_params instead of deprecated whisper_init_from_buffer
-    // IMPORTANT: The buffer MUST remain valid for the entire lifetime of the context
     whisper_context_params cparams = whisper_context_default_params();
     g_whisper_ctx = whisper_init_from_buffer_with_params(g_model_buffer.data(), g_model_buffer.size(), cparams);
 
@@ -77,6 +75,35 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeInitWhisper(JNIEnv *env, jo
 
     LOGI("Whisper model loaded successfully");
     return JNI_TRUE;
+}
+
+// Helper to check for common hallucination strings
+bool is_hallucination(const std::string& text) {
+    static const std::vector<std::string> junk = {
+        "thanks for watching", "thank you for watching", "subtitles by", "please subscribe",
+        "thank you", "bye", "repro", "mbc", "you", "h", "a", "thanks", "thank you.", "thank you for",
+        "watch", "watching", "subscribe", "subtitles", "the", "and"
+    };
+
+    std::string lower = text;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // Trim punctuation and whitespace
+    lower.erase(std::remove_if(lower.begin(), lower.end(), [](char c) {
+        return std::isspace(c) || std::ispunct(c);
+    }), lower.end());
+
+    if (lower.empty() || lower.length() <= 1) return true; // Ignore single chars or empty
+
+    for (const auto& j : junk) {
+        std::string clean_j = j;
+        clean_j.erase(std::remove_if(clean_j.begin(), clean_j.end(), [](char c) {
+            return std::isspace(c) || std::ispunct(c);
+        }), clean_j.end());
+
+        if (lower == clean_j) return true;
+    }
+    return false;
 }
 
 extern "C"
@@ -98,6 +125,7 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
 
     float * p_audio = env->GetFloatArrayElements(audio_data, nullptr);
 
+    // AGGRESSIVE Stability Settings
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     params.print_progress = false;
     params.print_special = false;
@@ -106,58 +134,73 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     params.translate = (bool) translate;
     params.language = lang.c_str();
     params.n_threads = (int) threads;
+
     params.suppress_blank = true;
     params.suppress_nst = true;
     params.no_context = true;
     params.single_segment = true;
 
-    // Voice activity detection settings
-    params.no_speech_thold = 0.5f; // More aggressive
+    params.temperature = 0.0f;
+    params.no_speech_thold = 0.6f; // Balanced VAD
     params.entropy_thold = 2.4f;
+    params.logprob_thold = -1.0f; // Reject low-confidence results
 
-    // Basic audio signal check
+    // Disable any internal state/context to prevent loops
+    params.max_tokens = 64;
+
+    // Audio signal check
+    float sum_sq = 0.0f;
+    for (int i = 0; i < len; ++i) {
+        sum_sq += p_audio[i] * p_audio[i];
+    }
+    float rms = std::sqrt(sum_sq / len);
+
+    // High silence threshold to prevent hallucinations
+    if (rms < 0.008f) {
+        LOGI("Signal RMS too low (%.5f), skipping transcription.", rms);
+        env->ReleaseFloatArrayElements(audio_data, p_audio, 0);
+        return env->NewStringUTF("[SILENCE]");
+    }
+
+    // Conservative AGC
     float max_abs = 0.0f;
     for (int i = 0; i < len; ++i) {
         float abs_s = std::abs(p_audio[i]);
         if (abs_s > max_abs) max_abs = abs_s;
     }
 
-    // Normalization / AGC
-    if (max_abs > 0.0001f) {
-        float target_max = 0.8f;
-        float gain = target_max / max_abs;
-        if (gain > 4000.0f) gain = 4000.0f;
-
-        if (gain > 1.05f || gain < 0.95f) {
-            for (int i = 0; i < len; ++i) {
-                p_audio[i] *= gain;
-            }
-        }
-    } else {
-        LOGI("Signal too weak (max_abs %.8f), silence detected.", max_abs);
-        env->ReleaseFloatArrayElements(audio_data, p_audio, 0);
-        return env->NewStringUTF("[SILENCE]");
+    if (max_abs > 0.0f) {
+        float target = 0.6f;
+        float gain = target / max_abs;
+        if (gain > 15.0f) gain = 15.0f; // Limit amplification of floor noise
+        for (int i = 0; i < len; ++i) p_audio[i] *= gain;
     }
 
     int64_t t_start = ggml_time_ms();
     int ret = whisper_full(g_whisper_ctx, params, p_audio, len);
     int64_t t_end = ggml_time_ms();
 
-    LOGI("whisper_full returned %d in %lld ms", ret, (long long)(t_end - t_start));
+    LOGI("whisper_full ret %d in %lld ms (RMS: %.5f)", ret, (long long)(t_end - t_start), rms);
 
     if (ret != 0) {
-        LOGE("Failed to transcribe audio, error code: %d", ret);
         env->ReleaseFloatArrayElements(audio_data, p_audio, 0);
         return env->NewStringUTF("ERROR: Transcription failed");
     }
 
     std::string result_text;
     int n_segments = whisper_full_n_segments(g_whisper_ctx);
-
     for (int i = 0; i < n_segments; ++i) {
+        float prob = whisper_full_get_segment_no_speech_prob(g_whisper_ctx, i);
+        if (prob > 0.80f) {
+            LOGI("Segment %d rejected by no_speech_prob: %.3f", i, prob);
+            continue;
+        }
+
         const char * text = whisper_full_get_segment_text(g_whisper_ctx, i);
-        if (text) {
+        if (text && !is_hallucination(text)) {
             result_text += text;
+        } else if (text) {
+            LOGI("Filtered hallucination: %s", text);
         }
     }
 
@@ -181,5 +224,3 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeReleaseWhisper(JNIEnv *env,
         LOGI("Whisper context and buffer released");
     }
 }
-
-

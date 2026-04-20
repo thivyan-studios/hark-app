@@ -96,3 +96,12 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeReadTranscriptionData(JNIEn
     }
     return 0;
 }
+
+extern "C"
+JNIEXPORT jfloat JNICALL
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeGetTranscriptionLevel(JNIEnv *env, jobject thiz) {
+    if (engine) {
+        return engine->getTranscriptionLevel();
+    }
+    return 0.0f;
+}
