@@ -12,6 +12,7 @@ interface AudioStreamingController {
     val hearingAidConnected: StateFlow<Boolean>
     val transcription: StateFlow<String>
     val activeSoundEvents: StateFlow<List<SoundEvent>>
+    val audioLevel: StateFlow<Float>
 
     fun startStreaming()
     fun stopStreaming()

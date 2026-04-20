@@ -156,6 +156,17 @@ class AudioEngine @Inject constructor(
         return 0
     }
 
+    fun getTranscriptionLevel(): Float {
+        if (isNativeLibraryLoaded) {
+            return try {
+                nativeGetTranscriptionLevel()
+            } catch (e: UnsatisfiedLinkError) {
+                0.0f
+            }
+        }
+        return 0.0f
+    }
+
     fun initWhisper(modelPath: String): Boolean {
         loadNativeLibrary()
         return if (isNativeLibraryLoaded) {
@@ -195,6 +206,7 @@ class AudioEngine @Inject constructor(
     private external fun nativeSetDynamicsProcessingEnabled(enabled: Boolean)
     private external fun nativeSetTranscriptModeEnabled(enabled: Boolean)
     private external fun nativeReadTranscriptionData(target: FloatArray, offset: Int, numFrames: Int): Int
+    private external fun nativeGetTranscriptionLevel(): Float
     private external fun nativeInitWhisper(modelPath: String): Boolean
     private external fun nativeTranscribe(audioData: FloatArray, len: Int, threads: Int, language: String, translate: Boolean): String
     private external fun nativeReleaseWhisper()

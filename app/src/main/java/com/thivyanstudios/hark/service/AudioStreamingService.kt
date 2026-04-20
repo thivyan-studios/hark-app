@@ -50,6 +50,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val _activeSoundEvents = MutableStateFlow<List<com.thivyanstudios.hark.ui.SoundEvent>>(emptyList())
     override val activeSoundEvents = _activeSoundEvents.asStateFlow()
 
+    private val _audioLevel = MutableStateFlow(0f)
+    override val audioLevel = _audioLevel.asStateFlow()
+
     private val fullTranscript = StringBuilder()
     private var lastTranscriptionTime = 0L
 
@@ -259,6 +262,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     prepareWhisper()
                     audioEngine.start()
                     startTranscriptionLoop()
+                    startLevelMonitoringLoop()
                 }
             } catch (e: Exception) {
                 HarkLog.e(TAG, "Failed to start streaming", e)
@@ -321,6 +325,16 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _activeSoundEvents.value = currentEvents
     }
 
+    private fun startLevelMonitoringLoop() {
+        serviceScope.launch(ioDispatcher) {
+            while (_isStreaming.value) {
+                val level = audioEngine.getTranscriptionLevel()
+                _audioLevel.value = level
+                kotlinx.coroutines.delay(50) // 20fps for UI smoothness
+            }
+        }
+    }
+
     private fun startTranscriptionLoop() {
         serviceScope.launch(ioDispatcher) {
             // Get current preferences
@@ -344,6 +358,10 @@ class AudioStreamingService : Service(), AudioStreamingController {
             
             fullTranscript.setLength(0)
             
+            // Threshold for "quiet" (RMS)
+            // Whisper can be sensitive to floor noise, so we gate it.
+            val silenceThreshold = 0.005f
+            
             while (_isStreaming.value) {
                 // 1. Read available data from the native FIFO
                 val spaceRemaining = maxBufferSize - accumulatedSamples
@@ -355,8 +373,24 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 }
                 
                 // 2. Decide if we should transcribe
-                // We target chunks of ~1.0s to 1.5s for a good balance of latency and context
                 if (accumulatedSamples >= 16000) { 
+                    val currentLevel = _audioLevel.value
+                    
+                    // If it's too quiet, we treat the audio as a "buffer" but don't transcribe yet.
+                    // This prevents hallucinated text during silence.
+                    if (currentLevel < silenceThreshold) {
+                        // If we've been quiet for a while (e.g. 3 seconds of accumulated quiet audio),
+                        // we start discarding the oldest parts of the buffer to keep context fresh
+                        // but not too old.
+                        if (accumulatedSamples > 48000) {
+                             val keepSamples = 16000 // Keep last 1 second
+                             System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
+                             accumulatedSamples = keepSamples
+                        }
+                        kotlinx.coroutines.delay(500)
+                        continue
+                    }
+
                     val startTime = System.currentTimeMillis()
                     val audioToProcess = audioBuffer.copyOfRange(0, accumulatedSamples)
                     
@@ -389,28 +423,21 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         accumulatedSamples = 0
                     } else if (isSilence || isNoResult) {
                         // If it's silent/empty, we don't want the buffer to grow indefinitely.
-                        // If we have more than 2.5s of audio that's been ruled silent, 
-                        // keep only the last 500ms to maintain potential word-start context.
                         if (accumulatedSamples >= 40000) {
                             val keepSamples = 8000 // 500ms
                             System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
                             accumulatedSamples = keepSamples
                         }
                     } else if (accumulatedSamples >= maxBufferSize - 16000) {
-                        // Safety: if buffer is nearly full and we still have no result,
-                        // we're likely in a very noisy environment or falling way behind.
-                        // Discard half the buffer to recover.
                         val discardSize = maxBufferSize / 2
                         System.arraycopy(audioBuffer, discardSize, audioBuffer, 0, maxBufferSize - discardSize)
                         accumulatedSamples = maxBufferSize - discardSize
                         HarkLog.w(TAG, "Transcription buffer overflow, discarding old data.")
                     }
                     
-                    // Adaptive delay: if transcription is slow, don't wait as long
                     val loopDelay = if (duration > 1000) 100L else 300L
                     kotlinx.coroutines.delay(loopDelay)
                 } else {
-                    // Not enough data yet, wait a bit
                     kotlinx.coroutines.delay(200)
                 }
             }
@@ -426,6 +453,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         
         fullTranscript.setLength(0)
         _transcription.value = ""
+        _audioLevel.value = 0f
 
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()

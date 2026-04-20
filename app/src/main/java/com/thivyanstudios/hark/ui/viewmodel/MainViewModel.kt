@@ -8,6 +8,8 @@ import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.ui.MainUiState
+import com.thivyanstudios.hark.ui.SoundEvent
+import com.thivyanstudios.hark.data.model.UserPreferences
 import com.thivyanstudios.hark.util.Constants
 import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,7 +19,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -54,8 +55,17 @@ class MainViewModel @Inject constructor(
                     service.hearingAidConnected,
                     service.transcription,
                     service.activeSoundEvents,
+                    service.audioLevel,
                     userPreferencesRepository.userPreferencesFlow
-                ) { isStreaming, hearingAidConnected, transcription, activeSoundEvents, prefs ->
+                ) { args ->
+                    val isStreaming = args[0] as Boolean
+                    val hearingAidConnected = args[1] as Boolean
+                    val transcription = args[2] as String
+                    @Suppress("UNCHECKED_CAST")
+                    val activeSoundEvents = args[3] as List<SoundEvent>
+                    val audioLevel = args[4] as Float
+                    val prefs = args[5] as UserPreferences
+                    
                     MainUiState(
                         isStreaming = isStreaming,
                         hearingAidConnected = hearingAidConnected,
@@ -64,7 +74,8 @@ class MainViewModel @Inject constructor(
                         bypassBluetoothChecks = prefs.bypassBluetoothChecks,
                         transcriptModeEnabled = prefs.transcriptModeEnabled,
                         transcription = transcription,
-                        activeSoundEvents = activeSoundEvents
+                        activeSoundEvents = activeSoundEvents,
+                        audioLevel = audioLevel
                     )
                 }
             } else {
@@ -119,5 +130,11 @@ class MainViewModel @Inject constructor(
 
     fun clearTranscription() {
         audioServiceManager.service.value?.clearTranscription()
+    }
+
+    private fun <T> kotlinx.coroutines.flow.Flow<T>.launchIn(scope: kotlinx.coroutines.CoroutineScope) {
+        scope.launch {
+            this@launchIn.collect {}
+        }
     }
 }
