@@ -68,8 +68,7 @@ fun HarkAppContent(
                     HomeScreen(
                         isStreaming = uiState.isStreaming,
                         onStreamButtonClick = onToggleStreaming,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                        audioLevel = uiState.audioLevel
+                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
                     )
                 }
                 composable(Navigation.ROUTE_TRANSCRIBE) {
@@ -77,7 +76,6 @@ fun HarkAppContent(
                         isStreaming = uiState.isStreaming,
                         transcription = uiState.transcription,
                         activeSoundEvents = uiState.activeSoundEvents,
-                        audioLevel = uiState.audioLevel,
                         onClearTranscription = onClearTranscription
                     )
                 }

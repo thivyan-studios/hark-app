@@ -32,8 +32,7 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     isStreaming: Boolean,
     onStreamButtonClick: () -> Unit,
-    hapticFeedbackEnabled: Boolean,
-    audioLevel: Float = 0f
+    hapticFeedbackEnabled: Boolean
 ) {
     var isButtonEnabled by remember { mutableStateOf(true) }
     
@@ -56,13 +55,6 @@ fun HomeScreen(
             animation = tween(2000, easing = LinearOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ), label = "PulseAlpha"
-    )
-
-    // Reactive level scale - adds to the base pulse when there's sound
-    val levelScale by animateFloatAsState(
-        targetValue = audioLevel * 2.5f, // Amplify for visual effect
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
-        label = "LevelScale"
     )
 
     val buttonColor by animateColorAsState(
@@ -123,8 +115,8 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(120.dp)
                             .graphicsLayer {
-                                // Mix the base pulse with the live audio level
-                                val finalScale = basePulseScale + (index * 0.15f) + levelScale
+                                // Steady pulse without jittery audio reaction
+                                val finalScale = basePulseScale + (index * 0.15f)
                                 scaleX = finalScale
                                 scaleY = finalScale
                                 alpha = pulseAlpha / (index + 1)
@@ -165,32 +157,31 @@ fun HomeScreen(
             }
         }
         
-        // Activity Chip at the bottom
+        // Activity Chip at the bottom - Simplified to be less "flickery"
         val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val isCapturing = isStreaming && audioLevel > 0.005f
         
         if (isStreaming) {
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 120.dp + navigationBarsPadding)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(6.dp)
                         .background(
-                            if (isCapturing) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline,
+                            Color(0xFF4CAF50),
                             CircleShape
                         )
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isCapturing) "Whisper is Active" else "Whisper is Idle",
+                    text = "Whisper is running",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             }
         }

@@ -38,7 +38,6 @@ fun TranscribeScreen(
     isStreaming: Boolean,
     transcription: String,
     activeSoundEvents: List<SoundEvent>,
-    audioLevel: Float = 0f,
     onClearTranscription: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -55,7 +54,7 @@ fun TranscribeScreen(
     Scaffold(
         topBar = {
             if (isStreaming) {
-                TranscriptionHeader(audioLevel)
+                TranscriptionHeader()
             }
         },
         floatingActionButton = {
@@ -221,55 +220,31 @@ fun TranscribeScreen(
 }
 
 @Composable
-fun TranscriptionHeader(audioLevel: Float) {
+fun TranscriptionHeader() {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding(),
-        color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
-        tonalElevation = 2.dp
+        color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
     ) {
         Row(
             modifier = Modifier
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Level indicator
+            // Static, calm indicator instead of a jumping bar
             Box(
                 modifier = Modifier
-                    .width(40.dp)
-                    .height(16.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(2.dp))
-            ) {
-                val animatedLevel by animateFloatAsState(
-                    targetValue = audioLevel.coerceIn(0f, 1f),
-                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                    label = "AudioLevel"
-                )
-                
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(animatedLevel)
-                        .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary
-                                )
-                            ),
-                            shape = RoundedCornerShape(2.dp)
-                        )
-                )
-            }
+                    .size(8.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), CircleShape)
+            )
             
             Spacer(modifier = Modifier.width(12.dp))
             
-            val isActive = audioLevel > 0.005f
             Text(
-                text = if (isActive) "Whisper is Active" else "Whisper is Idle",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                text = "Live Transcription",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             )
         }
     }
