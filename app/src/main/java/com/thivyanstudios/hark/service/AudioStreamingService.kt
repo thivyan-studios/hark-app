@@ -77,6 +77,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private lateinit var serviceScope: CoroutineScope
     private var disableHearingAidPriority = false
+    private var lastTranscriptModeEnabled: Boolean? = null
 
     private val _hearingAidConnected = MutableStateFlow(false)
     override val hearingAidConnected = _hearingAidConnected.asStateFlow()
@@ -171,6 +172,15 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     HarkLog.i(TAG, "Hearing aid priority preference changed: $newDisablePriority")
                     disablePriorityChange(newDisablePriority)
                 }
+
+                val newTranscriptMode = prefs.transcriptModeEnabled
+                if (lastTranscriptModeEnabled != null && newTranscriptMode != lastTranscriptModeEnabled) {
+                    HarkLog.i(TAG, "Transcript mode changed: $newTranscriptMode, stopping stream")
+                    if (_isStreaming.value) {
+                        stopStreaming()
+                    }
+                }
+                lastTranscriptModeEnabled = newTranscriptMode
 
                 val gain = 10.0.pow(prefs.microphoneGain / 20.0).toFloat()
                 audioEngine.setMicrophoneGain(gain)

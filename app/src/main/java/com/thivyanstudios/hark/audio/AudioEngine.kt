@@ -19,6 +19,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Orchestrates audio processing between Native (Oboe/C++) and Java/Kotlin fallbacks.
+ * Also handles Whisper AI transcription lifecycle.
+ */
 @Singleton
 class AudioEngine @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -32,19 +36,28 @@ class AudioEngine @Inject constructor(
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var isNativeLibraryLoaded = false
+    
+    // Native handle to the C++ HarkAudioEngine instance
+    private var nativeHandle: Long = 0
 
     private val _errorEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val errorEvents = _errorEvents.asSharedFlow()
 
     private var currentConfig = AudioProcessingConfig()
 
+    init {
+        loadNativeLibrary()
+    }
+
     private fun loadNativeLibrary() {
         if (isNativeLibraryLoaded) return
         try {
             System.loadLibrary("hark")
-            nativeInit()
-            isNativeLibraryLoaded = true
-            HarkLog.i(TAG, "Native library loaded successfully")
+            nativeHandle = nativeCreate()
+            isNativeLibraryLoaded = nativeHandle != 0L
+            if (isNativeLibraryLoaded) {
+                HarkLog.i(TAG, "Native library loaded and engine created: $nativeHandle")
+            }
         } catch (e: Exception) {
             HarkLog.e(TAG, "Failed to load native library", e)
         }
@@ -53,40 +66,46 @@ class AudioEngine @Inject constructor(
     fun start() {
         if (_isStreaming.value) return
         
-        loadNativeLibrary()
+        if (!isNativeLibraryLoaded) {
+            loadNativeLibrary()
+        }
 
-        val sampleRateStr = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)
-        val sampleRate = sampleRateStr?.toIntOrNull() ?: 48000
-        val framesPerBurstStr = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)
-        val framesPerBurst = framesPerBurstStr?.toIntOrNull() ?: 192
+        val sampleRate = getOptimalSampleRate()
+        val framesPerBurst = getOptimalFramesPerBurst()
 
         _isStreaming.value = true
         
         var success = false
-        if (isNativeLibraryLoaded) {
+        if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
-                success = nativeStart(sampleRate, framesPerBurst)
+                success = nativeStart(nativeHandle, sampleRate, framesPerBurst)
             } catch (e: UnsatisfiedLinkError) {
-                HarkLog.e(TAG, "Native start failed: UnsatisfiedLinkError", e)
+                HarkLog.e(TAG, "Native start failed", e)
             }
         }
         
         if (!success) {
             HarkLog.w(TAG, "Falling back to Java/Kotlin audio engine")
-            sendError("Failed to start High-Performance Engine. Using fallback.")
+            sendError("High-Performance Engine unavailable. Using fallback.")
             streamManager.start(currentConfig)
-        } else {
-            HarkLog.i(TAG, "Native audio engine started successfully")
         }
+    }
+
+    private fun getOptimalSampleRate(): Int {
+        return audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 48000
+    }
+
+    private fun getOptimalFramesPerBurst(): Int {
+        return audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull() ?: 192
     }
 
     fun stop() {
         if (!_isStreaming.value) return
         _isStreaming.value = false
         
-        if (isNativeLibraryLoaded) {
+        if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
-                nativeStop()
+                nativeStop(nativeHandle)
             } catch (e: UnsatisfiedLinkError) {
                 HarkLog.e(TAG, "Native stop failed", e)
             }
@@ -99,114 +118,98 @@ class AudioEngine @Inject constructor(
         _errorEvents.tryEmit(message)
     }
 
+    // --- Configuration Methods ---
+
     fun setMicrophoneGain(gain: Float) {
-        if (currentConfig.microphoneGain == gain) return
         currentConfig = currentConfig.copy(microphoneGain = gain)
-        
-        if (isNativeLibraryLoaded) {
-            try { nativeSetMicrophoneGain(gain) } catch (_: UnsatisfiedLinkError) {}
-        }
+        applyToNative { nativeSetMicrophoneGain(it, gain) }
         streamManager.updateConfig(currentConfig)
     }
 
     fun setAmbientGain(gain: Float) {
-        if (currentConfig.ambientGain == gain) return
         currentConfig = currentConfig.copy(ambientGain = gain)
-        
-        if (isNativeLibraryLoaded) {
-            try { nativeSetAmbientGain(gain) } catch (_: UnsatisfiedLinkError) {}
-        }
+        applyToNative { nativeSetAmbientGain(it, gain) }
         streamManager.updateConfig(currentConfig)
     }
 
     fun setNoiseSuppressionEnabled(enabled: Boolean) {
-        if (currentConfig.noiseSuppressionEnabled == enabled) return
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
-        
-        if (isNativeLibraryLoaded) {
-            try { nativeSetNoiseSuppressionEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
-        }
+        applyToNative { nativeSetNoiseSuppressionEnabled(it, enabled) }
         streamManager.updateConfig(currentConfig)
     }
     
     fun setDynamicsProcessingEnabled(enabled: Boolean) {
-        if (currentConfig.dynamicsProcessingEnabled == enabled) return
         currentConfig = currentConfig.copy(dynamicsProcessingEnabled = enabled)
-        
-        if (isNativeLibraryLoaded) {
-            try { nativeSetDynamicsProcessingEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
-        }
+        applyToNative { nativeSetDynamicsProcessingEnabled(it, enabled) }
         streamManager.updateConfig(currentConfig)
     }
 
     fun setTranscriptModeEnabled(enabled: Boolean) {
-        if (isNativeLibraryLoaded) {
-            try { nativeSetTranscriptModeEnabled(enabled) } catch (_: UnsatisfiedLinkError) {}
-        }
+        applyToNative { nativeSetTranscriptModeEnabled(it, enabled) }
     }
 
+    // --- Transcription Data Access ---
+
     fun readTranscriptionData(target: FloatArray, offset: Int = 0, numFrames: Int = target.size): Int {
-        if (isNativeLibraryLoaded) {
+        if (isNativeLibraryLoaded && nativeHandle != 0L) {
             return try {
-                nativeReadTranscriptionData(target, offset, numFrames)
-            } catch (e: UnsatisfiedLinkError) {
-                0
-            }
+                nativeReadTranscriptionData(nativeHandle, target, offset, numFrames)
+            } catch (e: UnsatisfiedLinkError) { 0 }
         }
         return 0
     }
 
     fun getTranscriptionLevel(): Float {
-        if (isNativeLibraryLoaded) {
+        if (isNativeLibraryLoaded && nativeHandle != 0L) {
             return try {
-                nativeGetTranscriptionLevel()
-            } catch (e: UnsatisfiedLinkError) {
-                0.0f
-            }
+                nativeGetTranscriptionLevel(nativeHandle)
+            } catch (e: UnsatisfiedLinkError) { 0.0f }
         }
         return 0.0f
     }
 
+    // --- Whisper AI Bridge ---
+
     fun initWhisper(modelPath: String): Boolean {
-        loadNativeLibrary()
-        return if (isNativeLibraryLoaded) {
-            try {
-                nativeInitWhisper(modelPath)
-            } catch (e: UnsatisfiedLinkError) {
-                false
-            }
-        } else false
+        if (!isNativeLibraryLoaded) return false
+        return try {
+            nativeInitWhisper(modelPath)
+        } catch (e: UnsatisfiedLinkError) { false }
     }
 
-    fun transcribe(audioData: FloatArray, threads: Int, language: String, translate: Boolean, len: Int = audioData.size): String {
-        return if (isNativeLibraryLoaded) {
-            try {
-                nativeTranscribe(audioData, len, threads, language, translate)
-            } catch (e: UnsatisfiedLinkError) {
-                "ERROR: JNI fail"
-            }
-        } else "ERROR: Lib not loaded"
+    fun transcribe(audioData: FloatArray, threads: Int, language: String, translate: Boolean): String {
+        if (!isNativeLibraryLoaded) return "ERROR: Lib not loaded"
+        return try {
+            nativeTranscribe(audioData, audioData.size, threads, language, translate)
+        } catch (e: UnsatisfiedLinkError) { "ERROR: JNI fail" }
     }
 
     fun releaseWhisper() {
         if (isNativeLibraryLoaded) {
-            try {
-                nativeReleaseWhisper()
-            } catch (_: UnsatisfiedLinkError) {}
+            try { nativeReleaseWhisper() } catch (_: UnsatisfiedLinkError) {}
         }
     }
 
-    // Native methods
-    private external fun nativeInit()
-    private external fun nativeStart(sampleRate: Int, framesPerBurst: Int): Boolean
-    private external fun nativeStop()
-    private external fun nativeSetMicrophoneGain(gain: Float)
-    private external fun nativeSetAmbientGain(gain: Float)
-    private external fun nativeSetNoiseSuppressionEnabled(enabled: Boolean)
-    private external fun nativeSetDynamicsProcessingEnabled(enabled: Boolean)
-    private external fun nativeSetTranscriptModeEnabled(enabled: Boolean)
-    private external fun nativeReadTranscriptionData(target: FloatArray, offset: Int, numFrames: Int): Int
-    private external fun nativeGetTranscriptionLevel(): Float
+    private inline fun applyToNative(action: (Long) -> Unit) {
+        if (isNativeLibraryLoaded && nativeHandle != 0L) {
+            try { action(nativeHandle) } catch (_: UnsatisfiedLinkError) {}
+        }
+    }
+
+    // --- Native Definitions ---
+
+    private external fun nativeCreate(): Long
+    private external fun nativeDelete(handle: Long)
+    private external fun nativeStart(handle: Long, sampleRate: Int, framesPerBurst: Int): Boolean
+    private external fun nativeStop(handle: Long)
+    private external fun nativeSetMicrophoneGain(handle: Long, gain: Float)
+    private external fun nativeSetAmbientGain(handle: Long, gain: Float)
+    private external fun nativeSetNoiseSuppressionEnabled(handle: Long, enabled: Boolean)
+    private external fun nativeSetDynamicsProcessingEnabled(handle: Long, enabled: Boolean)
+    private external fun nativeSetTranscriptModeEnabled(handle: Long, enabled: Boolean)
+    private external fun nativeReadTranscriptionData(handle: Long, target: FloatArray, offset: Int, numFrames: Int): Int
+    private external fun nativeGetTranscriptionLevel(handle: Long): Float
+
     private external fun nativeInitWhisper(modelPath: String): Boolean
     private external fun nativeTranscribe(audioData: FloatArray, len: Int, threads: Int, language: String, translate: Boolean): String
     private external fun nativeReleaseWhisper()

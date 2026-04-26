@@ -19,6 +19,11 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
     mSampleRate = sampleRate;
     mResampleAccumulator = 0;
 
+    // Reset processing states
+    mEnvelope = 0.0f;
+    mPrevInput = 0.0f;
+    mPrevOutput = 0.0f;
+
     uint32_t fifoCapacity = static_cast<uint32_t>(framesPerBurst) * 8;
     mFifoBuffer = std::make_unique<oboe::FifoBuffer>(sizeof(float), fifoCapacity);
 
@@ -76,6 +81,7 @@ void HarkAudioEngine::closeStreams() {
     if (mOutStream) { mOutStream->stop(); mOutStream->close(); mOutStream.reset(); }
     if (mInStream) { mInStream->stop(); mInStream->close(); mInStream.reset(); }
     mTranscriptionFifo.reset();
+    mFifoBuffer.reset();
 }
 
 int32_t HarkAudioEngine::readTranscriptionData(float *target, int32_t numFrames) {
@@ -115,22 +121,22 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         float transcriptionGain = currentGain * 10.0f;
 
         float sumSquares = 0.0f;
-        std::vector<float> gainedData(numFrames);
-        for (int i = 0; i < numFrames; ++i) {
+        int32_t framesToProcess = std::min(numFrames, kMaxFrames);
+        for (int i = 0; i < framesToProcess; ++i) {
             float sample = inputData[i] * transcriptionGain;
-            gainedData[i] = sample;
+            mGainedBuffer[i] = sample;
             sumSquares += sample * sample;
         }
 
         // Calculate RMS level for visualization/gating
-        float rms = std::sqrt(sumSquares / static_cast<float>(numFrames));
+        float rms = std::sqrt(sumSquares / static_cast<float>(framesToProcess));
 
         // Exponential moving average for smoothing the level
         float alpha = 0.1f;
         float currentLevel = mTranscriptionLevel.load(std::memory_order_acquire);
         mTranscriptionLevel.store(currentLevel * (1.0f - alpha) + rms * alpha, std::memory_order_release);
 
-        pushToTranscriptionFifo(gainedData.data(), numFrames);
+        pushToTranscriptionFifo(mGainedBuffer, framesToProcess);
     } else {
         auto *outputData = static_cast<float *>(audioData);
 
@@ -191,7 +197,7 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
         int index = (int)mResampleAccumulator;
         if (index >= 0 && index < numFrames) {
             mResampleBuffer[resampledCount++] = data[index];
-            if (resampledCount >= 2048) break; // Safety break
+            if (resampledCount >= kMaxFrames) break;
         }
         mResampleAccumulator += skip;
     }
@@ -201,20 +207,19 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
         int32_t written = mTranscriptionFifo->write(mResampleBuffer, resampledCount);
         if (written < resampledCount) {
             // FIFO overflow - clear it to avoid stale data
-            float dummy;
-            while(mTranscriptionFifo->read(&dummy, 1) > 0);
+            // Reading in larger chunks is more efficient than sample-by-sample
+            float dump[256];
+            while(mTranscriptionFifo->read(dump, 256) > 0);
         }
     }
 }
 
 
 float HarkAudioEngine::applySpeechEnhancement(float input) {
-    static float prevInput = 0.0f;
-    static float prevOutput = 0.0f;
     // Simple DC-offset / High-pass filter to reduce low-end rumble
-    float output = input - prevInput + 0.95f * prevOutput;
-    prevInput = input;
-    prevOutput = output;
+    float output = input - mPrevInput + 0.95f * mPrevOutput;
+    mPrevInput = input;
+    mPrevOutput = output;
     return output;
 }
 
