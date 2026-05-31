@@ -38,7 +38,9 @@ fun TranscribeScreen(
     isStreaming: Boolean,
     transcription: String,
     activeSoundEvents: List<SoundEvent>,
-    onClearTranscription: () -> Unit
+    onClearTranscription: () -> Unit,
+    onShareTranscription: (String) -> Unit,
+    fontSize: Float = 22f
 ) {
     val scrollState = rememberScrollState()
     val clipboardManager = LocalClipboardManager.current
@@ -89,6 +91,14 @@ fun TranscribeScreen(
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     ) {
                         Icon(Icons.Default.DeleteOutline, contentDescription = "Clear transcription")
+                    }
+
+                    FloatingActionButton(
+                        onClick = { onShareTranscription(transcription) },
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "Share transcription")
                     }
 
                     FloatingActionButton(
@@ -160,8 +170,8 @@ fun TranscribeScreen(
                             Text(
                                 text = transcription,
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = 22.sp,
-                                    lineHeight = 34.sp,
+                                    fontSize = fontSize.sp,
+                                    lineHeight = (fontSize * 1.5).sp,
                                     fontWeight = FontWeight.Normal,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )

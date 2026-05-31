@@ -31,6 +31,7 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     private val audioServiceManager: AudioServiceManager,
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val transcriptionRepository: com.thivyanstudios.hark.data.TranscriptionRepository,
     private val audioEngine: AudioEngine
 ) : ViewModel() {
 
@@ -49,14 +50,15 @@ class MainViewModel @Inject constructor(
 
     val uiState: StateFlow<MainUiState> = audioServiceManager.service
         .flatMapLatest { service ->
-            if (service != null) {
+            val baseFlows = if (service != null) {
                 combine(
                     service.isStreaming,
                     service.hearingAidConnected,
                     service.transcription,
                     service.activeSoundEvents,
                     service.audioLevel,
-                    userPreferencesRepository.userPreferencesFlow
+                    userPreferencesRepository.userPreferencesFlow,
+                    transcriptionRepository.allTranscriptions
                 ) { args ->
                     val isStreaming = args[0] as Boolean
                     val hearingAidConnected = args[1] as Boolean
@@ -65,6 +67,8 @@ class MainViewModel @Inject constructor(
                     val activeSoundEvents = args[3] as List<SoundEvent>
                     val audioLevel = args[4] as Float
                     val prefs = args[5] as UserPreferences
+                    @Suppress("UNCHECKED_CAST")
+                    val history = args[6] as List<com.thivyanstudios.hark.data.local.TranscriptionEntity>
                     
                     MainUiState(
                         isStreaming = isStreaming,
@@ -75,24 +79,32 @@ class MainViewModel @Inject constructor(
                         transcriptModeEnabled = prefs.transcriptModeEnabled,
                         transcription = transcription,
                         activeSoundEvents = activeSoundEvents,
-                        audioLevel = audioLevel
+                        audioLevel = audioLevel,
+                        isLoading = false,
+                        history = history
                     )
                 }
             } else {
-                userPreferencesRepository.userPreferencesFlow.map { prefs ->
+                combine(
+                    userPreferencesRepository.userPreferencesFlow,
+                    transcriptionRepository.allTranscriptions
+                ) { prefs, history ->
                     MainUiState(
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
                         keepScreenOn = prefs.keepScreenOn,
                         bypassBluetoothChecks = prefs.bypassBluetoothChecks,
-                        transcriptModeEnabled = prefs.transcriptModeEnabled
+                        transcriptModeEnabled = prefs.transcriptModeEnabled,
+                        isLoading = false,
+                        history = history
                     )
                 }
             }
+            baseFlows
         }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(Constants.Preferences.TIMEOUT_MILLIS),
-            initialValue = MainUiState()
+            initialValue = MainUiState(isLoading = true)
         )
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
@@ -129,7 +141,25 @@ class MainViewModel @Inject constructor(
     }
 
     fun clearTranscription() {
+        val currentText = uiState.value.transcription
+        if (currentText.isNotBlank()) {
+            viewModelScope.launch {
+                transcriptionRepository.insert(currentText)
+            }
+        }
         audioServiceManager.service.value?.clearTranscription()
+    }
+
+    fun deleteHistoryItem(id: Long) {
+        viewModelScope.launch {
+            transcriptionRepository.delete(id)
+        }
+    }
+
+    fun deleteAllHistory() {
+        viewModelScope.launch {
+            transcriptionRepository.deleteAll()
+        }
     }
 
     private fun <T> kotlinx.coroutines.flow.Flow<T>.launchIn(scope: kotlinx.coroutines.CoroutineScope) {

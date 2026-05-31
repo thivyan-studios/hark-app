@@ -25,6 +25,7 @@
     <!-- Bottom Nav -->
     <string name="nav_stream">Stream</string>
     <string name="nav_transcribe">Transcribe</string>
+    <string name="nav_history">History</string>
     <string name="nav_settings">Settings</string>
 
     <!-- Transcribe Screen -->
@@ -44,4 +45,17 @@
     <string name="version_not_found">Developed by Thivyan Pillay (Version not found)</string>
     <string name="noise_suppression_not_available">Noise suppression is not available on this device.</string>
     <string name="dynamics_processing_not_available">Dynamics Processing is not available on this device.</string>
+    <string name="error_model_file_corrupt">Whisper model file is missing or corrupt.</string>
+    <string name="error_whisper_init_failed">Failed to initialize Whisper engine.</string>
+    <string name="share_transcription_title">Share Transcription</string>
+    <string name="settings_font_size">Transcription font size</string>
+    <string name="settings_silence_threshold">Silence sensitivity threshold</string>
+    <string name="sensitivity_format">%1$d%%</string>
+    <string name="settings_restart_required">Model change will take effect after restart.</string>
+    <string name="model_restart_title">Restart Required</string>
+    <string name="model_restart_message">The app needs to restart to load the new transcription model. Restart now?</string>
+    <string name="model_delete_title">Delete Model</string>
+    <string name="model_delete_message">Are you sure you want to delete the %1$s model? You will need to download it again to use it.</string>
+    <string name="restart">Restart</string>
+    <string name="delete">Delete</string>
 </resources>

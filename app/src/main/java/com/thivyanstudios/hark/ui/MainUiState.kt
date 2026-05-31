@@ -9,7 +9,9 @@ data class MainUiState(
     val transcriptModeEnabled: Boolean = false,
     val transcription: String = "",
     val activeSoundEvents: List<SoundEvent> = emptyList(),
-    val audioLevel: Float = 0f // Normalized 0.0 to 1.0
+    val audioLevel: Float = 0f, // Normalized 0.0 to 1.0
+    val isLoading: Boolean = true,
+    val history: List<com.thivyanstudios.hark.data.local.TranscriptionEntity> = emptyList()
 )
 
 data class SoundEvent(

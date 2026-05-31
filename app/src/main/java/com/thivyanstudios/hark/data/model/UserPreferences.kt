@@ -13,5 +13,8 @@ data class UserPreferences(
     val transcriptModeEnabled: Boolean = false,
     val whisperThreads: Int = 4,
     val whisperLanguage: String = "en",
-    val whisperTranslate: Boolean = false
+    val whisperTranslate: Boolean = false,
+    val silenceThreshold: Float = 0.005f,
+    val transcriptionFontSize: Float = 22f,
+    val selectedModelId: String = "ggml-base-q8_0.bin"
 )

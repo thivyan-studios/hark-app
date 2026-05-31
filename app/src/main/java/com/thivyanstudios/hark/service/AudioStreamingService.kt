@@ -29,11 +29,13 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 import kotlin.math.pow
 
@@ -41,6 +43,10 @@ import kotlin.math.pow
 class AudioStreamingService : Service(), AudioStreamingController {
 
     private val binder = LocalBinder()
+    
+    @Inject
+    lateinit var whisperModelManager: com.thivyanstudios.hark.data.WhisperModelManager
+
     private val _isStreaming = MutableStateFlow(false)
     override val isStreaming = _isStreaming.asStateFlow()
 
@@ -85,10 +91,14 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 HarkLog.i(TAG, "Audio focus lost, stopping streaming")
                 stopStreaming()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                HarkLog.i(TAG, "Audio focus lost (duckable), continuing streaming")
+                // We could lower our output volume here if we were playing audio, 
+                // but since we are mainly recording/transcribing, we continue.
             }
         }
     }
@@ -282,20 +292,44 @@ class AudioStreamingService : Service(), AudioStreamingController {
     }
 
     private suspend fun prepareWhisper() = withContext(ioDispatcher) {
-        val modelName = "ggml-base-q8_0.bin"
-        val modelFile = java.io.File(filesDir, modelName)
-        if (!modelFile.exists()) {
-            HarkLog.i(TAG, "Copying Whisper model from assets...")
-            assets.open(modelName).use { input ->
-                modelFile.outputStream().use { output ->
-                    input.copyTo(output)
+        val prefs = userPreferencesRepository.userPreferencesFlow.first()
+        val modelId = prefs.selectedModelId
+        val model = whisperModelManager.availableModels.find { it.id == modelId } ?: whisperModelManager.availableModels.first()
+        
+        val modelFile = File(filesDir, model.fileName)
+        
+        if (model.isAsset) {
+            // Check if model exists and has a minimum expected size
+            val minExpectedSize = model.sizeBytes 
+            
+            if (!modelFile.exists() || modelFile.length() < minExpectedSize) {
+                HarkLog.i(TAG, "Copying or re-copying Whisper model from assets (exists=${modelFile.exists()}, size=${modelFile.length()})...")
+                assets.open(model.fileName).use { input ->
+                    modelFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
                 }
             }
+        } else {
+            // It's a downloaded model
+            if (!whisperModelManager.isModelDownloaded(model)) {
+                HarkLog.e(TAG, "Selected model not downloaded: ${model.name}")
+                audioEngine.sendError("Model not downloaded. Please go to Settings.")
+                return@withContext
+            }
         }
+        
+        if (!modelFile.exists()) {
+            HarkLog.e(TAG, "Whisper model file not found: ${modelFile.absolutePath}")
+            audioEngine.sendError(getString(R.string.error_model_file_corrupt))
+            return@withContext
+        }
+
         HarkLog.i(TAG, "Initializing Whisper with model: ${modelFile.absolutePath}")
         val success = audioEngine.initWhisper(modelFile.absolutePath)
         if (!success) {
             HarkLog.e(TAG, "Failed to initialize Whisper")
+            audioEngine.sendError(getString(R.string.error_whisper_init_failed))
         }
     }
 
@@ -351,6 +385,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
             var threads = 4
             var language = "en"
             var translate = false
+            var silenceThreshold = 0.005f
 
             // Subscribe to preference changes
             launch {
@@ -358,6 +393,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     threads = prefs.whisperThreads
                     language = prefs.whisperLanguage
                     translate = prefs.whisperTranslate
+                    silenceThreshold = prefs.silenceThreshold
                 }
             }
 
@@ -367,10 +403,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
             var accumulatedSamples = 0
             
             fullTranscript.setLength(0)
-            
-            // Threshold for "quiet" (RMS)
-            // Whisper can be sensitive to floor noise, so we gate it.
-            val silenceThreshold = 0.005f
             
             while (_isStreaming.value) {
                 // 1. Read available data from the native FIFO

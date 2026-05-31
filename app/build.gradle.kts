@@ -120,8 +120,16 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
     // Splash Screen
     implementation(libs.androidx.core.splashscreen)
+    
+    // Networking
+    implementation(libs.okhttp)
     
     // Oboe
     implementation(libs.oboe)

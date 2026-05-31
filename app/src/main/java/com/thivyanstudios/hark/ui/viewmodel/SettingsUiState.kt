@@ -17,6 +17,13 @@ data class SettingsUiState(
     val whisperThreads: Int = 4,
     val whisperLanguage: String = "en",
     val whisperTranslate: Boolean = false,
+    val silenceThreshold: Float = 0.005f,
+    val transcriptionFontSize: Float = 22f,
+    val selectedModelId: String = "ggml-base-q8_0.bin",
+    val activeModelId: String = "ggml-base-q8_0.bin",
+    val availableModels: List<com.thivyanstudios.hark.data.model.WhisperModel> = emptyList(),
+    val downloadedModelIds: Set<String> = emptySet(),
+    val downloadProgress: Map<String, Float> = emptyMap(),
     
     // Feature support flags
     val isNoiseSuppressionSupported: Boolean = true,

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Settings
@@ -92,6 +93,13 @@ fun BottomNavBar(
                     labelResId = R.string.nav_transcribe,
                     selected = currentRoute == Navigation.ROUTE_TRANSCRIBE,
                     onClick = { onNavigate(Navigation.ROUTE_TRANSCRIBE) },
+                    hapticFeedbackEnabled = hapticFeedbackEnabled
+                )
+                AnimatedNavigationBarItem(
+                    icon = Icons.Rounded.History,
+                    labelResId = R.string.nav_history,
+                    selected = currentRoute == Navigation.ROUTE_HISTORY,
+                    onClick = { onNavigate(Navigation.ROUTE_HISTORY) },
                     hapticFeedbackEnabled = hapticFeedbackEnabled
                 )
                 AnimatedNavigationBarItem(

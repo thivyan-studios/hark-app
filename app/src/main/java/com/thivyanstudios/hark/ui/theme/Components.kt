@@ -79,8 +79,8 @@ fun HarkToast(
         modifier = modifier
             .padding(horizontal = 24.dp, vertical = 12.dp),
         shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.9f),
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         tonalElevation = 6.dp,
         shadowElevation = 4.dp
     ) {
@@ -94,7 +94,7 @@ fun HarkToast(
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primaryContainer
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(10.dp))
             }
