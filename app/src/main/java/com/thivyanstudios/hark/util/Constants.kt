@@ -4,6 +4,7 @@ object Constants {
     object Navigation {
         const val ROUTE_HOME = "home"
         const val ROUTE_TRANSCRIBE = "transcribe"
+        const val ROUTE_HISTORY = "history"
         const val ROUTE_SETTINGS = "settings"
     }
 

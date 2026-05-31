@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -37,6 +38,7 @@ import javax.inject.Inject
 @SuppressLint("MissingPermission")
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val whisperModelManager: com.thivyanstudios.hark.data.WhisperModelManager,
     private val audioEngine: AudioEngine,
     private val application: Application,
     private val systemSettingsProvider: SystemSettingsProvider,
@@ -47,6 +49,7 @@ class SettingsViewModel @Inject constructor(
     private val _isNoiseSuppressionSupported = MutableStateFlow(true)
     private val _isDynamicsProcessingSupported = MutableStateFlow(true)
     private val _isDeveloperOptionsEnabled = MutableStateFlow(false)
+    private var activeModelIdAtStart: String? = null
 
     private val devSettingsObserver by lazy {
         object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -73,6 +76,9 @@ class SettingsViewModel @Inject constructor(
             }
             
             updateDeveloperOptionsStatus()
+            
+            // Capture the model ID currently in preferences as the "active" one for this session
+            activeModelIdAtStart = userPreferencesRepository.userPreferencesFlow.first().selectedModelId
         }
 
         // Only register if we're not in a unit test environment
@@ -120,8 +126,23 @@ class SettingsViewModel @Inject constructor(
         _versionName,
         _isNoiseSuppressionSupported,
         _isDynamicsProcessingSupported,
-        _isDeveloperOptionsEnabled
-    ) { prefs, version, nsSupported, dpSupported, devEnabled ->
+        _isDeveloperOptionsEnabled,
+        whisperModelManager.downloadProgress,
+        whisperModelManager.modelStoreUpdateTrigger
+    ) { args ->
+        val prefs = args[0] as com.thivyanstudios.hark.data.model.UserPreferences
+        val version = args[1] as String
+        val nsSupported = args[2] as Boolean
+        val dpSupported = args[3] as Boolean
+        val devEnabled = args[4] as Boolean
+        val progress = args[5] as Map<String, Float>
+        // args[6] is the refresh trigger, we just use it to react to changes
+
+        val downloadedIds = whisperModelManager.availableModels
+            .filter { whisperModelManager.isModelDownloaded(it) }
+            .map { it.id }
+            .toSet()
+
         SettingsUiState(
             versionName = version,
             hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
@@ -135,6 +156,13 @@ class SettingsViewModel @Inject constructor(
             whisperThreads = prefs.whisperThreads,
             whisperLanguage = prefs.whisperLanguage,
             whisperTranslate = prefs.whisperTranslate,
+            silenceThreshold = prefs.silenceThreshold,
+            transcriptionFontSize = prefs.transcriptionFontSize,
+            selectedModelId = prefs.selectedModelId,
+            activeModelId = activeModelIdAtStart ?: prefs.selectedModelId,
+            availableModels = whisperModelManager.availableModels,
+            downloadedModelIds = downloadedIds,
+            downloadProgress = progress,
             isNoiseSuppressionSupported = nsSupported,
             isDynamicsProcessingSupported = dpSupported,
             isDeveloperOptionsEnabled = devEnabled
@@ -210,6 +238,50 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setWhisperTranslate(isEnabled)
         }
+    }
+
+    fun setSilenceThreshold(threshold: Float) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setSilenceThreshold(threshold)
+        }
+    }
+
+    fun setTranscriptionFontSize(size: Float) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setTranscriptionFontSize(size)
+        }
+    }
+
+    fun setSelectedModel(modelId: String) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setSelectedModelId(modelId)
+        }
+    }
+
+    fun downloadModel(modelId: String) {
+        val model = whisperModelManager.availableModels.find { it.id == modelId } ?: return
+        viewModelScope.launch {
+            whisperModelManager.downloadModel(model)
+        }
+    }
+
+    fun deleteModel(modelId: String) {
+        viewModelScope.launch(ioDispatcher) {
+            whisperModelManager.deleteModel(modelId)
+            // If the deleted model was the selected one, revert to base
+            val prefs = userPreferencesRepository.userPreferencesFlow.first()
+            if (prefs.selectedModelId == modelId) {
+                userPreferencesRepository.setSelectedModelId("ggml-base-q8_0.bin")
+            }
+        }
+    }
+
+    fun restartApp() {
+        val intent = application.packageManager.getLaunchIntentForPackage(application.packageName)
+        val componentName = intent?.component
+        val mainIntent = Intent.makeRestartActivityTask(componentName)
+        application.startActivity(mainIntent)
+        Runtime.getRuntime().exit(0)
     }
 
     fun generateAndShareLog() {

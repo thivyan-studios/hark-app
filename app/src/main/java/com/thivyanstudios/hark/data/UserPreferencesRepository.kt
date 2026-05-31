@@ -38,6 +38,9 @@ class UserPreferencesRepository @Inject constructor(
         val WHISPER_THREADS = androidx.datastore.preferences.core.intPreferencesKey("whisper_threads")
         val WHISPER_LANGUAGE = androidx.datastore.preferences.core.stringPreferencesKey("whisper_language")
         val WHISPER_TRANSLATE = booleanPreferencesKey("whisper_translate")
+        val SILENCE_THRESHOLD = floatPreferencesKey("silence_threshold")
+        val TRANSCRIPTION_FONT_SIZE = floatPreferencesKey("transcription_font_size")
+        val SELECTED_MODEL_ID = androidx.datastore.preferences.core.stringPreferencesKey("selected_model_id")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -61,7 +64,10 @@ class UserPreferencesRepository @Inject constructor(
                 transcriptModeEnabled = preferences[PreferenceKeys.TRANSCRIPT_MODE_ENABLED] ?: false,
                 whisperThreads = preferences[PreferenceKeys.WHISPER_THREADS] ?: 4,
                 whisperLanguage = preferences[PreferenceKeys.WHISPER_LANGUAGE] ?: "en",
-                whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false
+                whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false,
+                silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.005f,
+                transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
+                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0.bin"
             )
         }
         .flowOn(ioDispatcher)
@@ -108,6 +114,18 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setWhisperTranslate(isEnabled: Boolean) = update {
         it[PreferenceKeys.WHISPER_TRANSLATE] = isEnabled
+    }
+
+    suspend fun setSilenceThreshold(threshold: Float) = update {
+        it[PreferenceKeys.SILENCE_THRESHOLD] = threshold
+    }
+
+    suspend fun setTranscriptionFontSize(size: Float) = update {
+        it[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] = size
+    }
+
+    suspend fun setSelectedModelId(id: String) = update {
+        it[PreferenceKeys.SELECTED_MODEL_ID] = id
     }
 
     private suspend fun update(action: (MutablePreferences) -> Unit) {

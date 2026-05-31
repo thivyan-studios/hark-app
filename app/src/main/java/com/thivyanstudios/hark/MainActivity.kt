@@ -1,6 +1,7 @@
 package com.thivyanstudios.hark
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
@@ -61,7 +62,7 @@ class MainActivity : ComponentActivity() {
         
         // Keep splash screen until the app is ready to draw
         splashScreen.setKeepOnScreenCondition {
-             false
+             mainViewModel.uiState.value.isLoading
         }
         
         enableEdgeToEdge()
@@ -101,14 +102,27 @@ class MainActivity : ComponentActivity() {
                 HarkAppContent(
                     uiState = uiState,
                     snackbarHostState = snackbarHostState,
+                    mainViewModel = mainViewModel,
                     settingsViewModel = settingsViewModel,
                     onToggleStreaming = { toggleStreaming() },
-                    onClearTranscription = { mainViewModel.clearTranscription() }
+                    onClearTranscription = { mainViewModel.clearTranscription() },
+                    onShareTranscription = { text -> shareTranscription(text) }
                 )
             }
         }
 
         audioServiceManager.startService()
+    }
+
+    private fun shareTranscription(text: String) {
+        val sendIntent: Intent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, text)
+            type = "text/plain"
+        }
+
+        val shareIntent = Intent.createChooser(sendIntent, getString(R.string.share_transcription_title))
+        startActivity(shareIntent)
     }
 
     private fun toggleStreaming() {
