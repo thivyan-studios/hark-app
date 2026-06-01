@@ -84,6 +84,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private lateinit var serviceScope: CoroutineScope
     private var disableHearingAidPriority = false
     private var lastTranscriptModeEnabled: Boolean? = null
+    private var lastSelectedModelId: String? = null
 
     private val _hearingAidConnected = MutableStateFlow(false)
     override val hearingAidConnected = _hearingAidConnected.asStateFlow()
@@ -192,6 +193,15 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 }
                 lastTranscriptModeEnabled = newTranscriptMode
 
+                val newModelId = prefs.selectedModelId
+                if (lastSelectedModelId != null && newModelId != lastSelectedModelId) {
+                    HarkLog.i(TAG, "Model selection changed: $newModelId, stopping stream")
+                    if (_isStreaming.value) {
+                        stopStreaming()
+                    }
+                }
+                lastSelectedModelId = newModelId
+
                 val gain = 10.0.pow(prefs.microphoneGain / 20.0).toFloat()
                 audioEngine.setMicrophoneGain(gain)
                 audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
@@ -215,6 +225,16 @@ class AudioStreamingService : Service(), AudioStreamingController {
                             audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
                         }
                     }
+                }
+            }
+            .launchIn(serviceScope)
+
+        // Stop streaming if model library changes (download or delete)
+        whisperModelManager.modelStoreUpdateTrigger
+            .onEach {
+                if (_isStreaming.value) {
+                    HarkLog.i(TAG, "Model library changed, stopping stream")
+                    stopStreaming()
                 }
             }
             .launchIn(serviceScope)
@@ -298,25 +318,10 @@ class AudioStreamingService : Service(), AudioStreamingController {
         
         val modelFile = File(filesDir, model.fileName)
         
-        if (model.isAsset) {
-            // Check if model exists and has a minimum expected size
-            val minExpectedSize = model.sizeBytes 
-            
-            if (!modelFile.exists() || modelFile.length() < minExpectedSize) {
-                HarkLog.i(TAG, "Copying or re-copying Whisper model from assets (exists=${modelFile.exists()}, size=${modelFile.length()})...")
-                assets.open(model.fileName).use { input ->
-                    modelFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-            }
-        } else {
-            // It's a downloaded model
-            if (!whisperModelManager.isModelDownloaded(model)) {
-                HarkLog.e(TAG, "Selected model not downloaded: ${model.name}")
-                audioEngine.sendError("Model not downloaded. Please go to Settings.")
-                return@withContext
-            }
+        // It's a downloaded model
+        if (!whisperModelManager.isModelDownloaded(model)) {
+            HarkLog.i(TAG, "No model downloaded, skipping Whisper initialization.")
+            return@withContext
         }
         
         if (!modelFile.exists()) {

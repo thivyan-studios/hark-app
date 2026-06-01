@@ -32,6 +32,7 @@ class MainViewModel @Inject constructor(
     private val audioServiceManager: AudioServiceManager,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val transcriptionRepository: com.thivyanstudios.hark.data.TranscriptionRepository,
+    private val whisperModelManager: com.thivyanstudios.hark.data.WhisperModelManager,
     private val audioEngine: AudioEngine
 ) : ViewModel() {
 
@@ -58,7 +59,8 @@ class MainViewModel @Inject constructor(
                     service.activeSoundEvents,
                     service.audioLevel,
                     userPreferencesRepository.userPreferencesFlow,
-                    transcriptionRepository.allTranscriptions
+                    transcriptionRepository.allTranscriptions,
+                    whisperModelManager.modelStoreUpdateTrigger
                 ) { args ->
                     val isStreaming = args[0] as Boolean
                     val hearingAidConnected = args[1] as Boolean
@@ -69,6 +71,11 @@ class MainViewModel @Inject constructor(
                     val prefs = args[5] as UserPreferences
                     @Suppress("UNCHECKED_CAST")
                     val history = args[6] as List<com.thivyanstudios.hark.data.local.TranscriptionEntity>
+                    // args[7] is modelStoreUpdateTrigger
+
+                    val isModelAvailable = whisperModelManager.availableModels.any { 
+                        whisperModelManager.isModelDownloaded(it) 
+                    }
                     
                     MainUiState(
                         isStreaming = isStreaming,
@@ -81,20 +88,27 @@ class MainViewModel @Inject constructor(
                         activeSoundEvents = activeSoundEvents,
                         audioLevel = audioLevel,
                         isLoading = false,
+                        isModelAvailable = isModelAvailable,
                         history = history
                     )
                 }
             } else {
                 combine(
                     userPreferencesRepository.userPreferencesFlow,
-                    transcriptionRepository.allTranscriptions
-                ) { prefs, history ->
+                    transcriptionRepository.allTranscriptions,
+                    whisperModelManager.modelStoreUpdateTrigger
+                ) { prefs, history, _ ->
+                    val isModelAvailable = whisperModelManager.availableModels.any { 
+                        whisperModelManager.isModelDownloaded(it) 
+                    }
+                    
                     MainUiState(
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
                         keepScreenOn = prefs.keepScreenOn,
                         bypassBluetoothChecks = prefs.bypassBluetoothChecks,
                         transcriptModeEnabled = prefs.transcriptModeEnabled,
                         isLoading = false,
+                        isModelAvailable = isModelAvailable,
                         history = history
                     )
                 }

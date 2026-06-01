@@ -67,7 +67,7 @@ class UserPreferencesRepository @Inject constructor(
                 whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false,
                 silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.005f,
                 transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
-                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0.bin"
+                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0"
             )
         }
         .flowOn(ioDispatcher)
