@@ -36,12 +36,11 @@ class WhisperModelManager @Inject constructor(
 
     val availableModels = listOf(
         WhisperModel(
-            id = "ggml-base-q8_0.bin",
+            id = "ggml-base-q8_0",
             name = "Base (Standard)",
             description = "Good balance of speed and accuracy. Best for most devices.",
-            url = "", // Included in assets
-            sizeBytes = 77_000_000L,
-            isAsset = true
+            url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q8_0.bin",
+            sizeBytes = 77_000_000L
         ),
         WhisperModel(
             id = "ggml-tiny.en-q8_0",

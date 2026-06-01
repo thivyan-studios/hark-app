@@ -159,7 +159,6 @@ class SettingsViewModel @Inject constructor(
             silenceThreshold = prefs.silenceThreshold,
             transcriptionFontSize = prefs.transcriptionFontSize,
             selectedModelId = prefs.selectedModelId,
-            activeModelId = activeModelIdAtStart ?: prefs.selectedModelId,
             availableModels = whisperModelManager.availableModels,
             downloadedModelIds = downloadedIds,
             downloadProgress = progress,
@@ -271,17 +270,9 @@ class SettingsViewModel @Inject constructor(
             // If the deleted model was the selected one, revert to base
             val prefs = userPreferencesRepository.userPreferencesFlow.first()
             if (prefs.selectedModelId == modelId) {
-                userPreferencesRepository.setSelectedModelId("ggml-base-q8_0.bin")
+                userPreferencesRepository.setSelectedModelId("ggml-base-q8_0")
             }
         }
-    }
-
-    fun restartApp() {
-        val intent = application.packageManager.getLaunchIntentForPackage(application.packageName)
-        val componentName = intent?.component
-        val mainIntent = Intent.makeRestartActivityTask(componentName)
-        application.startActivity(mainIntent)
-        Runtime.getRuntime().exit(0)
     }
 
     fun generateAndShareLog() {

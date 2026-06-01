@@ -55,6 +55,7 @@ fun BottomNavBar(
     currentRoute: String,
     onNavigate: (String) -> Unit,
     hapticFeedbackEnabled: Boolean,
+    isModelAvailable: Boolean,
     modifier: Modifier = Modifier
 ) {
     val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -88,20 +89,22 @@ fun BottomNavBar(
                     onClick = { onNavigate(Navigation.ROUTE_HOME) },
                     hapticFeedbackEnabled = hapticFeedbackEnabled
                 )
-                AnimatedNavigationBarItem(
-                    icon = Icons.Rounded.RecordVoiceOver,
-                    labelResId = R.string.nav_transcribe,
-                    selected = currentRoute == Navigation.ROUTE_TRANSCRIBE,
-                    onClick = { onNavigate(Navigation.ROUTE_TRANSCRIBE) },
-                    hapticFeedbackEnabled = hapticFeedbackEnabled
-                )
-                AnimatedNavigationBarItem(
-                    icon = Icons.Rounded.History,
-                    labelResId = R.string.nav_history,
-                    selected = currentRoute == Navigation.ROUTE_HISTORY,
-                    onClick = { onNavigate(Navigation.ROUTE_HISTORY) },
-                    hapticFeedbackEnabled = hapticFeedbackEnabled
-                )
+                if (isModelAvailable) {
+                    AnimatedNavigationBarItem(
+                        icon = Icons.Rounded.RecordVoiceOver,
+                        labelResId = R.string.nav_transcribe,
+                        selected = currentRoute == Navigation.ROUTE_TRANSCRIBE,
+                        onClick = { onNavigate(Navigation.ROUTE_TRANSCRIBE) },
+                        hapticFeedbackEnabled = hapticFeedbackEnabled
+                    )
+                    AnimatedNavigationBarItem(
+                        icon = Icons.Rounded.History,
+                        labelResId = R.string.nav_history,
+                        selected = currentRoute == Navigation.ROUTE_HISTORY,
+                        onClick = { onNavigate(Navigation.ROUTE_HISTORY) },
+                        hapticFeedbackEnabled = hapticFeedbackEnabled
+                    )
+                }
                 AnimatedNavigationBarItem(
                     icon = Icons.Rounded.Settings,
                     labelResId = R.string.nav_settings,

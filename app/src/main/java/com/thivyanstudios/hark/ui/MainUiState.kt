@@ -11,6 +11,7 @@ data class MainUiState(
     val activeSoundEvents: List<SoundEvent> = emptyList(),
     val audioLevel: Float = 0f, // Normalized 0.0 to 1.0
     val isLoading: Boolean = true,
+    val isModelAvailable: Boolean = false,
     val history: List<com.thivyanstudios.hark.data.local.TranscriptionEntity> = emptyList()
 )
 

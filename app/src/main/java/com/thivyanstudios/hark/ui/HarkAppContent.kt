@@ -76,7 +76,8 @@ fun HarkAppContent(
                     HomeScreen(
                         isStreaming = uiState.isStreaming,
                         onStreamButtonClick = onToggleStreaming,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                        isModelAvailable = uiState.isModelAvailable
                     )
                 }
                 composable(Navigation.ROUTE_TRANSCRIBE) {
@@ -117,6 +118,7 @@ fun HarkAppContent(
                 }
             },
             hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+            isModelAvailable = uiState.isModelAvailable,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }

@@ -32,7 +32,8 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     isStreaming: Boolean,
     onStreamButtonClick: () -> Unit,
-    hapticFeedbackEnabled: Boolean
+    hapticFeedbackEnabled: Boolean,
+    isModelAvailable: Boolean
 ) {
     var isButtonEnabled by remember { mutableStateOf(true) }
     
@@ -58,7 +59,7 @@ fun HomeScreen(
     )
 
     val buttonColor by animateColorAsState(
-        targetValue = if (isStreaming) Color(0xFF4CAF50) else Color(0xFFF44336), 
+        targetValue = if (isStreaming) Color(0xFF4CAF50) else Color(0xFFF44336),
         animationSpec = spring(stiffness = Spring.StiffnessLow),
         label = "ButtonColor"
     )
@@ -160,7 +161,7 @@ fun HomeScreen(
         // Activity Chip at the bottom - Simplified to be less "flickery"
         val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         
-        if (isStreaming) {
+        if (isStreaming && isModelAvailable) {
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
