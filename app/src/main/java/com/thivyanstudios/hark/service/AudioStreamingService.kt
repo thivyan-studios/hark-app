@@ -82,7 +82,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
     lateinit var ioDispatcher: CoroutineDispatcher
 
     private lateinit var serviceScope: CoroutineScope
-    private var disableHearingAidPriority = false
+    private var enableBluetoothHeadsetSupport = false
+    private var preferExternalMic = false
     private var lastTranscriptModeEnabled: Boolean? = null
     private var lastSelectedModelId: String? = null
 
@@ -132,7 +133,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     }
 
     private fun isCompatibleDevice(type: Int): Boolean {
-        return if (disableHearingAidPriority) {
+        return if (enableBluetoothHeadsetSupport) {
             when (type) {
                 AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
                 AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
@@ -178,10 +179,19 @@ class AudioStreamingService : Service(), AudioStreamingController {
         userPreferencesRepository.userPreferencesFlow
             .distinctUntilChanged()
             .onEach { prefs ->
-                val newDisablePriority = prefs.disableHearingAidPriority
-                if (newDisablePriority != disableHearingAidPriority) {
-                    HarkLog.i(TAG, "Hearing aid priority preference changed: $newDisablePriority")
-                    disablePriorityChange(newDisablePriority)
+                val newEnableSupport = prefs.enableBluetoothHeadsetSupport
+                if (newEnableSupport != enableBluetoothHeadsetSupport) {
+                    HarkLog.i(TAG, "Bluetooth headset support preference changed: $newEnableSupport")
+                    bluetoothSupportChange(newEnableSupport)
+                }
+
+                val newPreferExternalMic = prefs.preferExternalMic
+                if (newPreferExternalMic != preferExternalMic) {
+                    HarkLog.i(TAG, "Prefer external mic preference changed: $newPreferExternalMic")
+                    preferExternalMic = newPreferExternalMic
+                    if (_isStreaming.value) {
+                        updateAudioRouting()
+                    }
                 }
 
                 val newTranscriptMode = prefs.transcriptModeEnabled
@@ -246,8 +256,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
         updateHearingAidStatus()
     }
 
-    private fun disablePriorityChange(newDisablePriority: Boolean) {
-        disableHearingAidPriority = newDisablePriority
+    private fun bluetoothSupportChange(newEnableSupport: Boolean) {
+        enableBluetoothHeadsetSupport = newEnableSupport
         if (_isStreaming.value) {
             stopStreaming()
         }
@@ -300,6 +310,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 withContext(ioDispatcher) {
                     // Initialize Whisper before starting engine
                     prepareWhisper()
+                    updateAudioRouting()
                     audioEngine.start()
                     startTranscriptionLoop()
                     startLevelMonitoringLoop()
@@ -496,6 +507,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         
         HarkLog.i(TAG, "Stopping streaming")
         _isStreaming.value = false
+        clearAudioRouting()
         abandonAudioFocus()
         
         fullTranscript.setLength(0)
@@ -554,6 +566,52 @@ class AudioStreamingService : Service(), AudioStreamingController {
         } else {
             @Suppress("DEPRECATION")
             audioManager.abandonAudioFocus(audioFocusChangeListener)
+        }
+    }
+
+    private fun updateAudioRouting() {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        if (preferExternalMic) {
+            // Set audio mode to IN_COMMUNICATION to help routing
+            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val devices = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+                val btMic = devices.find { 
+                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || 
+                    it.type == AudioDeviceInfo.TYPE_BLE_HEADSET 
+                }
+                if (btMic != null) {
+                    HarkLog.i(TAG, "Setting communication device to: ${btMic.productName}")
+                    audioManager.setCommunicationDevice(btMic)
+                } else {
+                    HarkLog.w(TAG, "External mic preferred but no BT mic found")
+                }
+            } else {
+                HarkLog.i(TAG, "Starting Bluetooth SCO")
+                @Suppress("DEPRECATION")
+                audioManager.startBluetoothSco()
+                @Suppress("DEPRECATION")
+                audioManager.isBluetoothScoOn = true
+            }
+        } else {
+            clearAudioRouting()
+        }
+    }
+
+    private fun clearAudioRouting() {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        audioManager.mode = AudioManager.MODE_NORMAL
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.clearCommunicationDevice()
+        } else {
+            @Suppress("DEPRECATION")
+            if (audioManager.isBluetoothScoOn) {
+                HarkLog.i(TAG, "Stopping Bluetooth SCO")
+                audioManager.stopBluetoothSco()
+                audioManager.isBluetoothScoOn = false
+            }
         }
     }
 

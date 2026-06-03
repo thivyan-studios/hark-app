@@ -23,8 +23,9 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
     mEnvelope = 0.0f;
     mPrevInput = 0.0f;
     mPrevOutput = 0.0f;
+    mIsBuffering = true;
 
-    uint32_t fifoCapacity = static_cast<uint32_t>(framesPerBurst) * 8;
+    uint32_t fifoCapacity = std::max(static_cast<uint32_t>(framesPerBurst) * 16, static_cast<uint32_t>(4096));
     mFifoBuffer = std::make_unique<oboe::FifoBuffer>(sizeof(float), fifoCapacity);
 
     // Whisper.cpp usually expects 16kHz audio.
@@ -145,6 +146,17 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
             return oboe::DataCallbackResult::Continue;
         }
 
+        // Pre-buffering logic to prevent snapping from minor clock drift/jitter
+        uint32_t framesAvailable = mFifoBuffer->getFullFramesAvailable();
+        if (mIsBuffering) {
+            if (framesAvailable >= static_cast<uint32_t>(numFrames * 4)) {
+                mIsBuffering = false;
+            } else {
+                std::fill_n(outputData, numFrames, 0.0f);
+                return oboe::DataCallbackResult::Continue;
+            }
+        }
+
         int32_t framesRead = mFifoBuffer->read(outputData, numFrames);
 
         float currentGain = mGain.load(std::memory_order_acquire);
@@ -169,19 +181,22 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
                 // 3. MIXER
                 float mixedSignal = primarySignal + ambientSignal;
 
-                // 4. SAFETY: Limiter
+                // 4. SAFETY: Dynamics Processing
                 if (dynamicsEnabled) {
                     outputData[i] = applySoftKneeLimiter(mixedSignal);
                 } else {
-                    outputData[i] = std::clamp(mixedSignal, -1.0f, 1.0f);
+                    outputData[i] = std::clamp(mixedSignal, -1.1f, 1.1f);
                 }
             }
 
             if (framesRead < numFrames) {
+                // We ran out of frames! Enter buffering mode to avoid repeated snaps
                 std::fill_n(outputData + framesRead, numFrames - framesRead, 0.0f);
+                mIsBuffering = true;
             }
         } else {
             std::fill_n(outputData, numFrames, 0.0f);
+            mIsBuffering = true;
         }
     }
     return oboe::DataCallbackResult::Continue;
@@ -224,12 +239,17 @@ float HarkAudioEngine::applySpeechEnhancement(float input) {
 }
 
 float HarkAudioEngine::applySoftKneeLimiter(float input) {
-    const float threshold = 0.8f;
-    const float kneeWidth = 0.2f;
-    const float attack = 0.01f;
-    const float release = 0.1f;
+    const float threshold = 0.75f; // Slightly lower for safety
+    const float kneeWidth = 0.15f;
+
+    // Attack must be fast to catch peaks. Release must be slow to prevent "hissing/pumping" distortion.
+    // At 48kHz, 0.05 is ~0.4ms attack. 0.0005 is ~40ms release.
+    const float attack = 0.05f;
+    const float release = 0.0005f;
+
     float absInput = std::abs(input);
 
+    // Envelope follower
     if (absInput > mEnvelope) {
         mEnvelope = absInput * attack + mEnvelope * (1.0f - attack);
     } else {
@@ -237,11 +257,19 @@ float HarkAudioEngine::applySoftKneeLimiter(float input) {
     }
 
     if (mEnvelope <= threshold - kneeWidth / 2.0f) return input;
-    if (mEnvelope >= threshold + kneeWidth / 2.0f) return (input > 0) ? threshold : -threshold;
 
-    float diff = mEnvelope - (threshold - kneeWidth / 2.0f);
-    float reduction = (diff * diff) / (2.0f * kneeWidth);
-    return input * (1.0f - reduction / mEnvelope);
+    // Proper gain reduction instead of hard-clipping the waveform
+    float targetGain = 1.0f;
+    if (mEnvelope >= threshold + kneeWidth / 2.0f) {
+        targetGain = threshold / mEnvelope;
+    } else {
+        // Soft knee region
+        float diff = mEnvelope - (threshold - kneeWidth / 2.0f);
+        float reduction = (diff * diff) / (2.0f * kneeWidth);
+        targetGain = (mEnvelope - reduction) / mEnvelope;
+    }
+
+    return input * targetGain;
 }
 
 void HarkAudioEngine::onErrorAfterClose(oboe::AudioStream *audioStream, oboe::Result error) {

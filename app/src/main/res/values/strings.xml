@@ -8,7 +8,8 @@
     <string name="settings_haptic_feedback">Haptic feedback</string>
     <string name="settings_dark_mode">Use dark mode</string>
     <string name="settings_keep_screen_on">Keep screen on when in foreground</string>
-    <string name="settings_disable_hearing_aid_priority">Disable Hearing Aid priority</string>
+    <string name="settings_enable_bluetooth_headset_support">Enable Bluetooth Headset Support</string>
+    <string name="settings_prefer_external_mic">Prefer Bluetooth Microphone</string>
     <string name="settings_microphone_gain">Microphone gain</string>
     <string name="settings_support_kofi">Support me on Ko-fi</string>
     <string name="gain_db_format">%1$s dB</string>

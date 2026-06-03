@@ -29,7 +29,7 @@ class UserPreferencesRepository @Inject constructor(
     private object PreferenceKeys {
         val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
-        val DISABLE_HEARING_AID_PRIORITY = booleanPreferencesKey("disable_hearing_aid_priority")
+        val ENABLE_BLUETOOTH_HEADSET_SUPPORT = booleanPreferencesKey("enable_bluetooth_headset_support")
         val MICROPHONE_GAIN = floatPreferencesKey("microphone_gain")
         val NOISE_SUPPRESSION_ENABLED = booleanPreferencesKey("noise_suppression_enabled")
         val DYNAMICS_PROCESSING_ENABLED = booleanPreferencesKey("dynamics_processing_enabled")
@@ -41,6 +41,7 @@ class UserPreferencesRepository @Inject constructor(
         val SILENCE_THRESHOLD = floatPreferencesKey("silence_threshold")
         val TRANSCRIPTION_FONT_SIZE = floatPreferencesKey("transcription_font_size")
         val SELECTED_MODEL_ID = androidx.datastore.preferences.core.stringPreferencesKey("selected_model_id")
+        val PREFER_EXTERNAL_MIC = booleanPreferencesKey("prefer_external_mic")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -56,7 +57,7 @@ class UserPreferencesRepository @Inject constructor(
             UserPreferences(
                 hapticFeedbackEnabled = preferences[PreferenceKeys.HAPTIC_FEEDBACK_ENABLED] ?: false,
                 keepScreenOn = preferences[PreferenceKeys.KEEP_SCREEN_ON] ?: false,
-                disableHearingAidPriority = preferences[PreferenceKeys.DISABLE_HEARING_AID_PRIORITY] ?: false,
+                enableBluetoothHeadsetSupport = preferences[PreferenceKeys.ENABLE_BLUETOOTH_HEADSET_SUPPORT] ?: false,
                 microphoneGain = preferences[PreferenceKeys.MICROPHONE_GAIN] ?: Constants.Preferences.DEFAULT_GAIN,
                 noiseSuppressionEnabled = preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] ?: false,
                 dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false,
@@ -67,7 +68,8 @@ class UserPreferencesRepository @Inject constructor(
                 whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false,
                 silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.005f,
                 transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
-                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0"
+                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0",
+                preferExternalMic = preferences[PreferenceKeys.PREFER_EXTERNAL_MIC] ?: false
             )
         }
         .flowOn(ioDispatcher)
@@ -80,8 +82,8 @@ class UserPreferencesRepository @Inject constructor(
         it[PreferenceKeys.KEEP_SCREEN_ON] = isEnabled
     }
 
-    suspend fun setDisableHearingAidPriority(isEnabled: Boolean) = update {
-        it[PreferenceKeys.DISABLE_HEARING_AID_PRIORITY] = isEnabled
+    suspend fun setEnableBluetoothHeadsetSupport(isEnabled: Boolean) = update {
+        it[PreferenceKeys.ENABLE_BLUETOOTH_HEADSET_SUPPORT] = isEnabled
     }
 
     suspend fun setMicrophoneGain(gain: Float) = update {
@@ -126,6 +128,10 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setSelectedModelId(id: String) = update {
         it[PreferenceKeys.SELECTED_MODEL_ID] = id
+    }
+
+    suspend fun setPreferExternalMic(enabled: Boolean) = update {
+        it[PreferenceKeys.PREFER_EXTERNAL_MIC] = enabled
     }
 
     private suspend fun update(action: (MutablePreferences) -> Unit) {
