@@ -147,7 +147,8 @@ class SettingsViewModel @Inject constructor(
             versionName = version,
             hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
             keepScreenOn = prefs.keepScreenOn,
-            disableHearingAidPriority = prefs.disableHearingAidPriority,
+            enableBluetoothHeadsetSupport = prefs.enableBluetoothHeadsetSupport,
+            preferExternalMic = prefs.preferExternalMic,
             microphoneGain = prefs.microphoneGain,
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
@@ -185,9 +186,15 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setDisableHearingAidPriority(isEnabled: Boolean) {
+    fun setEnableBluetoothHeadsetSupport(isEnabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setDisableHearingAidPriority(isEnabled)
+            userPreferencesRepository.setEnableBluetoothHeadsetSupport(isEnabled)
+        }
+    }
+
+    fun setPreferExternalMic(isEnabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setPreferExternalMic(isEnabled)
         }
     }
 

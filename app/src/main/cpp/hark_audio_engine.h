@@ -59,6 +59,7 @@ private:
     float mEnvelope = 0.0f;
     float mPrevInput = 0.0f;
     float mPrevOutput = 0.0f;
+    bool mIsBuffering = true;
 
     std::mutex mStreamLock;
 

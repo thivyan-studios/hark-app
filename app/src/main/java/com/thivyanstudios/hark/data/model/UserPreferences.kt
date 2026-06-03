@@ -5,7 +5,7 @@ import com.thivyanstudios.hark.util.Constants
 data class UserPreferences(
     val hapticFeedbackEnabled: Boolean = false,
     val keepScreenOn: Boolean = false,
-    val disableHearingAidPriority: Boolean = false,
+    val enableBluetoothHeadsetSupport: Boolean = false,
     val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
@@ -16,5 +16,6 @@ data class UserPreferences(
     val whisperTranslate: Boolean = false,
     val silenceThreshold: Float = 0.005f,
     val transcriptionFontSize: Float = 22f,
-    val selectedModelId: String = "ggml-base-q8_0"
+    val selectedModelId: String = "ggml-base-q8_0",
+    val preferExternalMic: Boolean = false
 )

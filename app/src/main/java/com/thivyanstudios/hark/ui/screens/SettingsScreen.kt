@@ -225,10 +225,18 @@ fun SettingsScreen(
             // Section: Connectivity
             SettingsGroup(title = "Connectivity") {
                 SettingsSwitchRow(
-                    text = stringResource(R.string.settings_disable_hearing_aid_priority),
-                    icon = Icons.Default.Hearing,
-                    checked = uiState.disableHearingAidPriority,
-                    onCheckedChange = settingsViewModel::setDisableHearingAidPriority,
+                    text = stringResource(R.string.settings_enable_bluetooth_headset_support),
+                    icon = Icons.Default.BluetoothAudio,
+                    checked = uiState.enableBluetoothHeadsetSupport,
+                    onCheckedChange = settingsViewModel::setEnableBluetoothHeadsetSupport,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                )
+
+                SettingsSwitchRow(
+                    text = stringResource(R.string.settings_prefer_external_mic),
+                    icon = Icons.Default.BluetoothAudio,
+                    checked = uiState.preferExternalMic,
+                    onCheckedChange = settingsViewModel::setPreferExternalMic,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
                 )
 
