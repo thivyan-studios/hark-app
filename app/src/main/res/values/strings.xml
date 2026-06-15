@@ -59,4 +59,7 @@
     <string name="model_delete_message">Are you sure you want to delete the %1$s model? You will need to download it again to use it.</string>
     <string name="restart">Restart</string>
     <string name="delete">Delete</string>
+    <string name="settings_noise_reduction">Noise Reduction (Android)</string>
+    <string name="settings_hearing_protection">Hearing Protection (Volume Limiter)</string>
+    <string name="settings_limiter_threshold">Limiter Threshold</string>
 </resources>

@@ -180,6 +180,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 audioEngine.setMicrophoneGain(gain)
                 audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
                 audioEngine.setDynamicsProcessingEnabled(prefs.dynamicsProcessingEnabled)
+                audioEngine.setNoiseReductionEnabled(prefs.noiseReductionEnabled)
             }
             .launchIn(serviceScope)
 

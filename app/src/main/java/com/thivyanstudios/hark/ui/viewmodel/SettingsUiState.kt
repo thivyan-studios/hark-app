@@ -12,8 +12,10 @@ data class SettingsUiState(
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
-
     val isNoiseSuppressionSupported: Boolean = true,
     val isDynamicsProcessingSupported: Boolean = true,
-    val isDeveloperOptionsEnabled: Boolean = false
+    val isDeveloperOptionsEnabled: Boolean = false,
+    val noiseReductionEnabled: Boolean = true,
+    val hearingProtectionEnabled: Boolean = true,
+    val limiterThresholdDb: Float = -10f
 )

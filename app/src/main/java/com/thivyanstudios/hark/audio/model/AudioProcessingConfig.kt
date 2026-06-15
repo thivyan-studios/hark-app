@@ -5,5 +5,6 @@ data class AudioProcessingConfig(
     val ambientGain: Float = 0.0f,
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
-    val preferExternalMic: Boolean = false
+    val preferExternalMic: Boolean = false,
+    val noiseReductionEnabled: Boolean = true
 )

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import com.thivyanstudios.hark.data.model.UserPreferences
 import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.util.Constants
@@ -25,7 +26,6 @@ class UserPreferencesRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-
     private object PreferenceKeys {
         val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
@@ -35,11 +35,14 @@ class UserPreferencesRepository @Inject constructor(
         val DYNAMICS_PROCESSING_ENABLED = booleanPreferencesKey("dynamics_processing_enabled")
         val BYPASS_BLUETOOTH_CHECKS = booleanPreferencesKey("bypass_bluetooth_checks")
         val PREFER_EXTERNAL_MIC = booleanPreferencesKey("prefer_external_mic")
-        val EQ_BAND_1 = floatPreferencesKey("eq_band_1_gain")
-        val EQ_BAND_2 = floatPreferencesKey("eq_band_2_gain")
-        val EQ_BAND_3 = floatPreferencesKey("eq_band_3_gain")
-        val EQ_BAND_4 = floatPreferencesKey("eq_band_4_gain")
-        val EQ_BAND_5 = floatPreferencesKey("eq_band_5_gain")
+        val EQ_BANDS = (1..10).map { floatPreferencesKey("eq_band_${it}_gain") }
+        val EQ_LEFT_BANDS = (1..10).map { floatPreferencesKey("eq_left_band_${it}_gain") }
+        val EQ_RIGHT_BANDS = (1..10).map { floatPreferencesKey("eq_right_band_${it}_gain") }
+        val EQ_LINK_LR = booleanPreferencesKey("eq_link_lr")
+        val EQ_BAND_MODE = intPreferencesKey("eq_band_mode")
+        val NOISE_REDUCTION_ENABLED = booleanPreferencesKey("noise_reduction_enabled")
+        val HEARING_PROTECTION_ENABLED = booleanPreferencesKey("hearing_protection_enabled")
+        val LIMITER_THRESHOLD_DB = floatPreferencesKey("limiter_threshold_db")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -47,9 +50,7 @@ class UserPreferencesRepository @Inject constructor(
             if (exception is IOException) {
                 HarkLog.e(TAG, "Error reading preferences", exception)
                 emit(emptyPreferences())
-            } else {
-                throw exception
-            }
+            } else { throw exception }
         }
         .map { preferences ->
             UserPreferences(
@@ -61,11 +62,14 @@ class UserPreferencesRepository @Inject constructor(
                 dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false,
                 bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false,
                 preferExternalMic = preferences[PreferenceKeys.PREFER_EXTERNAL_MIC] ?: false,
-                eqBand1Gain = preferences[PreferenceKeys.EQ_BAND_1] ?: 0f,
-                eqBand2Gain = preferences[PreferenceKeys.EQ_BAND_2] ?: 0f,
-                eqBand3Gain = preferences[PreferenceKeys.EQ_BAND_3] ?: 0f,
-                eqBand4Gain = preferences[PreferenceKeys.EQ_BAND_4] ?: 0f,
-                eqBand5Gain = preferences[PreferenceKeys.EQ_BAND_5] ?: 0f
+                eqBandGains = PreferenceKeys.EQ_BANDS.map { preferences[it] ?: 0f },
+                eqLeftBandGains = PreferenceKeys.EQ_LEFT_BANDS.map { preferences[it] ?: 0f },
+                eqRightBandGains = PreferenceKeys.EQ_RIGHT_BANDS.map { preferences[it] ?: 0f },
+                eqLinkLR = preferences[PreferenceKeys.EQ_LINK_LR] ?: true,
+                eqBandMode = preferences[PreferenceKeys.EQ_BAND_MODE] ?: 10,
+                noiseReductionEnabled = preferences[PreferenceKeys.NOISE_REDUCTION_ENABLED] ?: true,
+                hearingProtectionEnabled = preferences[PreferenceKeys.HEARING_PROTECTION_ENABLED] ?: true,
+                limiterThresholdDb = preferences[PreferenceKeys.LIMITER_THRESHOLD_DB] ?: -10f
             )
         }
         .flowOn(ioDispatcher)
@@ -78,21 +82,25 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setDynamicsProcessingEnabled(isEnabled: Boolean) = update { it[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] = isEnabled }
     suspend fun setBypassBluetoothChecks(isEnabled: Boolean) = update { it[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] = isEnabled }
     suspend fun setPreferExternalMic(enabled: Boolean) = update { it[PreferenceKeys.PREFER_EXTERNAL_MIC] = enabled }
-    suspend fun setEqBand1Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_1] = gain }
-    suspend fun setEqBand2Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_2] = gain }
-    suspend fun setEqBand3Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_3] = gain }
-    suspend fun setEqBand4Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_4] = gain }
-    suspend fun setEqBand5Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_5] = gain }
+    suspend fun setEqBandGain(index: Int, gain: Float) { if (index in 0..9) update { it[PreferenceKeys.EQ_BANDS[index]] = gain } }
+    suspend fun setEqLeftBandGain(index: Int, gain: Float) { if (index in 0..9) update { it[PreferenceKeys.EQ_LEFT_BANDS[index]] = gain } }
+    suspend fun setEqRightBandGain(index: Int, gain: Float) { if (index in 0..9) update { it[PreferenceKeys.EQ_RIGHT_BANDS[index]] = gain } }
+    suspend fun setAllEqBandGains(gains: List<Float>) = update { prefs -> gains.forEachIndexed { i, g -> if (i in 0..9) prefs[PreferenceKeys.EQ_BANDS[i]] = g } }
+    suspend fun setAllEqLeftBandGains(gains: List<Float>) = update { prefs -> gains.forEachIndexed { i, g -> if (i in 0..9) prefs[PreferenceKeys.EQ_LEFT_BANDS[i]] = g } }
+    suspend fun setAllEqRightBandGains(gains: List<Float>) = update { prefs -> gains.forEachIndexed { i, g -> if (i in 0..9) prefs[PreferenceKeys.EQ_RIGHT_BANDS[i]] = g } }
+    suspend fun setEqBand1Gain(gain: Float) = setEqBandGain(0, gain)
+    suspend fun setEqBand2Gain(gain: Float) = setEqBandGain(1, gain)
+    suspend fun setEqBand3Gain(gain: Float) = setEqBandGain(2, gain)
+    suspend fun setEqBand4Gain(gain: Float) = setEqBandGain(3, gain)
+    suspend fun setEqBand5Gain(gain: Float) = setEqBandGain(4, gain)
+    suspend fun setEqLinkLR(linked: Boolean) = update { it[PreferenceKeys.EQ_LINK_LR] = linked }
+    suspend fun setEqBandMode(mode: Int) = update { it[PreferenceKeys.EQ_BAND_MODE] = mode }
+    suspend fun setNoiseReductionEnabled(isEnabled: Boolean) = update { it[PreferenceKeys.NOISE_REDUCTION_ENABLED] = isEnabled }
+    suspend fun setHearingProtectionEnabled(isEnabled: Boolean) = update { it[PreferenceKeys.HEARING_PROTECTION_ENABLED] = isEnabled }
+    suspend fun setLimiterThresholdDb(threshold: Float) = update { it[PreferenceKeys.LIMITER_THRESHOLD_DB] = threshold }
 
     private suspend fun update(action: (MutablePreferences) -> Unit) {
-        try {
-            dataStore.edit { action(it) }
-        } catch (e: Exception) {
-            HarkLog.e(TAG, "Failed to update preferences", e)
-        }
+        try { dataStore.edit { action(it) } } catch (e: Exception) { HarkLog.e(TAG, "Failed to update preferences", e) }
     }
-
-    companion object {
-        private const val TAG = "UserPreferencesRepository"
-    }
+    companion object { private const val TAG = "UserPreferencesRepository" }
 }

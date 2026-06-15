@@ -130,6 +130,11 @@ class AudioEngine @Inject constructor(
         streamManager.updateConfig(currentConfig)
     }
 
+    fun setNoiseReductionEnabled(enabled: Boolean) {
+        currentConfig = currentConfig.copy(noiseReductionEnabled = enabled)
+        streamManager.updateConfig(currentConfig)
+    }
+
     fun setDynamicsProcessingEnabled(enabled: Boolean) {
         currentConfig = currentConfig.copy(dynamicsProcessingEnabled = enabled)
         applyToNative { nativeSetDynamicsProcessingEnabled(it, enabled) }
