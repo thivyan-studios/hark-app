@@ -5,7 +5,7 @@ import com.thivyanstudios.hark.util.Constants
 data class UserPreferences(
     val hapticFeedbackEnabled: Boolean = false,
     val keepScreenOn: Boolean = false,
-    val enableBluetoothHeadsetSupport: Boolean = false,
+    val enableBluetoothHeadsetSupport: Boolean = true,
     val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
