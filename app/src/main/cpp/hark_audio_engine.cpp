@@ -126,6 +126,12 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
 
     if (audioStream->getDirection() == oboe::Direction::Input) {
         mFifoBuffer->write(audioData, numFrames);
+        // Log first input callback to confirm mic is working
+        static int inputCount = 0;
+        if (inputCount < 3) {
+            __android_log_print(ANDROID_LOG_INFO, TAG, "Input callback: %d frames, fifo=%u", numFrames, mFifoBuffer->getFullFramesAvailable());
+            inputCount++;
+        }
 
         // Apply gain to transcription data as well so Whisper gets a usable signal
         float currentGain = mGain.load(std::memory_order_acquire);
@@ -162,9 +168,16 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         // Pre-buffering logic to prevent snapping from minor clock drift/jitter
         uint32_t framesAvailable = mFifoBuffer->getFullFramesAvailable();
         if (mIsBuffering) {
-            if (framesAvailable >= static_cast<uint32_t>(numFrames * 4)) {
+            if (framesAvailable >= static_cast<uint32_t>(numFrames * 2)) {
                 mIsBuffering = false;
+                __android_log_print(ANDROID_LOG_INFO, TAG, "Buffering complete, starting playback (available=%u)", framesAvailable);
             } else {
+                // Log first few times to diagnose
+                static int silenceCount = 0;
+                if (silenceCount < 5) {
+                    __android_log_print(ANDROID_LOG_WARN, TAG, "Still buffering... available=%u, need=%d", framesAvailable, numFrames * 2);
+                    silenceCount++;
+                }
                 std::fill_n(outputData, numFrames, 0.0f);
                 return oboe::DataCallbackResult::Continue;
             }
