@@ -35,7 +35,7 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
     oboe::AudioStreamBuilder inBuilder;
     inBuilder.setDirection(oboe::Direction::Input)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-            ->setSharingMode(oboe::SharingMode::Exclusive)
+            ->setSharingMode(oboe::SharingMode::Shared)
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(sampleRate)
@@ -52,7 +52,7 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
     oboe::AudioStreamBuilder outBuilder;
     outBuilder.setDirection(oboe::Direction::Output)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-            ->setSharingMode(oboe::SharingMode::Exclusive)
+            ->setSharingMode(oboe::SharingMode::Shared)
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(sampleRate)
@@ -67,9 +67,22 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
     }
 
     mOutStream->setBufferSizeInFrames(framesPerBurst * 2);
-    mInStream->requestStart();
-    mOutStream->requestStart();
 
+    result = mInStream->requestStart();
+    if (result != oboe::Result::OK) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "Error starting input stream: %s", oboe::convertToText(result));
+        closeStreams();
+        return false;
+    }
+
+    result = mOutStream->requestStart();
+    if (result != oboe::Result::OK) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "Error starting output stream: %s", oboe::convertToText(result));
+        closeStreams();
+        return false;
+    }
+
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Audio engine started successfully (sampleRate=%d, burst=%d)", sampleRate, framesPerBurst);
     return true;
 }
 

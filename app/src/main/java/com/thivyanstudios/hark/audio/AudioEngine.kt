@@ -72,16 +72,23 @@ class AudioEngine @Inject constructor(
         var success = false
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
+                HarkLog.i(TAG, "Attempting native engine start (sampleRate=$sampleRate, framesPerBurst=$framesPerBurst)")
                 success = nativeStart(nativeHandle, sampleRate, framesPerBurst)
+                HarkLog.i(TAG, "Native engine start result: $success")
             } catch (e: UnsatisfiedLinkError) {
                 HarkLog.e(TAG, "Native start failed", e)
             }
+        } else {
+            HarkLog.w(TAG, "Native library not loaded (loaded=$isNativeLibraryLoaded, handle=$nativeHandle)")
         }
 
         if (!success) {
             HarkLog.w(TAG, "Falling back to Java/Kotlin audio engine")
             sendError("High-Performance Engine unavailable. Using fallback.")
             streamManager.start(currentConfig)
+            HarkLog.i(TAG, "Fallback Java engine started")
+        } else {
+            HarkLog.i(TAG, "Native Oboe engine running")
         }
     }
 
