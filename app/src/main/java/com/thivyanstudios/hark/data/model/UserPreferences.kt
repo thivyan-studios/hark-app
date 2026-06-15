@@ -10,12 +10,11 @@ data class UserPreferences(
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
-    val transcriptModeEnabled: Boolean = false,
-    val whisperThreads: Int = 4,
-    val whisperLanguage: String = "en",
-    val whisperTranslate: Boolean = false,
-    val silenceThreshold: Float = 0.005f,
-    val transcriptionFontSize: Float = 22f,
-    val selectedModelId: String = "ggml-base-q8_0",
-    val preferExternalMic: Boolean = false
+    val preferExternalMic: Boolean = false,
+    // Equalizer bands (-12 to +12 dB)
+    val eqBand1Gain: Float = 0f,
+    val eqBand2Gain: Float = 0f,
+    val eqBand3Gain: Float = 0f,
+    val eqBand4Gain: Float = 0f,
+    val eqBand5Gain: Float = 0f
 )

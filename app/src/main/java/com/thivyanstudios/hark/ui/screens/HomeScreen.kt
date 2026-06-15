@@ -7,15 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -32,14 +27,12 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     isStreaming: Boolean,
     onStreamButtonClick: () -> Unit,
-    hapticFeedbackEnabled: Boolean,
-    isModelAvailable: Boolean
+    hapticFeedbackEnabled: Boolean
 ) {
     var isButtonEnabled by remember { mutableStateOf(true) }
-    
+
     val infiniteTransition = rememberInfiniteTransition(label = "PulseTransition")
-    
-    // Base pulse animation
+
     val basePulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = 1.2f,
@@ -48,7 +41,7 @@ fun HomeScreen(
             repeatMode = RepeatMode.Restart
         ), label = "BasePulseScale"
     )
-    
+
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.5f,
         targetValue = 0f,
@@ -80,7 +73,6 @@ fun HomeScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Status Text at the Top
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -104,19 +96,16 @@ fun HomeScreen(
             )
         }
 
-        // Center Mic Button Area
         Box(
             modifier = Modifier.align(Alignment.Center),
             contentAlignment = Alignment.Center
         ) {
-            // Pulsing Rings (Only visible when streaming)
             if (isStreaming) {
                 repeat(3) { index ->
                     Box(
                         modifier = Modifier
                             .size(120.dp)
                             .graphicsLayer {
-                                // Steady pulse without jittery audio reaction
                                 val finalScale = basePulseScale + (index * 0.15f)
                                 scaleX = finalScale
                                 scaleY = finalScale
@@ -128,7 +117,6 @@ fun HomeScreen(
                 }
             }
 
-            // The Main Button
             SquishyBox(
                 onClick = {
                     if (isButtonEnabled) {
@@ -155,35 +143,6 @@ fun HomeScreen(
                         modifier = Modifier.size(72.dp)
                     )
                 }
-            }
-        }
-        
-        // Activity Chip at the bottom - Simplified to be less "flickery"
-        val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        
-        if (isStreaming && isModelAvailable) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 120.dp + navigationBarsPadding)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(
-                            Color(0xFF4CAF50),
-                            CircleShape
-                        )
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Whisper is running",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
             }
         }
     }

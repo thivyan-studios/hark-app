@@ -8,8 +8,6 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.FileProvider
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.thivyanstudios.hark.BuildConfig
@@ -26,7 +24,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -38,7 +35,6 @@ import javax.inject.Inject
 @SuppressLint("MissingPermission")
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val whisperModelManager: com.thivyanstudios.hark.data.WhisperModelManager,
     private val audioEngine: AudioEngine,
     private val application: Application,
     private val systemSettingsProvider: SystemSettingsProvider,
@@ -49,7 +45,6 @@ class SettingsViewModel @Inject constructor(
     private val _isNoiseSuppressionSupported = MutableStateFlow(true)
     private val _isDynamicsProcessingSupported = MutableStateFlow(true)
     private val _isDeveloperOptionsEnabled = MutableStateFlow(false)
-    private var activeModelIdAtStart: String? = null
 
     private val devSettingsObserver by lazy {
         object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -74,14 +69,10 @@ class SettingsViewModel @Inject constructor(
                 e.printStackTrace()
                 application.getString(R.string.version_not_found)
             }
-            
+
             updateDeveloperOptionsStatus()
-            
-            // Capture the model ID currently in preferences as the "active" one for this session
-            activeModelIdAtStart = userPreferencesRepository.userPreferencesFlow.first().selectedModelId
         }
 
-        // Only register if we're not in a unit test environment
         if (Looper.myLooper() != null) {
            try {
                application.contentResolver.registerContentObserver(
@@ -94,7 +85,6 @@ class SettingsViewModel @Inject constructor(
            }
         }
 
-        // Listen for audio engine events to update feature support
         audioEngine.events.receiveAsFlow()
             .onEach { event ->
                 when (event) {
@@ -112,8 +102,7 @@ class SettingsViewModel @Inject constructor(
     private fun updateDeveloperOptionsStatus() {
         val isEnabled = systemSettingsProvider.isDeveloperOptionsEnabled()
         _isDeveloperOptionsEnabled.value = isEnabled
-        
-        // If developer options are disabled, force the bypass check preference to false
+
         if (!isEnabled) {
             viewModelScope.launch(ioDispatcher) {
                 userPreferencesRepository.setBypassBluetoothChecks(false)
@@ -126,23 +115,8 @@ class SettingsViewModel @Inject constructor(
         _versionName,
         _isNoiseSuppressionSupported,
         _isDynamicsProcessingSupported,
-        _isDeveloperOptionsEnabled,
-        whisperModelManager.downloadProgress,
-        whisperModelManager.modelStoreUpdateTrigger
-    ) { args ->
-        val prefs = args[0] as com.thivyanstudios.hark.data.model.UserPreferences
-        val version = args[1] as String
-        val nsSupported = args[2] as Boolean
-        val dpSupported = args[3] as Boolean
-        val devEnabled = args[4] as Boolean
-        val progress = args[5] as Map<String, Float>
-        // args[6] is the refresh trigger, we just use it to react to changes
-
-        val downloadedIds = whisperModelManager.availableModels
-            .filter { whisperModelManager.isModelDownloaded(it) }
-            .map { it.id }
-            .toSet()
-
+        _isDeveloperOptionsEnabled
+    ) { prefs, version, nsSupported, dpSupported, devEnabled ->
         SettingsUiState(
             versionName = version,
             hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
@@ -153,16 +127,6 @@ class SettingsViewModel @Inject constructor(
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
             bypassBluetoothChecks = prefs.bypassBluetoothChecks,
-            transcriptModeEnabled = prefs.transcriptModeEnabled,
-            whisperThreads = prefs.whisperThreads,
-            whisperLanguage = prefs.whisperLanguage,
-            whisperTranslate = prefs.whisperTranslate,
-            silenceThreshold = prefs.silenceThreshold,
-            transcriptionFontSize = prefs.transcriptionFontSize,
-            selectedModelId = prefs.selectedModelId,
-            availableModels = whisperModelManager.availableModels,
-            downloadedModelIds = downloadedIds,
-            downloadProgress = progress,
             isNoiseSuppressionSupported = nsSupported,
             isDynamicsProcessingSupported = dpSupported,
             isDeveloperOptionsEnabled = devEnabled
@@ -209,7 +173,7 @@ class SettingsViewModel @Inject constructor(
             userPreferencesRepository.setNoiseSuppressionEnabled(isEnabled)
         }
     }
-    
+
     fun setDynamicsProcessingEnabled(isEnabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setDynamicsProcessingEnabled(isEnabled)
@@ -222,69 +186,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setTranscriptModeEnabled(isEnabled: Boolean) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setTranscriptModeEnabled(isEnabled)
-        }
-    }
-
-    fun setWhisperThreads(threads: Int) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setWhisperThreads(threads)
-        }
-    }
-
-    fun setWhisperLanguage(language: String) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setWhisperLanguage(language)
-        }
-    }
-
-    fun setWhisperTranslate(isEnabled: Boolean) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setWhisperTranslate(isEnabled)
-        }
-    }
-
-    fun setSilenceThreshold(threshold: Float) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setSilenceThreshold(threshold)
-        }
-    }
-
-    fun setTranscriptionFontSize(size: Float) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setTranscriptionFontSize(size)
-        }
-    }
-
-    fun setSelectedModel(modelId: String) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setSelectedModelId(modelId)
-        }
-    }
-
-    fun downloadModel(modelId: String) {
-        val model = whisperModelManager.availableModels.find { it.id == modelId } ?: return
-        viewModelScope.launch {
-            whisperModelManager.downloadModel(model)
-        }
-    }
-
-    fun deleteModel(modelId: String) {
-        viewModelScope.launch(ioDispatcher) {
-            whisperModelManager.deleteModel(modelId)
-            // If the deleted model was the selected one, revert to base
-            val prefs = userPreferencesRepository.userPreferencesFlow.first()
-            if (prefs.selectedModelId == modelId) {
-                userPreferencesRepository.setSelectedModelId("ggml-base-q8_0")
-            }
-        }
-    }
-
     fun generateAndShareLog() {
         val logFile = HarkLog.getLogFile() ?: return
-        
+
         val contentUri = FileProvider.getUriForFile(
             application,
             "${application.packageName}.fileprovider",
@@ -296,7 +200,7 @@ class SettingsViewModel @Inject constructor(
             putExtra(Intent.EXTRA_STREAM, contentUri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        
+
         val chooser = Intent.createChooser(intent, "Share Hark Log")
         chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         application.startActivity(chooser)

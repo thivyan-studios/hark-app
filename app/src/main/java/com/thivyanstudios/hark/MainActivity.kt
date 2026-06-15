@@ -1,10 +1,7 @@
 package com.thivyanstudios.hark
 
 import android.annotation.SuppressLint
-import android.content.Intent
-import android.os.Build
 import android.os.Bundle
-import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -59,12 +56,11 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         HarkLog.i("MainActivity", "onCreate")
-        
-        // Keep splash screen until the app is ready to draw
+
         splashScreen.setKeepOnScreenCondition {
              mainViewModel.uiState.value.isLoading
         }
-        
+
         enableEdgeToEdge()
 
         permissionManager = PermissionManager(
@@ -83,13 +79,11 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(true) {
                 mainViewModel.snackbarEvents.collect { message ->
-                    // Only show snackbar if there isn't one already showing
                     snackbarHostState.currentSnackbarData?.dismiss()
                     snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
                 }
             }
 
-            // Handle Screen On/Off Flag
             LaunchedEffect(uiState.keepScreenOn) {
                 if (uiState.keepScreenOn) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -105,24 +99,11 @@ class MainActivity : ComponentActivity() {
                     mainViewModel = mainViewModel,
                     settingsViewModel = settingsViewModel,
                     onToggleStreaming = { toggleStreaming() },
-                    onClearTranscription = { mainViewModel.clearTranscription() },
-                    onShareTranscription = { text -> shareTranscription(text) }
                 )
             }
         }
 
         audioServiceManager.startService()
-    }
-
-    private fun shareTranscription(text: String) {
-        val sendIntent: Intent = Intent().apply {
-            action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, text)
-            type = "text/plain"
-        }
-
-        val shareIntent = Intent.createChooser(sendIntent, getString(R.string.share_transcription_title))
-        startActivity(shareIntent)
     }
 
     private fun toggleStreaming() {

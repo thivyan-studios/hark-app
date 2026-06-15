@@ -34,14 +34,12 @@ class UserPreferencesRepository @Inject constructor(
         val NOISE_SUPPRESSION_ENABLED = booleanPreferencesKey("noise_suppression_enabled")
         val DYNAMICS_PROCESSING_ENABLED = booleanPreferencesKey("dynamics_processing_enabled")
         val BYPASS_BLUETOOTH_CHECKS = booleanPreferencesKey("bypass_bluetooth_checks")
-        val TRANSCRIPT_MODE_ENABLED = booleanPreferencesKey("transcript_mode_enabled")
-        val WHISPER_THREADS = androidx.datastore.preferences.core.intPreferencesKey("whisper_threads")
-        val WHISPER_LANGUAGE = androidx.datastore.preferences.core.stringPreferencesKey("whisper_language")
-        val WHISPER_TRANSLATE = booleanPreferencesKey("whisper_translate")
-        val SILENCE_THRESHOLD = floatPreferencesKey("silence_threshold")
-        val TRANSCRIPTION_FONT_SIZE = floatPreferencesKey("transcription_font_size")
-        val SELECTED_MODEL_ID = androidx.datastore.preferences.core.stringPreferencesKey("selected_model_id")
         val PREFER_EXTERNAL_MIC = booleanPreferencesKey("prefer_external_mic")
+        val EQ_BAND_1 = floatPreferencesKey("eq_band_1_gain")
+        val EQ_BAND_2 = floatPreferencesKey("eq_band_2_gain")
+        val EQ_BAND_3 = floatPreferencesKey("eq_band_3_gain")
+        val EQ_BAND_4 = floatPreferencesKey("eq_band_4_gain")
+        val EQ_BAND_5 = floatPreferencesKey("eq_band_5_gain")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -62,77 +60,29 @@ class UserPreferencesRepository @Inject constructor(
                 noiseSuppressionEnabled = preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] ?: false,
                 dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false,
                 bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false,
-                transcriptModeEnabled = preferences[PreferenceKeys.TRANSCRIPT_MODE_ENABLED] ?: false,
-                whisperThreads = preferences[PreferenceKeys.WHISPER_THREADS] ?: 4,
-                whisperLanguage = preferences[PreferenceKeys.WHISPER_LANGUAGE] ?: "en",
-                whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false,
-                silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.005f,
-                transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
-                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0",
-                preferExternalMic = preferences[PreferenceKeys.PREFER_EXTERNAL_MIC] ?: false
+                preferExternalMic = preferences[PreferenceKeys.PREFER_EXTERNAL_MIC] ?: false,
+                eqBand1Gain = preferences[PreferenceKeys.EQ_BAND_1] ?: 0f,
+                eqBand2Gain = preferences[PreferenceKeys.EQ_BAND_2] ?: 0f,
+                eqBand3Gain = preferences[PreferenceKeys.EQ_BAND_3] ?: 0f,
+                eqBand4Gain = preferences[PreferenceKeys.EQ_BAND_4] ?: 0f,
+                eqBand5Gain = preferences[PreferenceKeys.EQ_BAND_5] ?: 0f
             )
         }
         .flowOn(ioDispatcher)
 
-    suspend fun setHapticFeedbackEnabled(isEnabled: Boolean) = update {
-        it[PreferenceKeys.HAPTIC_FEEDBACK_ENABLED] = isEnabled
-    }
-
-    suspend fun setKeepScreenOn(isEnabled: Boolean) = update {
-        it[PreferenceKeys.KEEP_SCREEN_ON] = isEnabled
-    }
-
-    suspend fun setEnableBluetoothHeadsetSupport(isEnabled: Boolean) = update {
-        it[PreferenceKeys.ENABLE_BLUETOOTH_HEADSET_SUPPORT] = isEnabled
-    }
-
-    suspend fun setMicrophoneGain(gain: Float) = update {
-        it[PreferenceKeys.MICROPHONE_GAIN] = gain
-    }
-
-    suspend fun setNoiseSuppressionEnabled(isEnabled: Boolean) = update {
-        it[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] = isEnabled
-    }
-    
-    suspend fun setDynamicsProcessingEnabled(isEnabled: Boolean) = update {
-        it[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] = isEnabled
-    }
-
-    suspend fun setBypassBluetoothChecks(isEnabled: Boolean) = update {
-        it[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] = isEnabled
-    }
-
-    suspend fun setTranscriptModeEnabled(isEnabled: Boolean) = update {
-        it[PreferenceKeys.TRANSCRIPT_MODE_ENABLED] = isEnabled
-    }
-
-    suspend fun setWhisperThreads(threads: Int) = update {
-        it[PreferenceKeys.WHISPER_THREADS] = threads
-    }
-
-    suspend fun setWhisperLanguage(language: String) = update {
-        it[PreferenceKeys.WHISPER_LANGUAGE] = language
-    }
-
-    suspend fun setWhisperTranslate(isEnabled: Boolean) = update {
-        it[PreferenceKeys.WHISPER_TRANSLATE] = isEnabled
-    }
-
-    suspend fun setSilenceThreshold(threshold: Float) = update {
-        it[PreferenceKeys.SILENCE_THRESHOLD] = threshold
-    }
-
-    suspend fun setTranscriptionFontSize(size: Float) = update {
-        it[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] = size
-    }
-
-    suspend fun setSelectedModelId(id: String) = update {
-        it[PreferenceKeys.SELECTED_MODEL_ID] = id
-    }
-
-    suspend fun setPreferExternalMic(enabled: Boolean) = update {
-        it[PreferenceKeys.PREFER_EXTERNAL_MIC] = enabled
-    }
+    suspend fun setHapticFeedbackEnabled(isEnabled: Boolean) = update { it[PreferenceKeys.HAPTIC_FEEDBACK_ENABLED] = isEnabled }
+    suspend fun setKeepScreenOn(isEnabled: Boolean) = update { it[PreferenceKeys.KEEP_SCREEN_ON] = isEnabled }
+    suspend fun setEnableBluetoothHeadsetSupport(isEnabled: Boolean) = update { it[PreferenceKeys.ENABLE_BLUETOOTH_HEADSET_SUPPORT] = isEnabled }
+    suspend fun setMicrophoneGain(gain: Float) = update { it[PreferenceKeys.MICROPHONE_GAIN] = gain }
+    suspend fun setNoiseSuppressionEnabled(isEnabled: Boolean) = update { it[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] = isEnabled }
+    suspend fun setDynamicsProcessingEnabled(isEnabled: Boolean) = update { it[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] = isEnabled }
+    suspend fun setBypassBluetoothChecks(isEnabled: Boolean) = update { it[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] = isEnabled }
+    suspend fun setPreferExternalMic(enabled: Boolean) = update { it[PreferenceKeys.PREFER_EXTERNAL_MIC] = enabled }
+    suspend fun setEqBand1Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_1] = gain }
+    suspend fun setEqBand2Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_2] = gain }
+    suspend fun setEqBand3Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_3] = gain }
+    suspend fun setEqBand4Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_4] = gain }
+    suspend fun setEqBand5Gain(gain: Float) = update { it[PreferenceKeys.EQ_BAND_5] = gain }
 
     private suspend fun update(action: (MutablePreferences) -> Unit) {
         try {

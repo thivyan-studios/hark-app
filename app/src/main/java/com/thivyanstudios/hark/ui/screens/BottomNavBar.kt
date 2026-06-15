@@ -24,9 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Hearing
 import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,16 +37,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.util.Constants.Navigation
 
@@ -55,15 +52,14 @@ fun BottomNavBar(
     currentRoute: String,
     onNavigate: (String) -> Unit,
     hapticFeedbackEnabled: Boolean,
-    isModelAvailable: Boolean,
     modifier: Modifier = Modifier
 ) {
     val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 24.dp + navigationBarsPadding, start = 24.dp, end = 24.dp),
+            .padding(bottom = 24.dp + navigationBarsPadding, start = 16.dp, end = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(
@@ -84,30 +80,28 @@ fun BottomNavBar(
             ) {
                 AnimatedNavigationBarItem(
                     icon = Icons.Rounded.Mic,
-                    labelResId = R.string.nav_stream,
+                    label = "Stream",
                     selected = currentRoute == Navigation.ROUTE_HOME,
                     onClick = { onNavigate(Navigation.ROUTE_HOME) },
                     hapticFeedbackEnabled = hapticFeedbackEnabled
                 )
-                if (isModelAvailable) {
-                    AnimatedNavigationBarItem(
-                        icon = Icons.Rounded.RecordVoiceOver,
-                        labelResId = R.string.nav_transcribe,
-                        selected = currentRoute == Navigation.ROUTE_TRANSCRIBE,
-                        onClick = { onNavigate(Navigation.ROUTE_TRANSCRIBE) },
-                        hapticFeedbackEnabled = hapticFeedbackEnabled
-                    )
-                    AnimatedNavigationBarItem(
-                        icon = Icons.Rounded.History,
-                        labelResId = R.string.nav_history,
-                        selected = currentRoute == Navigation.ROUTE_HISTORY,
-                        onClick = { onNavigate(Navigation.ROUTE_HISTORY) },
-                        hapticFeedbackEnabled = hapticFeedbackEnabled
-                    )
-                }
+                AnimatedNavigationBarItem(
+                    icon = Icons.Rounded.GraphicEq,
+                    label = "EQ",
+                    selected = currentRoute == Navigation.ROUTE_EQUALIZER,
+                    onClick = { onNavigate(Navigation.ROUTE_EQUALIZER) },
+                    hapticFeedbackEnabled = hapticFeedbackEnabled
+                )
+                AnimatedNavigationBarItem(
+                    icon = Icons.Rounded.Hearing,
+                    label = "Test",
+                    selected = currentRoute == Navigation.ROUTE_HEARING_TEST,
+                    onClick = { onNavigate(Navigation.ROUTE_HEARING_TEST) },
+                    hapticFeedbackEnabled = hapticFeedbackEnabled
+                )
                 AnimatedNavigationBarItem(
                     icon = Icons.Rounded.Settings,
-                    labelResId = R.string.nav_settings,
+                    label = "Settings",
                     selected = currentRoute == Navigation.ROUTE_SETTINGS,
                     onClick = { onNavigate(Navigation.ROUTE_SETTINGS) },
                     hapticFeedbackEnabled = hapticFeedbackEnabled
@@ -122,7 +116,7 @@ fun AnimatedNavigationBarItem(
     selected: Boolean,
     onClick: () -> Unit,
     icon: ImageVector,
-    labelResId: Int,
+    label: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     hapticFeedbackEnabled: Boolean
@@ -147,9 +141,9 @@ fun AnimatedNavigationBarItem(
     )
 
     val iconColor by animateColorAsState(
-        targetValue = if (selected) 
+        targetValue = if (selected)
             MaterialTheme.colorScheme.primary
-        else 
+        else
             MaterialTheme.colorScheme.onSurfaceVariant,
         label = "IconColor"
     )
@@ -169,7 +163,7 @@ fun AnimatedNavigationBarItem(
                 }
                 onClick()
             }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -178,7 +172,7 @@ fun AnimatedNavigationBarItem(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = stringResource(labelResId),
+                contentDescription = label,
                 tint = iconColor,
                 modifier = Modifier
                     .size(26.dp)
@@ -189,7 +183,7 @@ fun AnimatedNavigationBarItem(
             )
             Spacer(modifier = Modifier.height(2.dp))
             HarkText(
-                text = stringResource(labelResId),
+                text = label,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.sp,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
