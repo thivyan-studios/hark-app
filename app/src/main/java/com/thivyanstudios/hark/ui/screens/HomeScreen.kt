@@ -122,7 +122,7 @@ fun HomeScreen(
                     color = Color(0xFF2196F3),
                     isStreaming = isStreaming
                 )
-                if (isStreaming && inputLevel < 0.001f) {
+                if (isStreaming && inputLevel < 0.0001f) {
                     Spacer(modifier = Modifier.height(4.dp))
                     HarkText(
                         text = "\u26a0\ufe0f No microphone input detected",

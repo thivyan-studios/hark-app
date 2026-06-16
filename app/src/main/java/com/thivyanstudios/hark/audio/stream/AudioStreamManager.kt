@@ -127,8 +127,16 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
             audioSource.start()
             audioSink.play()
 
-            audioProcessor.process(audioSource, audioSink, config) { 
-                isRunning.get() && !Thread.currentThread().isInterrupted 
+            audioProcessor.process(audioSource, audioSink, config) {
+                isRunning.get() && !Thread.currentThread().isInterrupted
+                    && (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING)
+            }
+            // AudioRecord session died (OEM reclaimed it) - restart if still supposed to be running
+            if (isRunning.get()) {
+                Log.w(TAG, "AudioRecord session ended unexpectedly - restarting")
+                cleanupResources(audioSource, audioSink, audioRecord, audioTrack)
+                runStreamingLoop(config)  // recursive restart
+                return
             }
 
         } catch (e: Exception) {
@@ -170,13 +178,18 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
 
     @SuppressLint("MissingPermission")
     private fun createAudioRecord(channelConfig: Int, audioFormat: Int, bufferSize: Int): AudioRecord {
-        return AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION, 
-            Constants.Audio.SAMPLE_RATE, 
-            channelConfig, 
-            audioFormat, 
+        // VOICE_RECOGNITION is unstable on OEM devices (OnePlus, older Samsung) - session dies after 20-30s
+        // MIC source is the most compatible and stable across all devices
+        // UNPROCESSED/VOICE_RECOGNITION can be added as opt-in for newer devices if needed
+        val record = AudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            Constants.Audio.SAMPLE_RATE,
+            channelConfig,
+            audioFormat,
             bufferSize
         )
+        Log.i(TAG, "AudioRecord created: state=${record.state} source=MIC")
+        return record
     }
 
     private fun cleanupResources(
