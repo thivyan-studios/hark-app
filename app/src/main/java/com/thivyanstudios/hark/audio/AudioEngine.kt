@@ -69,14 +69,14 @@ class AudioEngine @Inject constructor(
 
         _isStreaming.value = true
 
-        // Force Java fallback on API < 30: Oboe dual-stream is unreliable on older devices
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) {
-            HarkLog.w(TAG, "API ${android.os.Build.VERSION.SDK_INT} < 30: using Java engine for reliability")
-            streamManager.start(currentConfig)
-            HarkLog.i(TAG, "Java fallback engine started (API < 30)")
-            return
-        }
+        // Use Java engine for all devices - Oboe dual-stream DataCallback is unreliable
+        // on USB-C audio adapters (Samsung S21+) and older devices
+        HarkLog.i(TAG, "Using Java AudioRecord/AudioTrack engine (sampleRate=$sampleRate)")
+        streamManager.start(currentConfig)
+        HarkLog.i(TAG, "Java engine started")
+        return
 
+        @Suppress("UNREACHABLE_CODE")
         var success = false
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
@@ -160,8 +160,18 @@ class AudioEngine @Inject constructor(
         applyToNative { nativeSetTranscriptModeEnabled(it, enabled) }
     }
 
-    fun getInputLevel(): Float = if (isNativeLibraryLoaded && nativeHandle != 0L) nativeGetInputLevel(nativeHandle) else 0f
-    fun getOutputLevel(): Float = if (isNativeLibraryLoaded && nativeHandle != 0L) nativeGetOutputLevel(nativeHandle) else 0f
+    fun getInputLevel(): Float {
+        val native = if (isNativeLibraryLoaded && nativeHandle != 0L) {
+            try { nativeGetInputLevel(nativeHandle) } catch (e: UnsatisfiedLinkError) { 0f }
+        } else 0f
+        return if (native > 0f) native else (audioProcessor as? com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor)?.getInputLevel() ?: 0f
+    }
+    fun getOutputLevel(): Float {
+        val native = if (isNativeLibraryLoaded && nativeHandle != 0L) {
+            try { nativeGetOutputLevel(nativeHandle) } catch (e: UnsatisfiedLinkError) { 0f }
+        } else 0f
+        return if (native > 0f) native else (audioProcessor as? com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor)?.getOutputLevel() ?: 0f
+    }
 
     private inline fun applyToNative(action: (Long) -> Unit) {
         if (isNativeLibraryLoaded && nativeHandle != 0L) {

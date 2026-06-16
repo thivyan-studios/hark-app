@@ -7,18 +7,24 @@ import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
 import com.thivyanstudios.hark.audio.stream.AudioSink
 import com.thivyanstudios.hark.audio.stream.AudioSource
 import kotlinx.coroutines.channels.Channel
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.sqrt
 
 /**
- * A simplified Java-based audio processor used only as a fallback 
- * if the high-performance Native (Oboe) engine fails to start.
+ * Java-based audio processor: AudioRecord -> gain/EQ -> AudioTrack
  */
 class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : AudioProcessor {
 
     @Volatile
     private var currentConfig = AudioProcessingConfig()
-    
-    // Pre-allocated buffer to reduce GC pressure during audio processing
+
     private var processingBuffer: FloatArray? = null
+
+    private val _inputLevel = AtomicReference(0f)
+    private val _outputLevel = AtomicReference(0f)
+
+    fun getInputLevel(): Float = _inputLevel.get()
+    fun getOutputLevel(): Float = _outputLevel.get()
 
     override fun process(
         audioSource: AudioSource,
@@ -30,12 +36,11 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
         setupAudioEffects()
 
         val bufferSize = audioSink.bufferSizeInFrames
-        
-        // Only allocate if necessary
+
         if (processingBuffer == null || processingBuffer?.size != bufferSize) {
             processingBuffer = FloatArray(bufferSize)
         }
-        
+
         val buffer = processingBuffer!!
 
         while (isRunning()) {
@@ -52,29 +57,33 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
     }
 
     private fun setupAudioEffects() {
-        // We notify the UI that hardware/native features are preferred
         events.trySend(AudioEngineEvent.NoiseSuppressorAvailability(true))
         events.trySend(AudioEngineEvent.DynamicsProcessingAvailability(true))
     }
 
     private fun applyGain(buffer: FloatArray, size: Int) {
-        val currentGain = currentConfig.microphoneGain
+        val gain = currentConfig.microphoneGain
         val ambientGain = currentConfig.ambientGain
-        
+
+        var sumInSq = 0f
+        var sumOutSq = 0f
         for (i in 0 until size) {
-            // In the fallback processor, we simulate the same logic as native
-            // Primary path (gain) + Ambient path (ambientGain)
-            val primary = buffer[i] * currentGain
-            val ambient = buffer[i] * ambientGain
-            
-            // Basic mix and clip
-            val mixed = primary + ambient
-            buffer[i] = mixed.coerceIn(-1.0f, 1.0f)
+            val raw = buffer[i]
+            sumInSq += raw * raw
+            val mixed = (raw * gain + raw * ambientGain).coerceIn(-1.0f, 1.0f)
+            buffer[i] = mixed
+            sumOutSq += mixed * mixed
         }
+        val inRms = sqrt(sumInSq / size)
+        val outRms = sqrt(sumOutSq / size)
+        _inputLevel.set(_inputLevel.get() * 0.85f + inRms * 0.15f)
+        _outputLevel.set(_outputLevel.get() * 0.85f + outRms * 0.15f)
     }
 
     override fun release() {
         processingBuffer = null
+        _inputLevel.set(0f)
+        _outputLevel.set(0f)
     }
 
     companion object {
