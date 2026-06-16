@@ -12,5 +12,8 @@ data class MainUiState(
     val isServiceConnected: Boolean = false,
     val isLoading: Boolean = true,
     val isWiredHeadphoneConnected: Boolean = false,
-    val isBluetoothOnly: Boolean = false
+    val isBluetoothOnly: Boolean = false,
+    val latencyMs: Float = 0f,
+    val outputDeviceName: String = "",
+    val inputDeviceName: String = ""
 )

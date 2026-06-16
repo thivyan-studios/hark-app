@@ -22,9 +22,11 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
 
     private val _inputLevel = AtomicReference(0f)
     private val _outputLevel = AtomicReference(0f)
+    private val _latencyMs = AtomicReference(0f)
 
     fun getInputLevel(): Float = _inputLevel.get()
     fun getOutputLevel(): Float = _outputLevel.get()
+    fun getLatencyMs(): Float = _latencyMs.get()
 
     override fun process(
         audioSource: AudioSource,
@@ -44,10 +46,21 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
         val buffer = processingBuffer!!
 
         while (isRunning()) {
+            val readStart = System.nanoTime()
             val read = audioSource.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING)
+            val readEnd = System.nanoTime()
             if (read > 0) {
                 applyGain(buffer, read)
+                val writeStart = System.nanoTime()
                 audioSink.write(buffer, 0, read, AudioTrack.WRITE_BLOCKING)
+                val writeEnd = System.nanoTime()
+
+                val bufferMs = (read.toFloat() / com.thivyanstudios.hark.util.Constants.Audio.SAMPLE_RATE) * 1000f
+                val readMs = (readEnd - readStart) / 1_000_000f
+                val writeMs = (writeEnd - writeStart) / 1_000_000f
+                val totalMs = readMs + bufferMs + writeMs
+                val prev = _latencyMs.get()
+                _latencyMs.set(if (prev == 0f) totalMs else prev * 0.9f + totalMs * 0.1f)
             }
         }
     }
@@ -84,6 +97,7 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
         processingBuffer = null
         _inputLevel.set(0f)
         _outputLevel.set(0f)
+        _latencyMs.set(0f)
     }
 
     companion object {

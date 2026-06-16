@@ -137,7 +137,10 @@ fun HarkAppContent(
                             hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                             inputLevel = uiState.inputLevel,
                             outputLevel = uiState.outputLevel,
-                            isConnected = uiState.isServiceConnected
+                            isConnected = uiState.isServiceConnected,
+                            latencyMs = uiState.latencyMs,
+                            inputDeviceName = uiState.inputDeviceName,
+                            outputDeviceName = uiState.outputDeviceName
                         )
                     }
                     composable(Navigation.ROUTE_EQUALIZER) {

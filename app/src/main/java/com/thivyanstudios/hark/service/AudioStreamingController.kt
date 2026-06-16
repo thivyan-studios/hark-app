@@ -8,6 +8,9 @@ interface AudioStreamingController {
     val audioLevel: StateFlow<Float>
     val inputLevel: StateFlow<Float>
     val outputLevel: StateFlow<Float>
+    val latencyMs: StateFlow<Float>
+    val outputDeviceName: StateFlow<String>
+    val inputDeviceName: StateFlow<String>
 
     fun startStreaming()
     fun stopStreaming()

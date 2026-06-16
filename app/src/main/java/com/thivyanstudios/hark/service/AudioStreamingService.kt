@@ -58,6 +58,15 @@ class AudioStreamingService : Service(), AudioStreamingController {
     override val inputLevel: StateFlow<Float> = _inputLevel.asStateFlow()
     override val outputLevel: StateFlow<Float> = _outputLevel.asStateFlow()
 
+    private val _latencyMs = MutableStateFlow(0f)
+    override val latencyMs: StateFlow<Float> = _latencyMs.asStateFlow()
+
+    private val _outputDeviceName = MutableStateFlow("")
+    override val outputDeviceName: StateFlow<String> = _outputDeviceName.asStateFlow()
+
+    private val _inputDeviceName = MutableStateFlow("")
+    override val inputDeviceName: StateFlow<String> = _inputDeviceName.asStateFlow()
+
     private var wakeLock: PowerManager.WakeLock? = null
 
     @Inject
@@ -236,6 +245,29 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _hearingAidConnected.value = isConnected
     }
 
+    private fun refreshDeviceNames() {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+
+        val outputDevice = outputs.firstOrNull { d ->
+            d.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+            d.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+            d.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+            d.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            d.type == AudioDeviceInfo.TYPE_HEARING_AID
+        }
+        val inputDevice = inputs.firstOrNull { d ->
+            d.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+            d.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+            d.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+        } ?: inputs.firstOrNull { d -> d.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+
+        _outputDeviceName.value = outputDevice?.productName?.toString() ?: ""
+        _inputDeviceName.value = inputDevice?.productName?.toString() ?: ""
+        HarkLog.i(TAG, "Device names: in='${_inputDeviceName.value}' out='${_outputDeviceName.value}'")
+    }
+
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     private fun restartStreaming() {
         HarkLog.i(TAG, "Restarting streaming")
@@ -260,11 +292,16 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
         serviceScope.launch {
             var logCounter = 0
+            var latencyCounter = 0
             while (_isStreaming.value) {
                 val inLevel = audioEngine.getInputLevel()
                 val outLevel = audioEngine.getOutputLevel()
                 _inputLevel.value = inLevel
                 _outputLevel.value = outLevel
+                latencyCounter++
+                if (latencyCounter % 10 == 0) {
+                    _latencyMs.value = audioEngine.getLatencyMs()
+                }
                 logCounter++
                 if (logCounter % 100 == 0) {
                     HarkLog.i(TAG, "Audio levels - IN: ${"%.4f".format(inLevel)} OUT: ${"%.4f".format(outLevel)}")
@@ -273,6 +310,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
             }
             _inputLevel.value = 0f
             _outputLevel.value = 0f
+            _latencyMs.value = 0f
         }
 
         serviceScope.launch {
@@ -292,6 +330,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     updateAudioRouting()
                     audioEngine.start(preferredOutputDevice, preferredInputDevice)
                 }
+                refreshDeviceNames()
 
                 // Log full audio diagnostics to HarkLog (visible in app)
                 serviceScope.launch {
@@ -325,6 +364,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _audioLevel.value = 0f
         _inputLevel.value = 0f
         _outputLevel.value = 0f
+        _latencyMs.value = 0f
+        _outputDeviceName.value = ""
+        _inputDeviceName.value = ""
 
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
@@ -377,7 +419,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
                 }
                 if (btMic != null) {
-                    HarkLog.i(TAG, "Setting communication device to: ${'$'}{btMic.productName}")
+                    HarkLog.i(TAG, "Setting communication device to: ${btMic.productName}")
                     audioManager.setCommunicationDevice(btMic)
                 } else {
                     HarkLog.w(TAG, "External mic preferred but no BT mic found")

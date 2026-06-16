@@ -173,6 +173,10 @@ class AudioEngine @Inject constructor(
         } else 0f
         return if (native > 0f) native else (audioProcessor as? com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor)?.getOutputLevel() ?: 0f
     }
+    fun getLatencyMs(): Float {
+        return (audioProcessor as? com.thivyanstudios.hark.audio.processor.DefaultAudioProcessor)?.getLatencyMs() ?: 0f
+    }
+
 
     private inline fun applyToNative(action: (Long) -> Unit) {
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
