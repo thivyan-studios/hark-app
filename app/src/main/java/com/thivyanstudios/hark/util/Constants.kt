@@ -10,7 +10,7 @@ object Constants {
 
     object Preferences {
         const val TIMEOUT_MILLIS = 5_000L
-        const val DEFAULT_GAIN = 0.0f
+        const val DEFAULT_GAIN = 10.0f  // 10dB = ~3x amplification (good starting point for hearing aid)
 
         const val MIN_MIC_GAIN = -10f
         const val MAX_MIC_GAIN = 30f
