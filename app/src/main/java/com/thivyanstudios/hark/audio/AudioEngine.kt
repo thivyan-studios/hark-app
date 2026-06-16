@@ -152,6 +152,9 @@ class AudioEngine @Inject constructor(
         applyToNative { nativeSetTranscriptModeEnabled(it, enabled) }
     }
 
+    fun getInputLevel(): Float = if (isNativeLibraryLoaded && nativeHandle != 0L) nativeGetInputLevel(nativeHandle) else 0f
+    fun getOutputLevel(): Float = if (isNativeLibraryLoaded && nativeHandle != 0L) nativeGetOutputLevel(nativeHandle) else 0f
+
     private inline fun applyToNative(action: (Long) -> Unit) {
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try { action(nativeHandle) } catch (_: UnsatisfiedLinkError) {}
@@ -169,6 +172,8 @@ class AudioEngine @Inject constructor(
     private external fun nativeSetTranscriptModeEnabled(handle: Long, enabled: Boolean)
     private external fun nativeReadTranscriptionData(handle: Long, target: FloatArray, offset: Int, numFrames: Int): Int
     private external fun nativeGetTranscriptionLevel(handle: Long): Float
+    private external fun nativeGetInputLevel(handle: Long): Float
+    private external fun nativeGetOutputLevel(handle: Long): Float
 
     companion object {
         private const val TAG = "AudioEngine"

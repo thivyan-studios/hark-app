@@ -22,6 +22,8 @@ public:
 
     int32_t readTranscriptionData(float *target, int32_t numFrames);
     float getTranscriptionLevel();
+    float getInputLevel() const { return mInputLevel.load(std::memory_order_acquire); }
+    float getOutputLevel() const { return mOutputLevel.load(std::memory_order_acquire); }
 
     void setMicrophoneGain(float gain);
     void setAmbientGain(float gain);
@@ -54,6 +56,10 @@ private:
 
     // Live audio level for transcription gating/visuals
     std::atomic<float> mTranscriptionLevel{0.0f};
+
+    // Per-direction RMS levels for UI meters
+    std::atomic<float> mInputLevel{0.0f};
+    std::atomic<float> mOutputLevel{0.0f};
 
     // Processing state (only accessed on audio thread)
     float mEnvelope = 0.0f;

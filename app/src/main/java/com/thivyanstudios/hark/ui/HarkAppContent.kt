@@ -134,7 +134,10 @@ fun HarkAppContent(
                         HomeScreen(
                             isStreaming = uiState.isStreaming,
                             onStreamButtonClick = onToggleStreaming,
-                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            inputLevel = uiState.inputLevel,
+                            outputLevel = uiState.outputLevel,
+                            isConnected = uiState.isServiceConnected
                         )
                     }
                     composable(Navigation.ROUTE_EQUALIZER) {

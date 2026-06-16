@@ -55,6 +55,8 @@ class MainViewModel @Inject constructor(
                     service.isStreaming,
                     service.hearingAidConnected,
                     service.audioLevel,
+                    service.inputLevel,
+                    service.outputLevel,
                     userPreferencesRepository.userPreferencesFlow,
                     headphoneDetector.isWiredConnected,
                     headphoneDetector.isBluetoothOnly
@@ -62,9 +64,11 @@ class MainViewModel @Inject constructor(
                     val isStreaming = args[0] as Boolean
                     val hearingAidConnected = args[1] as Boolean
                     val audioLevel = args[2] as Float
-                    val prefs = args[3] as UserPreferences
-                    val wired = args[4] as Boolean
-                    val btOnly = args[5] as Boolean
+                    val inputLevel = args[3] as Float
+                    val outputLevel = args[4] as Float
+                    val prefs = args[5] as UserPreferences
+                    val wired = args[6] as Boolean
+                    val btOnly = args[7] as Boolean
 
                     MainUiState(
                         isStreaming = isStreaming,
@@ -73,6 +77,9 @@ class MainViewModel @Inject constructor(
                         keepScreenOn = prefs.keepScreenOn,
                         bypassBluetoothChecks = prefs.bypassBluetoothChecks,
                         audioLevel = audioLevel,
+                        inputLevel = inputLevel,
+                        outputLevel = outputLevel,
+                        isServiceConnected = true,
                         isLoading = false,
                         isWiredHeadphoneConnected = wired,
                         isBluetoothOnly = btOnly

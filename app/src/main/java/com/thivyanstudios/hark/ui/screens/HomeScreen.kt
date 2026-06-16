@@ -7,10 +7,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -27,7 +29,10 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     isStreaming: Boolean,
     onStreamButtonClick: () -> Unit,
-    hapticFeedbackEnabled: Boolean
+    hapticFeedbackEnabled: Boolean,
+    inputLevel: Float = 0f,
+    outputLevel: Float = 0f,
+    isConnected: Boolean = false
 ) {
     var isButtonEnabled by remember { mutableStateOf(true) }
 
@@ -96,6 +101,38 @@ fun HomeScreen(
             )
         }
 
+        if (isConnected) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 96.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AudioLevelBar(
+                    label = "MIC IN",
+                    level = inputLevel,
+                    color = Color(0xFF4CAF50),
+                    isStreaming = isStreaming
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AudioLevelBar(
+                    label = "EAR OUT",
+                    level = outputLevel,
+                    color = Color(0xFF2196F3),
+                    isStreaming = isStreaming
+                )
+                if (isStreaming && inputLevel < 0.001f) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HarkText(
+                        text = "\u26a0\ufe0f No microphone input detected",
+                        color = Color(0xFFFF5722),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+
         Box(
             modifier = Modifier.align(Alignment.Center),
             contentAlignment = Alignment.Center
@@ -145,5 +182,43 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+@androidx.compose.runtime.Composable
+fun AudioLevelBar(label: String, level: Float, color: androidx.compose.ui.graphics.Color, isStreaming: Boolean) {
+    val displayLevel = if (isStreaming) level.coerceIn(0f, 1f) else 0f
+    val dbValue = if (displayLevel > 0.001f) (20 * kotlin.math.log10(displayLevel.toDouble())).toInt() else -60
+
+    androidx.compose.foundation.layout.Row(
+        modifier = androidx.compose.ui.Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HarkText(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = androidx.compose.ui.Modifier.width(56.dp)
+        )
+        Box(
+            modifier = androidx.compose.ui.Modifier
+                .weight(1f)
+                .height(12.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(color.copy(alpha = 0.15f))
+        ) {
+            Box(
+                modifier = androidx.compose.ui.Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(displayLevel)
+                    .background(color)
+            )
+        }
+        HarkText(
+            text = "${dbValue}dB",
+            style = MaterialTheme.typography.labelSmall,
+            modifier = androidx.compose.ui.Modifier.width(40.dp).padding(start = 4.dp)
+        )
     }
 }

@@ -27,11 +27,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -47,6 +49,11 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private val _audioLevel = MutableStateFlow(0f)
     override val audioLevel = _audioLevel.asStateFlow()
+
+    private val _inputLevel = MutableStateFlow(0f)
+    private val _outputLevel = MutableStateFlow(0f)
+    override val inputLevel: StateFlow<Float> = _inputLevel.asStateFlow()
+    override val outputLevel: StateFlow<Float> = _outputLevel.asStateFlow()
 
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -249,6 +256,16 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _isStreaming.value = true
 
         serviceScope.launch {
+            while (_isStreaming.value) {
+                _inputLevel.value = audioEngine.getInputLevel()
+                _outputLevel.value = audioEngine.getOutputLevel()
+                delay(50)
+            }
+            _inputLevel.value = 0f
+            _outputLevel.value = 0f
+        }
+
+        serviceScope.launch {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(
@@ -281,6 +298,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
         abandonAudioFocus()
 
         _audioLevel.value = 0f
+        _inputLevel.value = 0f
+        _outputLevel.value = 0f
 
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()

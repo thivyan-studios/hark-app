@@ -141,8 +141,10 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         float transcriptionGain = currentGain * 10.0f;
 
         float sumSquares = 0.0f;
+        float rawSumSquares = 0.0f;
         int32_t framesToProcess = std::min(numFrames, kMaxFrames);
         for (int i = 0; i < framesToProcess; ++i) {
+            rawSumSquares += inputData[i] * inputData[i];
             float sample = inputData[i] * transcriptionGain;
             mGainedBuffer[i] = sample;
             sumSquares += sample * sample;
@@ -150,11 +152,13 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
 
         // Calculate RMS level for visualization/gating
         float rms = std::sqrt(sumSquares / static_cast<float>(framesToProcess));
+        float inputRms = std::sqrt(rawSumSquares / static_cast<float>(framesToProcess));
 
         // Exponential moving average for smoothing the level
         float alpha = 0.1f;
         float currentLevel = mTranscriptionLevel.load(std::memory_order_acquire);
         mTranscriptionLevel.store(currentLevel * (1.0f - alpha) + rms * alpha, std::memory_order_release);
+        mInputLevel.store(inputRms, std::memory_order_release);
 
         pushToTranscriptionFifo(mGainedBuffer, framesToProcess);
     } else {
@@ -220,8 +224,13 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
                 std::fill_n(outputData + framesRead, numFrames - framesRead, 0.0f);
                 mIsBuffering = true;
             }
+
+            float outputSumSq = 0.0f;
+            for (int i = 0; i < framesRead; ++i) { outputSumSq += outputData[i] * outputData[i]; }
+            mOutputLevel.store(std::sqrt(outputSumSq / static_cast<float>(framesRead)), std::memory_order_release);
         } else {
             std::fill_n(outputData, numFrames, 0.0f);
+            mOutputLevel.store(0.0f, std::memory_order_release);
             mIsBuffering = true;
         }
     }

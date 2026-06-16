@@ -105,3 +105,15 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeGetTranscriptionLevel(JNIEn
     }
     return 0.0f;
 }
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeGetInputLevel(JNIEnv *env, jobject thiz, jlong handle) {
+    auto *engine = reinterpret_cast<HarkAudioEngine *>(handle);
+    return engine ? engine->getInputLevel() : 0.0f;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeGetOutputLevel(JNIEnv *env, jobject thiz, jlong handle) {
+    auto *engine = reinterpret_cast<HarkAudioEngine *>(handle);
+    return engine ? engine->getOutputLevel() : 0.0f;
+}
