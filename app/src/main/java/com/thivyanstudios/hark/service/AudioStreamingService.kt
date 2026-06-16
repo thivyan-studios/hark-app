@@ -344,11 +344,11 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private fun requestAudioFocus(): Boolean {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
 
-        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(attributes)
             .setAcceptsDelayedFocusGain(false)
             .setOnAudioFocusChangeListener(audioFocusChangeListener)
@@ -365,7 +365,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private fun updateAudioRouting() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         if (preferExternalMic) {
-            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            // NOTE: Do NOT set MODE_IN_COMMUNICATION - it forces Samsung into VoIP routing (earpiece)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val devices = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
