@@ -1,5 +1,6 @@
 package com.thivyanstudios.hark.audio.stream
 
+import android.media.AudioDeviceInfo
 import android.media.AudioTrack
 
 class AndroidAudioSink(private val audioTrack: AudioTrack) : AudioSink {
@@ -23,5 +24,9 @@ class AndroidAudioSink(private val audioTrack: AudioTrack) : AudioSink {
 
     override fun write(audioData: FloatArray, offsetInFloats: Int, sizeInFloats: Int, writeMode: Int): Int {
         return audioTrack.write(audioData, offsetInFloats, sizeInFloats, writeMode)
+    }
+
+    override fun setPreferredDevice(device: AudioDeviceInfo?): Boolean {
+        return audioTrack.setPreferredDevice(device)
     }
 }

@@ -9,6 +9,7 @@ import com.thivyanstudios.hark.audio.HeadphoneDetector
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.ui.MainUiState
+import com.thivyanstudios.hark.ui.model.AudioDeviceOption
 import com.thivyanstudios.hark.data.model.UserPreferences
 import com.thivyanstudios.hark.util.Constants
 import com.thivyanstudios.hark.util.HarkLog
@@ -62,7 +63,11 @@ class MainViewModel @Inject constructor(
                     headphoneDetector.isBluetoothOnly,
                     service.latencyMs,
                     service.outputDeviceName,
-                    service.inputDeviceName
+                    service.inputDeviceName,
+                    service.availableInputDevices,
+                    service.availableOutputDevices,
+                    service.selectedInputDeviceId,
+                    service.selectedOutputDeviceId
                 ) { args ->
                     val isStreaming = args[0] as Boolean
                     val hearingAidConnected = args[1] as Boolean
@@ -75,6 +80,12 @@ class MainViewModel @Inject constructor(
                     val latencyMs = args[8] as Float
                     val outputDeviceName = args[9] as String
                     val inputDeviceName = args[10] as String
+                    @Suppress("UNCHECKED_CAST")
+                    val availableInputDevices = args[11] as List<AudioDeviceOption>
+                    @Suppress("UNCHECKED_CAST")
+                    val availableOutputDevices = args[12] as List<AudioDeviceOption>
+                    val selectedInputDeviceId = args[13] as Int
+                    val selectedOutputDeviceId = args[14] as Int
 
                     MainUiState(
                         isStreaming = isStreaming,
@@ -91,7 +102,11 @@ class MainViewModel @Inject constructor(
                         isBluetoothOnly = btOnly,
                         latencyMs = latencyMs,
                         outputDeviceName = outputDeviceName,
-                        inputDeviceName = inputDeviceName
+                        inputDeviceName = inputDeviceName,
+                        availableInputDevices = availableInputDevices,
+                        availableOutputDevices = availableOutputDevices,
+                        selectedInputDeviceId = selectedInputDeviceId,
+                        selectedOutputDeviceId = selectedOutputDeviceId
                     )
                 }
             } else {
@@ -140,6 +155,14 @@ class MainViewModel @Inject constructor(
         } else {
             HarkLog.e("MainViewModel", "Toggle streaming failed: Service is null")
         }
+    }
+
+    fun selectInputDevice(id: Int) {
+        audioServiceManager.service.value?.selectInputDevice(id)
+    }
+
+    fun selectOutputDevice(id: Int) {
+        audioServiceManager.service.value?.selectOutputDevice(id)
     }
 
     fun showPermissionsRequiredMessage(message: String) {

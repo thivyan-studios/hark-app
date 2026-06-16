@@ -43,6 +43,8 @@ class UserPreferencesRepository @Inject constructor(
         val NOISE_REDUCTION_ENABLED = booleanPreferencesKey("noise_reduction_enabled")
         val HEARING_PROTECTION_ENABLED = booleanPreferencesKey("hearing_protection_enabled")
         val LIMITER_THRESHOLD_DB = floatPreferencesKey("limiter_threshold_db")
+        val SELECTED_INPUT_DEVICE_ID = intPreferencesKey("selected_input_device_id")
+        val SELECTED_OUTPUT_DEVICE_ID = intPreferencesKey("selected_output_device_id")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -69,7 +71,9 @@ class UserPreferencesRepository @Inject constructor(
                 eqBandMode = preferences[PreferenceKeys.EQ_BAND_MODE] ?: 10,
                 noiseReductionEnabled = preferences[PreferenceKeys.NOISE_REDUCTION_ENABLED] ?: true,
                 hearingProtectionEnabled = preferences[PreferenceKeys.HEARING_PROTECTION_ENABLED] ?: true,
-                limiterThresholdDb = preferences[PreferenceKeys.LIMITER_THRESHOLD_DB] ?: -10f
+                limiterThresholdDb = preferences[PreferenceKeys.LIMITER_THRESHOLD_DB] ?: -10f,
+                selectedInputDeviceId = preferences[PreferenceKeys.SELECTED_INPUT_DEVICE_ID] ?: -1,
+                selectedOutputDeviceId = preferences[PreferenceKeys.SELECTED_OUTPUT_DEVICE_ID] ?: -1
             )
         }
         .flowOn(ioDispatcher)
@@ -98,6 +102,8 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setNoiseReductionEnabled(isEnabled: Boolean) = update { it[PreferenceKeys.NOISE_REDUCTION_ENABLED] = isEnabled }
     suspend fun setHearingProtectionEnabled(isEnabled: Boolean) = update { it[PreferenceKeys.HEARING_PROTECTION_ENABLED] = isEnabled }
     suspend fun setLimiterThresholdDb(threshold: Float) = update { it[PreferenceKeys.LIMITER_THRESHOLD_DB] = threshold }
+    suspend fun setSelectedInputDeviceId(id: Int) = update { it[PreferenceKeys.SELECTED_INPUT_DEVICE_ID] = id }
+    suspend fun setSelectedOutputDeviceId(id: Int) = update { it[PreferenceKeys.SELECTED_OUTPUT_DEVICE_ID] = id }
 
     private suspend fun update(action: (MutablePreferences) -> Unit) {
         try { dataStore.edit { action(it) } } catch (e: Exception) { HarkLog.e(TAG, "Failed to update preferences", e) }

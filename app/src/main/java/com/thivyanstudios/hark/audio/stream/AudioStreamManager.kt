@@ -92,6 +92,34 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         audioProcessor.updateConfig(config)
     }
 
+    fun setLiveInputDevice(device: AudioDeviceInfo?): Boolean {
+        preferredInputDevice = device
+        synchronized(lock) {
+            return try {
+                val ok = activeAudioSource?.setPreferredDevice(device) ?: false
+                Log.i(TAG, "setLiveInputDevice(${device?.productName}, type=${device?.type}) = $ok")
+                ok
+            } catch (e: Exception) {
+                Log.e(TAG, "setLiveInputDevice failed", e)
+                false
+            }
+        }
+    }
+
+    fun setLiveOutputDevice(device: AudioDeviceInfo?): Boolean {
+        preferredOutputDevice = device
+        synchronized(lock) {
+            return try {
+                val ok = activeAudioSink?.setPreferredDevice(device) ?: false
+                Log.i(TAG, "setLiveOutputDevice(${device?.productName}, type=${device?.type}) = $ok")
+                ok
+            } catch (e: Exception) {
+                Log.e(TAG, "setLiveOutputDevice failed", e)
+                false
+            }
+        }
+    }
+
     @SuppressLint("MissingPermission")
     private fun runStreamingLoop(config: AudioProcessingConfig) {
         val channelConfig = AudioFormat.CHANNEL_IN_MONO

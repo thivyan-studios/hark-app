@@ -140,7 +140,13 @@ fun HarkAppContent(
                             isConnected = uiState.isServiceConnected,
                             latencyMs = uiState.latencyMs,
                             inputDeviceName = uiState.inputDeviceName,
-                            outputDeviceName = uiState.outputDeviceName
+                            outputDeviceName = uiState.outputDeviceName,
+                            availableInputDevices = uiState.availableInputDevices,
+                            availableOutputDevices = uiState.availableOutputDevices,
+                            selectedInputDeviceId = uiState.selectedInputDeviceId,
+                            selectedOutputDeviceId = uiState.selectedOutputDeviceId,
+                            onSelectInputDevice = mainViewModel::selectInputDevice,
+                            onSelectOutputDevice = mainViewModel::selectOutputDevice
                         )
                     }
                     composable(Navigation.ROUTE_EQUALIZER) {

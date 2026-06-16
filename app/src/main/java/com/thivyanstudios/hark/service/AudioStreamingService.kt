@@ -18,6 +18,7 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import com.thivyanstudios.hark.ui.model.AudioDeviceOption
 import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.di.MainDispatcher
 import com.thivyanstudios.hark.util.HarkLog
@@ -66,6 +67,18 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private val _inputDeviceName = MutableStateFlow("")
     override val inputDeviceName: StateFlow<String> = _inputDeviceName.asStateFlow()
+
+    private val _availableInputDevices = MutableStateFlow<List<AudioDeviceOption>>(emptyList())
+    override val availableInputDevices: StateFlow<List<AudioDeviceOption>> = _availableInputDevices.asStateFlow()
+
+    private val _availableOutputDevices = MutableStateFlow<List<AudioDeviceOption>>(emptyList())
+    override val availableOutputDevices: StateFlow<List<AudioDeviceOption>> = _availableOutputDevices.asStateFlow()
+
+    private val _selectedInputDeviceId = MutableStateFlow(-1)
+    override val selectedInputDeviceId: StateFlow<Int> = _selectedInputDeviceId.asStateFlow()
+
+    private val _selectedOutputDeviceId = MutableStateFlow(-1)
+    override val selectedOutputDeviceId: StateFlow<Int> = _selectedOutputDeviceId.asStateFlow()
 
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -120,6 +133,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
             HarkLog.i(TAG, "Audio devices added")
             updateHearingAidStatus()
+            enumerateDevices()
             if (_isStreaming.value && hasRequiredPermissions()) {
                 restartStreaming()
             }
@@ -129,6 +143,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
             HarkLog.i(TAG, "Audio devices removed")
             updateHearingAidStatus()
+            enumerateDevices()
 
             val isTargetDeviceRemoved = removedDevices?.any { isCompatibleDevice(it.type) } == true
             if (isTargetDeviceRemoved) {
@@ -207,6 +222,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
                 audioEngine.setDynamicsProcessingEnabled(prefs.dynamicsProcessingEnabled)
                 audioEngine.setNoiseReductionEnabled(prefs.noiseReductionEnabled)
+
+                if (_selectedInputDeviceId.value != prefs.selectedInputDeviceId) {
+                    _selectedInputDeviceId.value = prefs.selectedInputDeviceId
+                }
+                if (_selectedOutputDeviceId.value != prefs.selectedOutputDeviceId) {
+                    _selectedOutputDeviceId.value = prefs.selectedOutputDeviceId
+                }
             }
             .launchIn(serviceScope)
 
@@ -234,6 +256,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, Handler(Looper.getMainLooper()))
         updateHearingAidStatus()
+        enumerateDevices()
     }
 
     private fun bluetoothSupportChange(newEnableSupport: Boolean) {
@@ -253,49 +276,156 @@ class AudioStreamingService : Service(), AudioStreamingController {
     }
 
     private fun refreshDeviceNames() {
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-
-        val outputDevice = outputs.firstOrNull { d ->
-            d.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
-            d.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-            d.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-            d.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-            d.type == AudioDeviceInfo.TYPE_HEARING_AID
-        }
-        val inputDevice = inputs.firstOrNull { d ->
-            d.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
-            d.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-            d.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
-        } ?: inputs.firstOrNull { d -> d.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
-
-        _outputDeviceName.value = outputDevice?.productName?.toString() ?: ""
-
-        // BUG FIX: actually assign preferred devices so AudioRecord/AudioTrack route correctly.
-        preferredOutputDevice = outputDevice
-
-        // CRITICAL (Samsung): A USB-C *headphone* DAC (output-only) often enumerates a
-        // PHANTOM input device (type=22, no real mic). Samsung auto-routes recording to it,
-        // producing total silence (IN level ~0.0001). For a hearing aid we want the ENVIRONMENT
-        // sound anyway, so always force the built-in mic UNLESS a real wired 3.5mm HEADSET
-        // (type=3, has inline mic) is present.
-        val builtinMic = inputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
-        val wiredHeadsetMic = inputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
-        preferredInputDevice = wiredHeadsetMic ?: builtinMic
-        // Note: deliberately NOT using TYPE_USB_HEADSET as input - those are usually
-        // phantom mics on output-only DAC adapters.
-
-        // Display the mic we actually record from (friendly label)
-        _inputDeviceName.value = when (preferredInputDevice?.type) {
-            AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Headset Mic"
-            AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Phone Mic"
-            else -> preferredInputDevice?.productName?.toString() ?: "Phone Mic"
-        }
-
+        enumerateDevices()
+        applyInputSelection(hotSwitch = false)
+        applyOutputSelection(hotSwitch = false)
         HarkLog.i(TAG, "Device names: in='${_inputDeviceName.value}' out='${_outputDeviceName.value}' " +
             "| preferredIn=${preferredInputDevice?.type}(${preferredInputDevice?.productName}) " +
             "preferredOut=${preferredOutputDevice?.type}")
+    }
+
+    /**
+     * Build the user-facing input/output device lists from the system enumeration.
+     * Always prepends an "Auto" option (id = -1). Phantom USB-DAC mics are listed but
+     * flagged as not recommended. Lists are de-duplicated by (type, name).
+     */
+    private fun enumerateDevices() {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+
+        val inputOptions = mutableListOf(AudioDeviceOption(-1, "Auto", -1, true))
+        for (d in inputs) {
+            val pair: Pair<String, Boolean>? = when (d.type) {
+                AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Phone Mic" to true
+                AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Headset Mic" to true
+                AudioDeviceInfo.TYPE_USB_HEADSET -> "USB Mic (may be silent)" to false
+                AudioDeviceInfo.TYPE_USB_DEVICE -> "USB Audio Mic (may be silent)" to false
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth Mic" to true
+                else -> null
+            }
+            if (pair != null) {
+                inputOptions.add(AudioDeviceOption(d.id, pair.first, d.type, pair.second))
+            }
+        }
+        val outputOptions = mutableListOf(AudioDeviceOption(-1, "Auto", -1, true))
+        for (d in outputs) {
+            val name: String? = when (d.type) {
+                AudioDeviceInfo.TYPE_USB_HEADSET -> "USB Audio"
+                AudioDeviceInfo.TYPE_USB_DEVICE -> "USB Audio"
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "Wired Headphones"
+                AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Wired Headset"
+                AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "Phone Speaker"
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth"
+                AudioDeviceInfo.TYPE_HEARING_AID -> "Hearing Aid"
+                else -> null
+            }
+            if (name != null) {
+                outputOptions.add(AudioDeviceOption(d.id, name, d.type, true))
+            }
+        }
+
+        val dedupInputs = inputOptions.distinctBy { it.type to it.name }
+        val dedupOutputs = outputOptions.distinctBy { it.type to it.name }
+        _availableInputDevices.value = dedupInputs
+        _availableOutputDevices.value = dedupOutputs
+
+        // Drop a stale selection if the device no longer exists.
+        if (_selectedInputDeviceId.value != -1 && dedupInputs.none { it.id == _selectedInputDeviceId.value }) {
+            _selectedInputDeviceId.value = -1
+        }
+        if (_selectedOutputDeviceId.value != -1 && dedupOutputs.none { it.id == _selectedOutputDeviceId.value }) {
+            _selectedOutputDeviceId.value = -1
+        }
+    }
+
+    private fun friendlyInputName(device: AudioDeviceInfo?): String = when (device?.type) {
+        AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Headset Mic"
+        AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Phone Mic"
+        AudioDeviceInfo.TYPE_USB_HEADSET -> "USB Mic"
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth Mic"
+        else -> device?.productName?.toString() ?: "Phone Mic"
+    }
+
+    private fun friendlyOutputName(device: AudioDeviceInfo?): String = when (device?.type) {
+        AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE -> "USB Audio"
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "Wired Headphones"
+        AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Wired Headset"
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "Phone Speaker"
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth"
+        AudioDeviceInfo.TYPE_HEARING_AID -> "Hearing Aid"
+        else -> device?.productName?.toString() ?: ""
+    }
+
+    /**
+     * Resolve the preferred input device from the current selection. When id == -1 the
+     * v1.6.1 phantom-mic auto-logic applies (wired headset mic, else built-in mic, never
+     * the phantom USB-DAC mic). When hotSwitch is true and we are streaming, the live
+     * AudioRecord is re-routed without stopping.
+     */
+    @SuppressLint("MissingPermission")
+    private fun applyInputSelection(hotSwitch: Boolean) {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+        val id = _selectedInputDeviceId.value
+        val device = if (id == -1) {
+            inputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
+                ?: inputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+        } else {
+            inputs.firstOrNull { it.id == id }
+                ?: inputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+        }
+        preferredInputDevice = device
+        _inputDeviceName.value = friendlyInputName(device)
+        if (hotSwitch && _isStreaming.value) {
+            val ok = audioEngine.setLiveInputDevice(device)
+            HarkLog.i(TAG, "Hot-switch input -> ${device?.type}(${device?.productName}) ok=$ok")
+            if (!ok) restartStreaming()
+        }
+    }
+
+    /**
+     * Resolve the preferred output device from the current selection. When id == -1 the
+     * auto-logic prefers USB/wired headphones, then hearing aid / Bluetooth.
+     */
+    @SuppressLint("MissingPermission")
+    private fun applyOutputSelection(hotSwitch: Boolean) {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        val id = _selectedOutputDeviceId.value
+        val device = if (id == -1) {
+            outputs.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_USB_HEADSET || it.type == AudioDeviceInfo.TYPE_USB_DEVICE
+            } ?: outputs.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+            } ?: outputs.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_HEARING_AID || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+            }
+        } else {
+            outputs.firstOrNull { it.id == id }
+        }
+        preferredOutputDevice = device
+        _outputDeviceName.value = if (device != null) friendlyOutputName(device) else ""
+        if (hotSwitch && _isStreaming.value) {
+            val ok = audioEngine.setLiveOutputDevice(device)
+            HarkLog.i(TAG, "Hot-switch output -> ${device?.type}(${device?.productName}) ok=$ok")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    override fun selectInputDevice(id: Int) {
+        HarkLog.i(TAG, "selectInputDevice($id)")
+        _selectedInputDeviceId.value = id
+        serviceScope.launch { userPreferencesRepository.setSelectedInputDeviceId(id) }
+        applyInputSelection(hotSwitch = true)
+    }
+
+    @SuppressLint("MissingPermission")
+    override fun selectOutputDevice(id: Int) {
+        HarkLog.i(TAG, "selectOutputDevice($id)")
+        _selectedOutputDeviceId.value = id
+        serviceScope.launch { userPreferencesRepository.setSelectedOutputDeviceId(id) }
+        applyOutputSelection(hotSwitch = true)
     }
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
@@ -357,6 +487,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
                 wakeLock?.acquire()
                 withContext(ioDispatcher) {
+                    enumerateDevices()
+                    applyInputSelection(hotSwitch = false)
+                    applyOutputSelection(hotSwitch = false)
                     updateAudioRouting()
                     audioEngine.start(preferredOutputDevice, preferredInputDevice)
                 }

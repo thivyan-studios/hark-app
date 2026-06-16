@@ -25,7 +25,15 @@ import androidx.compose.ui.unit.sp
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.SquishyBox
+import com.thivyanstudios.hark.ui.model.AudioDeviceOption
 import com.thivyanstudios.hark.util.Constants
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.Icon
 import kotlinx.coroutines.delay
 
 @Composable
@@ -38,7 +46,13 @@ fun HomeScreen(
     isConnected: Boolean = false,
     latencyMs: Float = 0f,
     inputDeviceName: String = "",
-    outputDeviceName: String = ""
+    outputDeviceName: String = "",
+    availableInputDevices: List<AudioDeviceOption> = emptyList(),
+    availableOutputDevices: List<AudioDeviceOption> = emptyList(),
+    selectedInputDeviceId: Int = -1,
+    selectedOutputDeviceId: Int = -1,
+    onSelectInputDevice: (Int) -> Unit = {},
+    onSelectOutputDevice: (Int) -> Unit = {}
 ) {
     var isButtonEnabled by remember { mutableStateOf(true) }
 
@@ -77,22 +91,6 @@ fun HomeScreen(
             delay(5000L)
             isButtonEnabled = true
         }
-    }
-
-    val deviceColor = if (isStreaming)
-        MaterialTheme.colorScheme.primary
-    else
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-
-    val inputName = when {
-        !isConnected -> "Connecting..."
-        inputDeviceName.isEmpty() -> "Built-in Mic"
-        else -> inputDeviceName.take(24)
-    }
-    val outputName = when {
-        !isConnected -> "Connecting..."
-        outputDeviceName.isEmpty() -> "Speaker"
-        else -> outputDeviceName.take(24)
     }
 
     Column(
@@ -144,14 +142,14 @@ fun HomeScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Input device name
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("\uD83C\uDF99 ", style = MaterialTheme.typography.bodySmall)
-                    Text(inputName, style = MaterialTheme.typography.bodySmall, color = deviceColor)
-                }
+                // Input device selector
+                DeviceSelector(
+                    icon = "\uD83C\uDF99",
+                    devices = availableInputDevices,
+                    selectedId = selectedInputDeviceId,
+                    onSelect = onSelectInputDevice,
+                    enabled = isConnected
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -224,14 +222,14 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Output device name
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("\uD83C\uDFA7 ", style = MaterialTheme.typography.bodySmall)
-                    Text(outputName, style = MaterialTheme.typography.bodySmall, color = deviceColor)
-                }
+                // Output device selector
+                DeviceSelector(
+                    icon = "\uD83C\uDFA7",
+                    devices = availableOutputDevices,
+                    selectedId = selectedOutputDeviceId,
+                    onSelect = onSelectOutputDevice,
+                    enabled = isConnected
+                )
             }
         }
 
@@ -302,5 +300,53 @@ fun AudioLevelBar(label: String, level: Float, color: androidx.compose.ui.graphi
             style = MaterialTheme.typography.labelSmall,
             modifier = androidx.compose.ui.Modifier.width(40.dp).padding(start = 4.dp)
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeviceSelector(
+    icon: String,
+    devices: List<AudioDeviceOption>,
+    selectedId: Int,
+    onSelect: (Int) -> Unit,
+    enabled: Boolean
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = devices.firstOrNull { it.id == selectedId } ?: devices.firstOrNull()
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (enabled) expanded = it }
+    ) {
+        Row(
+            modifier = Modifier
+                .menuAnchor()
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("$icon ", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                selected?.name ?: "Auto",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (selected?.isRecommended == false) Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurface
+            )
+            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+        }
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            devices.forEach { device ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            device.name + if (!device.isRecommended) "  \u26a0\ufe0f" else "",
+                            color = if (!device.isRecommended) Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    onClick = { onSelect(device.id); expanded = false },
+                    trailingIcon = { if (device.id == selectedId) Icon(Icons.Default.Check, contentDescription = null) }
+                )
+            }
+        }
     }
 }

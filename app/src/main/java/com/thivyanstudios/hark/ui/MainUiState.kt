@@ -1,5 +1,7 @@
 package com.thivyanstudios.hark.ui
 
+import com.thivyanstudios.hark.ui.model.AudioDeviceOption
+
 data class MainUiState(
     val isStreaming: Boolean = false,
     val hearingAidConnected: Boolean = false,
@@ -15,5 +17,9 @@ data class MainUiState(
     val isBluetoothOnly: Boolean = false,
     val latencyMs: Float = 0f,
     val outputDeviceName: String = "",
-    val inputDeviceName: String = ""
+    val inputDeviceName: String = "",
+    val availableInputDevices: List<AudioDeviceOption> = emptyList(),
+    val availableOutputDevices: List<AudioDeviceOption> = emptyList(),
+    val selectedInputDeviceId: Int = -1,
+    val selectedOutputDeviceId: Int = -1
 )

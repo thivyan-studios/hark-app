@@ -18,7 +18,9 @@ data class UserPreferences(
     val eqBandMode: Int = 10,
     val noiseReductionEnabled: Boolean = true,
     val hearingProtectionEnabled: Boolean = true,
-    val limiterThresholdDb: Float = -10f
+    val limiterThresholdDb: Float = -10f,
+    val selectedInputDeviceId: Int = -1,
+    val selectedOutputDeviceId: Int = -1
 ) {
     val eqBand1Gain: Float get() = eqBandGains.getOrElse(0) { 0f }
     val eqBand2Gain: Float get() = eqBandGains.getOrElse(1) { 0f }

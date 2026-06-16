@@ -124,6 +124,10 @@ class AudioEngine @Inject constructor(
         audioProcessor.release()
     }
 
+    fun setLiveInputDevice(device: AudioDeviceInfo?): Boolean = streamManager.setLiveInputDevice(device)
+
+    fun setLiveOutputDevice(device: AudioDeviceInfo?): Boolean = streamManager.setLiveOutputDevice(device)
+
     fun sendError(message: String) {
         _errorEvents.tryEmit(message)
     }
