@@ -271,8 +271,31 @@ class AudioStreamingService : Service(), AudioStreamingController {
         } ?: inputs.firstOrNull { d -> d.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
 
         _outputDeviceName.value = outputDevice?.productName?.toString() ?: ""
-        _inputDeviceName.value = inputDevice?.productName?.toString() ?: ""
-        HarkLog.i(TAG, "Device names: in='${_inputDeviceName.value}' out='${_outputDeviceName.value}'")
+
+        // BUG FIX: actually assign preferred devices so AudioRecord/AudioTrack route correctly.
+        preferredOutputDevice = outputDevice
+
+        // CRITICAL (Samsung): A USB-C *headphone* DAC (output-only) often enumerates a
+        // PHANTOM input device (type=22, no real mic). Samsung auto-routes recording to it,
+        // producing total silence (IN level ~0.0001). For a hearing aid we want the ENVIRONMENT
+        // sound anyway, so always force the built-in mic UNLESS a real wired 3.5mm HEADSET
+        // (type=3, has inline mic) is present.
+        val builtinMic = inputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+        val wiredHeadsetMic = inputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
+        preferredInputDevice = wiredHeadsetMic ?: builtinMic
+        // Note: deliberately NOT using TYPE_USB_HEADSET as input - those are usually
+        // phantom mics on output-only DAC adapters.
+
+        // Display the mic we actually record from (friendly label)
+        _inputDeviceName.value = when (preferredInputDevice?.type) {
+            AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Headset Mic"
+            AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Phone Mic"
+            else -> preferredInputDevice?.productName?.toString() ?: "Phone Mic"
+        }
+
+        HarkLog.i(TAG, "Device names: in='${_inputDeviceName.value}' out='${_outputDeviceName.value}' " +
+            "| preferredIn=${preferredInputDevice?.type}(${preferredInputDevice?.productName}) " +
+            "preferredOut=${preferredOutputDevice?.type}")
     }
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])

@@ -146,3 +146,33 @@ Samsung S21 插 USB-C 耳机时，IN 设备中**不会**出现 type=22（耳机 
 3. **NoiseSuppressor**: Java 引擎下 `NoiseSuppressor.create(audioRecord.audioSessionId)` 可附加
 4. **自动更新检测**: 调 GitHub Releases API 检测新版本
 5. **听力测试精度**: 目前纯音 250-8kHz，可用校准耳机提高精度
+
+---
+
+## 坑7: OnePlus 平拿手机声音中断（接近传感器误触发）
+
+**现象：** OnePlus 5T 上，手平着拿（水平）声音断掉，竖着拿才正常。不是放桌面。
+
+**根因：** OnePlus 接近传感器在屏幕顶部。平拿时手掌遮挡传感器，OxygenOS 误判为"贴耳听筒"，触发 earpiece 模式，把音频从耳机重新路由到听筒。这是 OnePlus/OxygenOS 的已知激进策略（Reddit r/oneplus 多年讨论："this is a feature not a bug"）。
+
+**性质：** 系统级硬件行为，**app 无法在代码层覆盖**。音频路由由底层 HAL 接管。
+
+**验证方法：** 设置→关于手机→版本号连点7次进开发者模式→开发者选项→Quick Settings Developer Tiles→打开「Sensors Off」磁贴→下拉通知栏点它→再用 app，平拿也有声音则确认是接近传感器。
+
+**结论：** 非 app bug，搞清楚即可。实际佩戴/竖放使用不触发。其他机型（三星等）一般没有这么激进的策略。
+
+---
+
+## 坑8: 三星 USB-C 耳机适配器幻影麦克风导致静音
+
+**现象：** 三星 S20+/S21 插 USB-C 转 3.5mm 耳机适配器（纯输出 DAC），点击开始后耳机有输出路由但 IN 电平恒为 0.0001（静音），显示 `in='USB-Audio - GHW USB AUDIO'`。
+
+**根因：** USB-C 纯输出 DAC 适配器向系统注册了一个 type=22 (TYPE_USB_HEADSET) 的**输入设备（幻影麦克风）**，但它实际没有麦克风。三星看到 USB 音频设备插入，自动把 AudioRecord 录音路由到这个幻影输入，结果录到静音。
+
+OnePlus 用 3.5mm 直插（无 USB 输入枚举），录音走内置麦，所以正常。
+
+**修复（v1.6.1）：**
+1. `refreshDeviceNames()` 中显式设置 `preferredInputDevice = 有线headset麦 ?: 内置麦(TYPE_BUILTIN_MIC)`，**绝不**选 TYPE_USB_HEADSET 作为输入
+2. `createAudioRecord()` 中调用 `record.setPreferredDevice(preferredInputDevice)` 强制路由到内置麦，覆盖三星的幻影 USB 麦自动路由
+
+**关键认知：** 助听器需要捕捉**环境音**（对面说话的人），用内置麦正合适。USB-C DAC 的幻影麦不仅没用还会导致静音，必须显式避开。

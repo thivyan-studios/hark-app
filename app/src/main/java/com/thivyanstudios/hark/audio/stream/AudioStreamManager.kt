@@ -180,7 +180,6 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     private fun createAudioRecord(channelConfig: Int, audioFormat: Int, bufferSize: Int): AudioRecord {
         // VOICE_RECOGNITION is unstable on OEM devices (OnePlus, older Samsung) - session dies after 20-30s
         // MIC source is the most compatible and stable across all devices
-        // UNPROCESSED/VOICE_RECOGNITION can be added as opt-in for newer devices if needed
         val record = AudioRecord(
             MediaRecorder.AudioSource.MIC,
             Constants.Audio.SAMPLE_RATE,
@@ -188,7 +187,14 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
             audioFormat,
             bufferSize
         )
-        Log.i(TAG, "AudioRecord created: state=${record.state} source=MIC")
+        // BUG FIX: explicitly route AudioRecord to the chosen input device.
+        // On Samsung, this forces the built-in mic and overrides auto-routing to a
+        // phantom USB-DAC mic (which would produce silence).
+        preferredInputDevice?.let {
+            val ok = record.setPreferredDevice(it)
+            Log.i(TAG, "AudioRecord.setPreferredDevice(${it.productName}, type=${it.type}) = $ok")
+        }
+        Log.i(TAG, "AudioRecord created: state=${record.state} source=MIC preferredIn=${preferredInputDevice?.type}")
         return record
     }
 
