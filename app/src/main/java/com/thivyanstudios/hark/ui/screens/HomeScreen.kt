@@ -101,11 +101,12 @@ fun HomeScreen(
             )
         }
 
+        // Level meters at top
         if (isConnected) {
             Column(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 96.dp)
+                    .align(Alignment.TopCenter)
+                    .padding(top = 16.dp)
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -115,7 +116,7 @@ fun HomeScreen(
                     color = Color(0xFF4CAF50),
                     isStreaming = isStreaming
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 AudioLevelBar(
                     label = "EAR OUT",
                     level = outputLevel,
@@ -123,7 +124,7 @@ fun HomeScreen(
                     isStreaming = isStreaming
                 )
                 if (isStreaming && inputLevel < 0.001f) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     HarkText(
                         text = "\u26a0\ufe0f No microphone input detected",
                         color = Color(0xFFFF5722),

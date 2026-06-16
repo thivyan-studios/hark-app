@@ -39,7 +39,7 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(sampleRate)
-            ->setInputPreset(oboe::InputPreset::VoiceCommunication)
+            ->setInputPreset(oboe::InputPreset::Unprocessed)
             ->setDataCallback(this)
             ->setErrorCallback(this);
 
@@ -56,6 +56,8 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(sampleRate)
+            ->setUsage(oboe::Usage::Media)
+            ->setContentType(oboe::ContentType::Music)
             ->setDataCallback(this)
             ->setErrorCallback(this);
 

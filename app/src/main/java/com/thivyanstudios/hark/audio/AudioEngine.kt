@@ -69,6 +69,14 @@ class AudioEngine @Inject constructor(
 
         _isStreaming.value = true
 
+        // Force Java fallback on API < 30: Oboe dual-stream is unreliable on older devices
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) {
+            HarkLog.w(TAG, "API ${android.os.Build.VERSION.SDK_INT} < 30: using Java engine for reliability")
+            streamManager.start(currentConfig)
+            HarkLog.i(TAG, "Java fallback engine started (API < 30)")
+            return
+        }
+
         var success = false
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {

@@ -282,6 +282,21 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     updateAudioRouting()
                     audioEngine.start()
                 }
+
+                // Log full audio diagnostics to HarkLog (visible in app)
+                serviceScope.launch {
+                    delay(600)
+                    val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+                    HarkLog.i(TAG, "=== AUDIO DIAGNOSTICS ===")
+                    HarkLog.i(TAG, "AudioManager.mode=${am.mode} wiredHeadset=${@Suppress("DEPRECATION") am.isWiredHeadsetOn} micMute=${am.isMicrophoneMute}")
+                    HarkLog.i(TAG, "streamVol(MUSIC)=${am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)}/${am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)}")
+                    val devices = am.getDevices(android.media.AudioManager.GET_DEVICES_ALL)
+                    HarkLog.i(TAG, "Audio devices (${devices.size}):")
+                    devices.forEach { d ->
+                        HarkLog.i(TAG, "  [${if(d.isSink) "OUT" else "IN "}] type=${d.type} '${d.productName}'")
+                    }
+                    HarkLog.i(TAG, "=========================")
+                }
             } catch (e: Exception) {
                 HarkLog.e(TAG, "Failed to start streaming", e)
                 stopStreaming()
