@@ -2,6 +2,7 @@
 #include <android/log.h>
 #include <algorithm>
 #include <cmath>
+#include <thread>
 #include <oboe/FifoBuffer.h>
 
 #define TAG "HarkAudioEngine"
@@ -12,43 +13,24 @@ HarkAudioEngine::~HarkAudioEngine() {
     stop();
 }
 
-bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
+bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst,
+                            int32_t outputDeviceId, int32_t inputDeviceId) {
     std::lock_guard<std::mutex> lock(mStreamLock);
     closeStreams();
 
-    mSampleRate = sampleRate;
+    mSampleRate          = sampleRate;
+    mFramesPerBurst      = framesPerBurst;
+    mOutputDeviceId      = outputDeviceId;
+    mInputDeviceId       = inputDeviceId;
     mResampleAccumulator = 0;
 
-    // Reset processing states
-    mEnvelope = 0.0f;
-    mPrevInput = 0.0f;
+    mEnvelope   = 0.0f;
+    mPrevInput  = 0.0f;
     mPrevOutput = 0.0f;
-    mIsBuffering = true;
 
-    uint32_t fifoCapacity = std::max(static_cast<uint32_t>(framesPerBurst) * 16, static_cast<uint32_t>(4096));
-    mFifoBuffer = std::make_unique<oboe::FifoBuffer>(sizeof(float), fifoCapacity);
-
-    // Whisper.cpp usually expects 16kHz audio.
-    // 16000 * 10 seconds = 160000 samples capacity.
     mTranscriptionFifo = std::make_unique<oboe::FifoBuffer>(sizeof(float), 160000);
 
-    oboe::AudioStreamBuilder inBuilder;
-    inBuilder.setDirection(oboe::Direction::Input)
-            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-            ->setSharingMode(oboe::SharingMode::Shared)
-            ->setFormat(oboe::AudioFormat::Float)
-            ->setChannelCount(oboe::ChannelCount::Mono)
-            ->setSampleRate(sampleRate)
-            ->setInputPreset(oboe::InputPreset::Unprocessed)
-            ->setDataCallback(this)
-            ->setErrorCallback(this);
-
-    oboe::Result result = inBuilder.openStream(mInStream);
-    if (result != oboe::Result::OK) {
-        __android_log_print(ANDROID_LOG_ERROR, TAG, "Error opening input stream: %s", oboe::convertToText(result));
-        return false;
-    }
-
+    // LiveEffect pattern: open OUTPUT first, then INPUT with matched sample rate
     oboe::AudioStreamBuilder outBuilder;
     outBuilder.setDirection(oboe::Direction::Output)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
@@ -60,15 +42,41 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
             ->setContentType(oboe::ContentType::Music)
             ->setDataCallback(this)
             ->setErrorCallback(this);
+    if (outputDeviceId != oboe::kUnspecified) {
+        outBuilder.setDeviceId(outputDeviceId);
+    }
 
-    result = outBuilder.openStream(mOutStream);
+    oboe::Result result = outBuilder.openStream(mOutStream);
     if (result != oboe::Result::OK) {
         __android_log_print(ANDROID_LOG_ERROR, TAG, "Error opening output stream: %s", oboe::convertToText(result));
-        closeStreams();
         return false;
     }
 
+    // Use actual negotiated sample rate so input matches without resampling
+    int32_t actualSampleRate = mOutStream->getSampleRate();
+    mSampleRate = actualSampleRate;
     mOutStream->setBufferSizeInFrames(framesPerBurst * 2);
+
+    // INPUT: no DataCallback - read directly in output callback
+    oboe::AudioStreamBuilder inBuilder;
+    inBuilder.setDirection(oboe::Direction::Input)
+            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
+            ->setSharingMode(oboe::SharingMode::Shared)
+            ->setFormat(oboe::AudioFormat::Float)
+            ->setChannelCount(oboe::ChannelCount::Mono)
+            ->setSampleRate(actualSampleRate)
+            ->setInputPreset(oboe::InputPreset::Unprocessed)
+            ->setErrorCallback(this);
+    if (inputDeviceId != oboe::kUnspecified) {
+        inBuilder.setDeviceId(inputDeviceId);
+    }
+
+    result = inBuilder.openStream(mInStream);
+    if (result != oboe::Result::OK) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "Error opening input stream: %s", oboe::convertToText(result));
+        closeStreams();
+        return false;
+    }
 
     result = mInStream->requestStart();
     if (result != oboe::Result::OK) {
@@ -84,7 +92,9 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
         return false;
     }
 
-    __android_log_print(ANDROID_LOG_INFO, TAG, "Audio engine started successfully (sampleRate=%d, burst=%d)", sampleRate, framesPerBurst);
+    __android_log_print(ANDROID_LOG_INFO, TAG,
+        "Audio engine started (sampleRate=%d, burst=%d, outDev=%d, inDev=%d)",
+        actualSampleRate, framesPerBurst, outputDeviceId, inputDeviceId);
     return true;
 }
 
@@ -95,9 +105,8 @@ void HarkAudioEngine::stop() {
 
 void HarkAudioEngine::closeStreams() {
     if (mOutStream) { mOutStream->stop(); mOutStream->close(); mOutStream.reset(); }
-    if (mInStream) { mInStream->stop(); mInStream->close(); mInStream.reset(); }
+    if (mInStream)  { mInStream->stop();  mInStream->close();  mInStream.reset();  }
     mTranscriptionFifo.reset();
-    mFifoBuffer.reset();
 }
 
 int32_t HarkAudioEngine::readTranscriptionData(float *target, int32_t numFrames) {
@@ -110,7 +119,7 @@ float HarkAudioEngine::getTranscriptionLevel() {
 }
 
 void HarkAudioEngine::setMicrophoneGain(float gain) { mGain.store(gain, std::memory_order_release); }
-void HarkAudioEngine::setAmbientGain(float gain) { mAmbientGain.store(gain, std::memory_order_release); }
+void HarkAudioEngine::setAmbientGain(float gain)    { mAmbientGain.store(gain, std::memory_order_release); }
 void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) {
     mIsNoiseSuppressionEnabled.store(enabled, std::memory_order_release);
 }
@@ -121,121 +130,67 @@ void HarkAudioEngine::setTranscriptModeEnabled(bool enabled) {
     mIsTranscriptModeEnabled.store(enabled, std::memory_order_release);
 }
 
+// LiveEffect pattern: only OUTPUT stream fires this callback.
 oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         oboe::AudioStream *audioStream,
         void *audioData,
         int32_t numFrames) {
 
-    if (audioStream->getDirection() == oboe::Direction::Input) {
-        mFifoBuffer->write(audioData, numFrames);
-        // Log first input callback to confirm mic is working
-        static int inputCount = 0;
-        if (inputCount < 3) {
-            __android_log_print(ANDROID_LOG_INFO, TAG, "Input callback: %d frames, fifo=%u", numFrames, mFifoBuffer->getFullFramesAvailable());
-            inputCount++;
-        }
+    auto *outputData = static_cast<float *>(audioData);
 
-        // Apply gain to transcription data as well so Whisper gets a usable signal
+    // Non-blocking read from input stream (timeout=0)
+    oboe::ResultWithValue<int32_t> readResult = mInStream->read(mInputBuffer, numFrames, 0);
+    int32_t framesRead = readResult ? readResult.value() : 0;
+
+    if (framesRead > 0) {
+        int32_t framesToProcess = std::min(framesRead, kMaxFrames);
         float currentGain = mGain.load(std::memory_order_acquire);
-        auto *inputData = static_cast<const float*>(audioData);
-
-        // Boost gain specifically for transcription on emulators if needed
         float transcriptionGain = currentGain * 10.0f;
-
-        float sumSquares = 0.0f;
         float rawSumSquares = 0.0f;
-        int32_t framesToProcess = std::min(numFrames, kMaxFrames);
+        float sumSquares    = 0.0f;
+
         for (int i = 0; i < framesToProcess; ++i) {
-            rawSumSquares += inputData[i] * inputData[i];
-            float sample = inputData[i] * transcriptionGain;
+            rawSumSquares += mInputBuffer[i] * mInputBuffer[i];
+            float sample     = mInputBuffer[i] * transcriptionGain;
             mGainedBuffer[i] = sample;
-            sumSquares += sample * sample;
+            sumSquares      += sample * sample;
         }
 
-        // Calculate RMS level for visualization/gating
-        float rms = std::sqrt(sumSquares / static_cast<float>(framesToProcess));
-        float inputRms = std::sqrt(rawSumSquares / static_cast<float>(framesToProcess));
+        mInputLevel.store(std::sqrt(rawSumSquares / static_cast<float>(framesToProcess)),
+                          std::memory_order_release);
 
-        // Exponential moving average for smoothing the level
-        float alpha = 0.1f;
-        float currentLevel = mTranscriptionLevel.load(std::memory_order_acquire);
-        mTranscriptionLevel.store(currentLevel * (1.0f - alpha) + rms * alpha, std::memory_order_release);
-        mInputLevel.store(inputRms, std::memory_order_release);
-
+        float rms    = std::sqrt(sumSquares / static_cast<float>(framesToProcess));
+        float alpha  = 0.1f;
+        float curLvl = mTranscriptionLevel.load(std::memory_order_acquire);
+        mTranscriptionLevel.store(curLvl * (1.0f - alpha) + rms * alpha, std::memory_order_release);
         pushToTranscriptionFifo(mGainedBuffer, framesToProcess);
-    } else {
-        auto *outputData = static_cast<float *>(audioData);
-
-        if (mIsTranscriptModeEnabled.load(std::memory_order_acquire)) {
-            std::fill_n(outputData, numFrames, 0.0f);
-            return oboe::DataCallbackResult::Continue;
-        }
-
-        // Pre-buffering logic to prevent snapping from minor clock drift/jitter
-        uint32_t framesAvailable = mFifoBuffer->getFullFramesAvailable();
-        if (mIsBuffering) {
-            if (framesAvailable >= static_cast<uint32_t>(numFrames * 2)) {
-                mIsBuffering = false;
-                __android_log_print(ANDROID_LOG_INFO, TAG, "Buffering complete, starting playback (available=%u)", framesAvailable);
-            } else {
-                // Log first few times to diagnose
-                static int silenceCount = 0;
-                if (silenceCount < 5) {
-                    __android_log_print(ANDROID_LOG_WARN, TAG, "Still buffering... available=%u, need=%d", framesAvailable, numFrames * 2);
-                    silenceCount++;
-                }
-                std::fill_n(outputData, numFrames, 0.0f);
-                return oboe::DataCallbackResult::Continue;
-            }
-        }
-
-        int32_t framesRead = mFifoBuffer->read(outputData, numFrames);
-
-        float currentGain = mGain.load(std::memory_order_acquire);
-        float currentAmbientGain = mAmbientGain.load(std::memory_order_acquire);
-        bool dynamicsEnabled = mIsDynamicsProcessingEnabled.load(std::memory_order_acquire);
-        bool nsEnabled = mIsNoiseSuppressionEnabled.load(std::memory_order_acquire);
-
-        if (framesRead > 0) {
-            for (int i = 0; i < framesRead; i++) {
-                float rawSample = outputData[i];
-
-                // 1. PRIMARY PATH (The "Hearing Aid" stream)
-                float processedSample = rawSample;
-                if (nsEnabled) {
-                    processedSample = applySpeechEnhancement(rawSample);
-                }
-                float primarySignal = processedSample * currentGain;
-
-                // 2. AMBIENT PATH (The "Transparency" stream)
-                float ambientSignal = rawSample * currentAmbientGain;
-
-                // 3. MIXER
-                float mixedSignal = primarySignal + ambientSignal;
-
-                // 4. SAFETY: Dynamics Processing
-                if (dynamicsEnabled) {
-                    outputData[i] = applySoftKneeLimiter(mixedSignal);
-                } else {
-                    outputData[i] = std::clamp(mixedSignal, -1.1f, 1.1f);
-                }
-            }
-
-            if (framesRead < numFrames) {
-                // We ran out of frames! Enter buffering mode to avoid repeated snaps
-                std::fill_n(outputData + framesRead, numFrames - framesRead, 0.0f);
-                mIsBuffering = true;
-            }
-
-            float outputSumSq = 0.0f;
-            for (int i = 0; i < framesRead; ++i) { outputSumSq += outputData[i] * outputData[i]; }
-            mOutputLevel.store(std::sqrt(outputSumSq / static_cast<float>(framesRead)), std::memory_order_release);
-        } else {
-            std::fill_n(outputData, numFrames, 0.0f);
-            mOutputLevel.store(0.0f, std::memory_order_release);
-            mIsBuffering = true;
-        }
     }
+
+    if (mIsTranscriptModeEnabled.load(std::memory_order_acquire)) {
+        std::fill_n(outputData, numFrames, 0.0f);
+        return oboe::DataCallbackResult::Continue;
+    }
+
+    float currentGain        = mGain.load(std::memory_order_acquire);
+    float currentAmbientGain = mAmbientGain.load(std::memory_order_acquire);
+    bool dynamicsEnabled     = mIsDynamicsProcessingEnabled.load(std::memory_order_acquire);
+    bool nsEnabled           = mIsNoiseSuppressionEnabled.load(std::memory_order_acquire);
+
+    for (int i = 0; i < numFrames; i++) {
+        float rawSample = (i < framesRead) ? mInputBuffer[i] : 0.0f;
+        float processed = nsEnabled ? applySpeechEnhancement(rawSample) : rawSample;
+        float mixed     = processed * currentGain + rawSample * currentAmbientGain;
+        outputData[i]   = dynamicsEnabled ? applySoftKneeLimiter(mixed) : std::clamp(mixed, -1.1f, 1.1f);
+    }
+
+    if (framesRead > 0) {
+        float outSumSq = 0.0f;
+        for (int i = 0; i < framesRead; ++i) outSumSq += outputData[i] * outputData[i];
+        mOutputLevel.store(std::sqrt(outSumSq / static_cast<float>(framesRead)), std::memory_order_release);
+    } else {
+        mOutputLevel.store(0.0f, std::memory_order_release);
+    }
+
     return oboe::DataCallbackResult::Continue;
 }
 
@@ -258,57 +213,55 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
     if (resampledCount > 0) {
         int32_t written = mTranscriptionFifo->write(mResampleBuffer, resampledCount);
         if (written < resampledCount) {
-            // FIFO overflow - clear it to avoid stale data
-            // Reading in larger chunks is more efficient than sample-by-sample
             float dump[256];
             while(mTranscriptionFifo->read(dump, 256) > 0);
         }
     }
 }
 
-
 float HarkAudioEngine::applySpeechEnhancement(float input) {
-    // Simple DC-offset / High-pass filter to reduce low-end rumble
     float output = input - mPrevInput + 0.95f * mPrevOutput;
-    mPrevInput = input;
+    mPrevInput  = input;
     mPrevOutput = output;
     return output;
 }
 
 float HarkAudioEngine::applySoftKneeLimiter(float input) {
-    const float threshold = 0.75f; // Slightly lower for safety
+    const float threshold = 0.75f;
     const float kneeWidth = 0.15f;
-
-    // Attack must be fast to catch peaks. Release must be slow to prevent "hissing/pumping" distortion.
-    // At 48kHz, 0.05 is ~0.4ms attack. 0.0005 is ~40ms release.
-    const float attack = 0.05f;
-    const float release = 0.0005f;
+    const float attack    = 0.05f;
+    const float release   = 0.0005f;
 
     float absInput = std::abs(input);
-
-    // Envelope follower
     if (absInput > mEnvelope) {
-        mEnvelope = absInput * attack + mEnvelope * (1.0f - attack);
+        mEnvelope = absInput * attack  + mEnvelope * (1.0f - attack);
     } else {
         mEnvelope = absInput * release + mEnvelope * (1.0f - release);
     }
 
     if (mEnvelope <= threshold - kneeWidth / 2.0f) return input;
 
-    // Proper gain reduction instead of hard-clipping the waveform
     float targetGain = 1.0f;
     if (mEnvelope >= threshold + kneeWidth / 2.0f) {
         targetGain = threshold / mEnvelope;
     } else {
-        // Soft knee region
-        float diff = mEnvelope - (threshold - kneeWidth / 2.0f);
+        float diff      = mEnvelope - (threshold - kneeWidth / 2.0f);
         float reduction = (diff * diff) / (2.0f * kneeWidth);
-        targetGain = (mEnvelope - reduction) / mEnvelope;
+        targetGain      = (mEnvelope - reduction) / mEnvelope;
     }
-
     return input * targetGain;
 }
 
 void HarkAudioEngine::onErrorAfterClose(oboe::AudioStream *audioStream, oboe::Result error) {
     __android_log_print(ANDROID_LOG_ERROR, TAG, "Stream error: %s", oboe::convertToText(error));
+    if (error == oboe::Result::ErrorDisconnected) {
+        __android_log_print(ANDROID_LOG_INFO, TAG, "Device disconnected - restarting streams");
+        int32_t sr   = mSampleRate;
+        int32_t fpb  = mFramesPerBurst;
+        int32_t oDev = mOutputDeviceId;
+        int32_t iDev = mInputDeviceId;
+        std::thread([this, sr, fpb, oDev, iDev]() {
+            start(sr, fpb, oDev, iDev);
+        }).detach();
+    }
 }

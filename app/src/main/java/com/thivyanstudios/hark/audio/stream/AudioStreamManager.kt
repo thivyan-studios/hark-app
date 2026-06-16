@@ -2,10 +2,12 @@ package com.thivyanstudios.hark.audio.stream
 
 import android.annotation.SuppressLint
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.Process
 import android.util.Log
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
@@ -21,16 +23,24 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     private var streamingExecutor: ExecutorService? = null
     private val isRunning = AtomicBoolean(false)
 
+    private var preferredOutputDevice: AudioDeviceInfo? = null
+    private var preferredInputDevice: AudioDeviceInfo? = null
+
     private var activeAudioSource: AudioSource? = null
     private var activeAudioSink: AudioSink? = null
     private val lock = Any()
 
     @SuppressLint("MissingPermission")
-    fun start(config: AudioProcessingConfig) {
+    fun start(config: AudioProcessingConfig,
+              outputDevice: AudioDeviceInfo? = null,
+              inputDevice: AudioDeviceInfo? = null) {
         if (isRunning.getAndSet(true)) {
             Log.d(TAG, "start() called but already running")
             return
         }
+
+        preferredOutputDevice = outputDevice
+        preferredInputDevice = inputDevice
 
         Log.d(TAG, "Starting audio stream manager")
 
@@ -133,7 +143,7 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     }
 
     private fun createAudioTrack(audioFormat: Int, bufferSize: Int): AudioTrack {
-        return AudioTrack.Builder()
+        val track = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -151,6 +161,11 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
             .setTransferMode(AudioTrack.MODE_STREAM)
             .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             .build()
+        preferredOutputDevice?.let {
+            val result = track.setPreferredDevice(it)
+            Log.i(TAG, "AudioTrack.setPreferredDevice(${it.productName}, type=${it.type}) = $result")
+        }
+        return track
     }
 
     @SuppressLint("MissingPermission")

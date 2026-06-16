@@ -47,6 +47,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val _isStreaming = MutableStateFlow(false)
     override val isStreaming = _isStreaming.asStateFlow()
 
+    private var preferredOutputDevice: AudioDeviceInfo? = null
+    private var preferredInputDevice: AudioDeviceInfo? = null
+
     private val _audioLevel = MutableStateFlow(0f)
     override val audioLevel = _audioLevel.asStateFlow()
 
@@ -287,7 +290,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 wakeLock?.acquire()
                 withContext(ioDispatcher) {
                     updateAudioRouting()
-                    audioEngine.start()
+                    audioEngine.start(preferredOutputDevice, preferredInputDevice)
                 }
 
                 // Log full audio diagnostics to HarkLog (visible in app)

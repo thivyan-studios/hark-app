@@ -1,6 +1,7 @@
 package com.thivyanstudios.hark.audio
 
 import android.content.Context
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
@@ -57,7 +58,7 @@ class AudioEngine @Inject constructor(
         }
     }
 
-    fun start() {
+    fun start(outputDevice: AudioDeviceInfo? = null, inputDevice: AudioDeviceInfo? = null) {
         if (_isStreaming.value) return
 
         if (!isNativeLibraryLoaded) {
@@ -72,7 +73,7 @@ class AudioEngine @Inject constructor(
         // Use Java engine for all devices - Oboe dual-stream DataCallback is unreliable
         // on USB-C audio adapters (Samsung S21+) and older devices
         HarkLog.i(TAG, "Using Java AudioRecord/AudioTrack engine (sampleRate=$sampleRate)")
-        streamManager.start(currentConfig)
+        streamManager.start(currentConfig, outputDevice, inputDevice)
         HarkLog.i(TAG, "Java engine started")
         return
 

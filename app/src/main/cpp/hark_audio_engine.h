@@ -5,6 +5,7 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <thread>
 #include <cstdint>
 #include <vector>
 
@@ -17,12 +18,14 @@ public:
     HarkAudioEngine();
     ~HarkAudioEngine() override;
 
-    bool start(int32_t sampleRate, int32_t framesPerBurst);
+    bool start(int32_t sampleRate, int32_t framesPerBurst,
+               int32_t outputDeviceId = oboe::kUnspecified,
+               int32_t inputDeviceId  = oboe::kUnspecified);
     void stop();
 
     int32_t readTranscriptionData(float *target, int32_t numFrames);
     float getTranscriptionLevel();
-    float getInputLevel() const { return mInputLevel.load(std::memory_order_acquire); }
+    float getInputLevel()  const { return mInputLevel.load(std::memory_order_acquire); }
     float getOutputLevel() const { return mOutputLevel.load(std::memory_order_acquire); }
 
     void setMicrophoneGain(float gain);
@@ -31,7 +34,7 @@ public:
     void setDynamicsProcessingEnabled(bool enabled);
     void setTranscriptModeEnabled(bool enabled);
 
-    // From oboe::AudioStreamDataCallback
+    // From oboe::AudioStreamDataCallback (output stream only in LiveEffect pattern)
     oboe::DataCallbackResult onAudioReady(
             oboe::AudioStream *audioStream,
             void *audioData,
@@ -44,15 +47,14 @@ private:
     std::shared_ptr<oboe::AudioStream> mInStream;
     std::shared_ptr<oboe::AudioStream> mOutStream;
 
-    std::unique_ptr<oboe::FifoBuffer> mFifoBuffer;
     std::unique_ptr<oboe::FifoBuffer> mTranscriptionFifo;
 
     // Use atomic for thread-safe access from audio thread without locking
     std::atomic<float> mGain{1.0f};
     std::atomic<float> mAmbientGain{0.0f};
-    std::atomic<bool> mIsNoiseSuppressionEnabled{false};
-    std::atomic<bool> mIsDynamicsProcessingEnabled{false};
-    std::atomic<bool> mIsTranscriptModeEnabled{false};
+    std::atomic<bool>  mIsNoiseSuppressionEnabled{false};
+    std::atomic<bool>  mIsDynamicsProcessingEnabled{false};
+    std::atomic<bool>  mIsTranscriptModeEnabled{false};
 
     // Live audio level for transcription gating/visuals
     std::atomic<float> mTranscriptionLevel{0.0f};
@@ -62,10 +64,15 @@ private:
     std::atomic<float> mOutputLevel{0.0f};
 
     // Processing state (only accessed on audio thread)
-    float mEnvelope = 0.0f;
-    float mPrevInput = 0.0f;
+    float mEnvelope   = 0.0f;
+    float mPrevInput  = 0.0f;
     float mPrevOutput = 0.0f;
-    bool mIsBuffering = true;
+
+    // Stream restart params (stored for ErrorDisconnected recovery)
+    int32_t mSampleRate      = 48000;
+    int32_t mFramesPerBurst  = 0;
+    int32_t mOutputDeviceId  = oboe::kUnspecified;
+    int32_t mInputDeviceId   = oboe::kUnspecified;
 
     std::mutex mStreamLock;
 
@@ -75,11 +82,11 @@ private:
 
     // Resampling for transcription
     void pushToTranscriptionFifo(const float* data, int32_t numFrames);
-    int32_t mSampleRate = 48000;
     double mResampleAccumulator = 0;
 
-    // Pre-allocated buffers for audio processing to avoid heap allocation in callback
+    // Pre-allocated buffers for audio processing to avoid heap allocation in callbacks
     static constexpr int32_t kMaxFrames = 2048;
+    float mInputBuffer[kMaxFrames]{};   // raw mic read buffer (LiveEffect pattern)
     float mResampleBuffer[kMaxFrames]{};
     float mGainedBuffer[kMaxFrames]{};
 };
