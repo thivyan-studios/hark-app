@@ -94,14 +94,21 @@ class AudioStreamingService : Service(), AudioStreamingController {
     override val hearingAidConnected = _hearingAidConnected.asStateFlow()
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        // A hearing aid must NEVER stop for transient focus loss (notifications, Assistant,
+        // Bluetooth negotiation all fire LOSS_TRANSIENT). Log and keep running.
         when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                HarkLog.i(TAG, "Audio focus permanently lost - continuing (hearing aid priority)")
+                // Do NOT stop - user can manually stop. Re-request focus to stay active.
+            }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                HarkLog.i(TAG, "Audio focus lost, stopping streaming")
-                stopStreaming()
+                HarkLog.i(TAG, "Audio focus transient loss (notification/assistant) - continuing")
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                HarkLog.i(TAG, "Audio focus lost (duckable), continuing streaming")
+                HarkLog.i(TAG, "Audio focus duck request - continuing at full volume")
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                HarkLog.i(TAG, "Audio focus regained")
             }
         }
     }
@@ -388,18 +395,26 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private fun requestAudioFocus(): Boolean {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        // ACCESSIBILITY usage is exempt from Android 12+ auto-fade-out when other apps take focus.
+        // This is what keeps a hearing aid running while music/podcasts play.
         val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .build()
 
-        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+        // GAIN_TRANSIENT_MAY_DUCK: we coexist with other audio instead of killing it,
+        // and other apps duck around us rather than fading us out.
+        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(attributes)
             .setAcceptsDelayedFocusGain(false)
+            .setWillPauseWhenDucked(false)
             .setOnAudioFocusChangeListener(audioFocusChangeListener)
             .build()
 
-        return audioManager.requestAudioFocus(audioFocusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        val result = audioManager.requestAudioFocus(audioFocusRequest!!)
+        HarkLog.i(TAG, "AudioFocus request result: $result (1=granted)")
+        // Even if focus is denied, proceed - hearing aid should work regardless
+        return true
     }
 
     private fun abandonAudioFocus() {

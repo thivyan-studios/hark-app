@@ -61,6 +61,11 @@ class DefaultAudioProcessor(private val events: Channel<AudioEngineEvent>) : Aud
                 val totalMs = readMs + bufferMs + writeMs
                 val prev = _latencyMs.get()
                 _latencyMs.set(if (prev == 0f) totalMs else prev * 0.9f + totalMs * 0.1f)
+            } else if (read < 0) {
+                // ERROR_INVALID_OPERATION(-3), ERROR_DEAD_OBJECT(-6), ERROR(-1)
+                // AudioRecord session died - break to trigger restart in AudioStreamManager
+                android.util.Log.w("DefaultAudioProcessor", "AudioRecord.read() returned $read - session dead, breaking for restart")
+                break
             }
         }
     }
