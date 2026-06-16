@@ -256,9 +256,16 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _isStreaming.value = true
 
         serviceScope.launch {
+            var logCounter = 0
             while (_isStreaming.value) {
-                _inputLevel.value = audioEngine.getInputLevel()
-                _outputLevel.value = audioEngine.getOutputLevel()
+                val inLevel = audioEngine.getInputLevel()
+                val outLevel = audioEngine.getOutputLevel()
+                _inputLevel.value = inLevel
+                _outputLevel.value = outLevel
+                logCounter++
+                if (logCounter % 100 == 0) {
+                    HarkLog.i(TAG, "Audio levels - IN: ${"%.4f".format(inLevel)} OUT: ${"%.4f".format(outLevel)}")
+                }
                 delay(50)
             }
             _inputLevel.value = 0f

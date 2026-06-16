@@ -136,8 +136,8 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         return AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                     .build()
             )
             .setAudioFormat(
@@ -156,7 +156,7 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     @SuppressLint("MissingPermission")
     private fun createAudioRecord(channelConfig: Int, audioFormat: Int, bufferSize: Int): AudioRecord {
         return AudioRecord(
-            MediaRecorder.AudioSource.MIC, 
+            MediaRecorder.AudioSource.VOICE_RECOGNITION, 
             Constants.Audio.SAMPLE_RATE, 
             channelConfig, 
             audioFormat, 
