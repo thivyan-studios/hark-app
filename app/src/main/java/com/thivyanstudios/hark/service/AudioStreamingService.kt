@@ -83,7 +83,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private lateinit var serviceScope: CoroutineScope
     private var enableBluetoothHeadsetSupport = false
-    private var preferExternalMic = false
     private var lastTranscriptModeEnabled: Boolean? = null
     private var lastSelectedModelId: String? = null
 
@@ -183,15 +182,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 if (newEnableSupport != enableBluetoothHeadsetSupport) {
                     HarkLog.i(TAG, "Bluetooth headset support preference changed: $newEnableSupport")
                     bluetoothSupportChange(newEnableSupport)
-                }
-
-                val newPreferExternalMic = prefs.preferExternalMic
-                if (newPreferExternalMic != preferExternalMic) {
-                    HarkLog.i(TAG, "Prefer external mic preference changed: $newPreferExternalMic")
-                    preferExternalMic = newPreferExternalMic
-                    if (_isStreaming.value) {
-                        updateAudioRouting()
-                    }
                 }
 
                 val newTranscriptMode = prefs.transcriptModeEnabled
@@ -571,32 +561,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private fun updateAudioRouting() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        if (preferExternalMic) {
-            // Set audio mode to IN_COMMUNICATION to help routing
-            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val devices = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-                val btMic = devices.find { 
-                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || 
-                    it.type == AudioDeviceInfo.TYPE_BLE_HEADSET 
-                }
-                if (btMic != null) {
-                    HarkLog.i(TAG, "Setting communication device to: ${btMic.productName}")
-                    audioManager.setCommunicationDevice(btMic)
-                } else {
-                    HarkLog.w(TAG, "External mic preferred but no BT mic found")
-                }
-            } else {
-                HarkLog.i(TAG, "Starting Bluetooth SCO")
-                @Suppress("DEPRECATION")
-                audioManager.startBluetoothSco()
-                @Suppress("DEPRECATION")
-                audioManager.isBluetoothScoOn = true
-            }
-        } else {
-            clearAudioRouting()
-        }
+        // Reset to normal mode as the BT mic feature has been removed
+        audioManager.mode = AudioManager.MODE_NORMAL
     }
 
     private fun clearAudioRouting() {
@@ -605,13 +571,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             audioManager.clearCommunicationDevice()
-        } else {
-            @Suppress("DEPRECATION")
-            if (audioManager.isBluetoothScoOn) {
-                HarkLog.i(TAG, "Stopping Bluetooth SCO")
-                audioManager.stopBluetoothSco()
-                audioManager.isBluetoothScoOn = false
-            }
         }
     }
 

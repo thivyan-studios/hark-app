@@ -159,10 +159,11 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
 
         int32_t framesRead = mFifoBuffer->read(outputData, numFrames);
 
-        float currentGain = mGain.load(std::memory_order_acquire);
-        float currentAmbientGain = mAmbientGain.load(std::memory_order_acquire);
-        bool dynamicsEnabled = mIsDynamicsProcessingEnabled.load(std::memory_order_acquire);
-        bool nsEnabled = mIsNoiseSuppressionEnabled.load(std::memory_order_acquire);
+        // Cache atomic loads for the duration of this callback
+        const float currentGain = mGain.load(std::memory_order_acquire);
+        const float currentAmbientGain = mAmbientGain.load(std::memory_order_acquire);
+        const bool dynamicsEnabled = mIsDynamicsProcessingEnabled.load(std::memory_order_acquire);
+        const bool nsEnabled = mIsNoiseSuppressionEnabled.load(std::memory_order_acquire);
 
         if (framesRead > 0) {
             for (int i = 0; i < framesRead; i++) {
