@@ -148,7 +148,6 @@ class SettingsViewModel @Inject constructor(
             hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
             keepScreenOn = prefs.keepScreenOn,
             enableBluetoothHeadsetSupport = prefs.enableBluetoothHeadsetSupport,
-            preferExternalMic = prefs.preferExternalMic,
             microphoneGain = prefs.microphoneGain,
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
@@ -189,12 +188,6 @@ class SettingsViewModel @Inject constructor(
     fun setEnableBluetoothHeadsetSupport(isEnabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setEnableBluetoothHeadsetSupport(isEnabled)
-        }
-    }
-
-    fun setPreferExternalMic(isEnabled: Boolean) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setPreferExternalMic(isEnabled)
         }
     }
 

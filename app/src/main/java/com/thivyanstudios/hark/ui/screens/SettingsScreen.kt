@@ -233,14 +233,6 @@ fun SettingsScreen(
                 )
 
                 SettingsSwitchRow(
-                    text = stringResource(R.string.settings_prefer_external_mic),
-                    icon = Icons.Default.BluetoothAudio,
-                    checked = uiState.preferExternalMic,
-                    onCheckedChange = settingsViewModel::setPreferExternalMic,
-                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                )
-
-                SettingsSwitchRow(
                     text = stringResource(R.string.settings_bypass_bluetooth_checks),
                     icon = Icons.Default.Bluetooth,
                     checked = uiState.bypassBluetoothChecks,
@@ -521,6 +513,23 @@ fun SettingsScreen(
                     )
                 )
                 .align(Alignment.TopCenter)
+        )
+
+        // Fading Footer Overlay to match the top effect
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
+                            MaterialTheme.colorScheme.background
+                        )
+                    )
+                )
+                .align(Alignment.BottomCenter)
         )
     }
 }

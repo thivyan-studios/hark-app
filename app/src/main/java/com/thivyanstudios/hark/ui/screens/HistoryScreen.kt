@@ -31,6 +31,31 @@ fun HistoryScreen(
     onDeleteById: (Long) -> Unit,
     onShare: (String) -> Unit
 ) {
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteAllDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAllDialog = false },
+            title = { HarkText("Clear History?") },
+            text = { HarkText("This will permanently delete all saved transcriptions.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteAll()
+                        showDeleteAllDialog = false
+                    }
+                ) {
+                    HarkText("Delete All", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAllDialog = false }) {
+                    HarkText("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             Column(
@@ -55,7 +80,7 @@ fun HistoryScreen(
                     )
                     
                     if (history.isNotEmpty()) {
-                        IconButton(onClick = onDeleteAll) {
+                        IconButton(onClick = { showDeleteAllDialog = true }) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "Delete all",

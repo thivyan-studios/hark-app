@@ -70,7 +70,7 @@ fun HomeScreen(
 
     LaunchedEffect(isButtonEnabled) {
         if (!isButtonEnabled) {
-            delay(5000L)
+            delay(1000L) // Reduced from 5s to 1s for better responsiveness
             isButtonEnabled = true
         }
     }

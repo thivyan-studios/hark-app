@@ -41,7 +41,6 @@ class UserPreferencesRepository @Inject constructor(
         val SILENCE_THRESHOLD = floatPreferencesKey("silence_threshold")
         val TRANSCRIPTION_FONT_SIZE = floatPreferencesKey("transcription_font_size")
         val SELECTED_MODEL_ID = androidx.datastore.preferences.core.stringPreferencesKey("selected_model_id")
-        val PREFER_EXTERNAL_MIC = booleanPreferencesKey("prefer_external_mic")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -68,8 +67,7 @@ class UserPreferencesRepository @Inject constructor(
                 whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false,
                 silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.005f,
                 transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
-                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0",
-                preferExternalMic = preferences[PreferenceKeys.PREFER_EXTERNAL_MIC] ?: false
+                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0"
             )
         }
         .flowOn(ioDispatcher)
@@ -128,10 +126,6 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setSelectedModelId(id: String) = update {
         it[PreferenceKeys.SELECTED_MODEL_ID] = id
-    }
-
-    suspend fun setPreferExternalMic(enabled: Boolean) = update {
-        it[PreferenceKeys.PREFER_EXTERNAL_MIC] = enabled
     }
 
     private suspend fun update(action: (MutablePreferences) -> Unit) {

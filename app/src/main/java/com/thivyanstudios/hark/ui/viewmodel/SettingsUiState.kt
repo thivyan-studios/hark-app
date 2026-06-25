@@ -7,7 +7,6 @@ data class SettingsUiState(
     val hapticFeedbackEnabled: Boolean = false,
     val keepScreenOn: Boolean = false,
     val enableBluetoothHeadsetSupport: Boolean = false,
-    val preferExternalMic: Boolean = false,
     val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
