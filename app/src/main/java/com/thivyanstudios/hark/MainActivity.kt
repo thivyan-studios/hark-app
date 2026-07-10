@@ -2,8 +2,10 @@ package com.thivyanstudios.hark
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -72,10 +74,15 @@ class MainActivity : ComponentActivity() {
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
                 HarkLog.i("MainActivity", "Permission result: $permissions")
                 permissionManager.handlePermissionsResult(permissions)
+                mainViewModel.setPermissionsHandled(true)
             }
         ) { mainViewModel.showPermissionsRequiredMessage(getString(R.string.permissions_required)) }
 
-        permissionManager.requestPermissions()
+        if (permissionManager.hasPermissions()) {
+            mainViewModel.setPermissionsHandled(true)
+        } else {
+            permissionManager.requestPermissions()
+        }
 
         setContent {
             val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
@@ -106,12 +113,26 @@ class MainActivity : ComponentActivity() {
                     settingsViewModel = settingsViewModel,
                     onToggleStreaming = { toggleStreaming() },
                     onClearTranscription = { mainViewModel.clearTranscription() },
-                    onShareTranscription = { text -> shareTranscription(text) }
+                    onShareTranscription = { text -> shareTranscription(text) },
+                    onRequestBatteryOptimizationExemption = { requestBatteryOptimizationExemption() }
                 )
             }
         }
 
         audioServiceManager.startService()
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        try {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            // Fallback to the general settings list if the direct prompt fails
+            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            startActivity(intent)
+        }
     }
 
     private fun shareTranscription(text: String) {

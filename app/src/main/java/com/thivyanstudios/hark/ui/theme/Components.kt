@@ -200,3 +200,25 @@ fun SquishyBox(
         content = content
     )
 }
+
+/**
+ * A small badge to indicate features that are still in Beta.
+ */
+@Composable
+fun BetaBadge(modifier: Modifier = Modifier) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
+        shape = RoundedCornerShape(4.dp),
+        modifier = modifier
+    ) {
+        Text(
+            text = "BETA",
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+        )
+    }
+}

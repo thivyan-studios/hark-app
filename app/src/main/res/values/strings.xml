@@ -41,6 +41,15 @@
     <string name="notification_title">HARK is running</string>
     <string name="notification_text">Streaming live audio</string>
 
+    <!-- History Screen -->
+    <string name="history_title">HISTORY</string>
+    <string name="history_delete_all_title">Clear History?</string>
+    <string name="history_delete_all_message">This will permanently delete all saved transcriptions.</string>
+    <string name="history_delete_all_confirm">Delete All</string>
+    <string name="history_empty">No history yet</string>
+    <string name="cd_delete_history_item">Delete</string>
+    <string name="cd_delete_all_history">Delete all</string>
+
     <!-- ViewModel -->
     <string name="version_not_found">Developed by Thivyan Pillay (Version not found)</string>
     <string name="noise_suppression_not_available">Noise suppression is not available on this device.</string>
@@ -58,4 +67,9 @@
     <string name="model_delete_message">Are you sure you want to delete the %1$s model? You will need to download it again to use it.</string>
     <string name="restart">Restart</string>
     <string name="delete">Delete</string>
+
+    <string name="battery_optimization_title">Disable Battery Optimization?</string>
+    <string name="battery_optimization_message">To keep HARK running reliably with the screen off, please set its battery usage to \"Unrestricted\". This prevents the system from killing the app during long listening sessions.</string>
+    <string name="battery_optimization_action">Open Settings</string>
+    <string name="battery_optimization_dismiss">Later</string>
 </resources>

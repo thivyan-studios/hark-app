@@ -81,8 +81,8 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeInitWhisper(JNIEnv *env, jo
 bool is_hallucination(const std::string& text) {
     static const std::vector<std::string> junk = {
         "thanks for watching", "thank you for watching", "subtitles by", "please subscribe",
-        "thank you", "bye", "repro", "mbc", "you", "h", "a", "thanks", "thank you.", "thank you for",
-        "watch", "watching", "subscribe", "subtitles", "the", "and"
+        "repro", "mbc", "bye", "[music]", "♪", "thank you", "thanks", "thank you.", "thank you for",
+        "watch", "watching", "subscribe", "subtitles"
     };
 
     std::string lower = text;
@@ -131,8 +131,20 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     params.print_special = false;
     params.print_realtime = false;
     params.print_timestamps = false;
-    params.translate = (bool) translate;
-    params.language = lang.c_str();
+
+    // Fix: Handle non-multilingual models. English-only models (.en) do not support auto-detection or translation.
+    bool is_multilingual = whisper_is_multilingual(g_whisper_ctx) != 0;
+    if (is_multilingual) {
+        params.language = lang.c_str();
+        params.translate = (bool) translate;
+    } else {
+        params.language = "en";
+        params.translate = false;
+        if (lang != "en" && lang != "auto") {
+            LOGI("Model is English-only, forcing language to 'en' (was '%s')", lang.c_str());
+        }
+    }
+
     params.n_threads = (int) threads;
 
     params.suppress_blank = true;
@@ -141,7 +153,7 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     params.single_segment = true;
 
     params.temperature = 0.0f;
-    params.no_speech_thold = 0.6f; // Balanced VAD
+    params.no_speech_thold = 0.3f; // Less aggressive VAD
     params.entropy_thold = 2.4f;
     params.logprob_thold = -1.0f; // Reject low-confidence results
 
@@ -155,10 +167,11 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     }
     float rms = std::sqrt(sum_sq / len);
 
-    // High silence threshold to prevent hallucinations
-    if (rms < 0.008f) {
+    // Very low silence threshold to catch faint voices
+    if (rms < 0.0005f) {
         LOGI("Signal RMS too low (%.5f), skipping transcription.", rms);
-        env->ReleaseFloatArrayElements(audio_data, p_audio, 0);
+        // Task 6: Use JNI_ABORT as we didn't modify the array (or don't need to commit changes back)
+        env->ReleaseFloatArrayElements(audio_data, p_audio, JNI_ABORT);
         return env->NewStringUTF("[SILENCE]");
     }
 
@@ -183,7 +196,8 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     LOGI("whisper_full ret %d in %lld ms (RMS: %.5f)", ret, (long long)(t_end - t_start), rms);
 
     if (ret != 0) {
-        env->ReleaseFloatArrayElements(audio_data, p_audio, 0);
+        // Task 6: Use JNI_ABORT to avoid unnecessary copy-back to Java
+        env->ReleaseFloatArrayElements(audio_data, p_audio, JNI_ABORT);
         return env->NewStringUTF("ERROR: Transcription failed");
     }
 
@@ -204,7 +218,8 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
         }
     }
 
-    env->ReleaseFloatArrayElements(audio_data, p_audio, 0);
+    // Task 6: Use JNI_ABORT to avoid unnecessary copy-back to Java
+    env->ReleaseFloatArrayElements(audio_data, p_audio, JNI_ABORT);
 
     if (result_text.empty()) {
         return env->NewStringUTF("[NO_RESULT]");

@@ -47,7 +47,7 @@ bool HarkAudioEngine::openStreamsLocked() {
     oboe::AudioStreamBuilder inBuilder;
     inBuilder.setDirection(oboe::Direction::Input)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-            ->setSharingMode(oboe::SharingMode::Exclusive)
+            ->setSharingMode(oboe::SharingMode::Shared) // Use Shared for better compatibility
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(mSampleRate)
@@ -64,7 +64,7 @@ bool HarkAudioEngine::openStreamsLocked() {
     oboe::AudioStreamBuilder outBuilder;
     outBuilder.setDirection(oboe::Direction::Output)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-            ->setSharingMode(oboe::SharingMode::Exclusive)
+            ->setSharingMode(oboe::SharingMode::Shared) // Use Shared for better compatibility
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(mSampleRate)
@@ -142,8 +142,8 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         float currentGain = mGain.load(std::memory_order_acquire);
         auto *inputData = static_cast<const float*>(audioData);
 
-        // Boost gain specifically for transcription on emulators if needed
-        float transcriptionGain = currentGain * 10.0f;
+        // Reasonable gain specifically for transcription
+        float transcriptionGain = currentGain * 2.5f;
 
         float sumSquares = 0.0f;
         int32_t framesToProcess = std::min(numFrames, kMaxFrames);
@@ -233,10 +233,16 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
     double skip = (double)mSampleRate / 16000.0;
     int32_t resampledCount = 0;
 
+    // Task 2: Linear Interpolation Resampling to reduce aliasing
     while (mResampleAccumulator < (double)numFrames) {
-        int index = (int)mResampleAccumulator;
-        if (index >= 0 && index < numFrames) {
-            mResampleBuffer[resampledCount++] = data[index];
+        int32_t index1 = (int32_t)mResampleAccumulator;
+        int32_t index2 = index1 + 1;
+        float fraction = (float)(mResampleAccumulator - index1);
+
+        if (index1 >= 0 && index1 < numFrames) {
+            float s1 = data[index1];
+            float s2 = (index2 < numFrames) ? data[index2] : s1;
+            mResampleBuffer[resampledCount++] = s1 + fraction * (s2 - s1);
             if (resampledCount >= kMaxFrames) break;
         }
         mResampleAccumulator += skip;
@@ -246,10 +252,9 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
     if (resampledCount > 0) {
         int32_t written = mTranscriptionFifo->write(mResampleBuffer, resampledCount);
         if (written < resampledCount) {
-            // FIFO overflow - clear it to avoid stale data
-            // Reading in larger chunks is more efficient than sample-by-sample
-            float dump[256];
-            while(mTranscriptionFifo->read(dump, 256) > 0);
+            // Task 1: Removed blocking loop on audio thread.
+            // If the FIFO is full, we simply drop the remaining resampled frames to maintain real-time safety.
+            // The consumer (Java side) is likely struggling to keep up.
         }
     }
 }

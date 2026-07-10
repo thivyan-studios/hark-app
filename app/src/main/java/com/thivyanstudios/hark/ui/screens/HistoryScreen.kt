@@ -14,14 +14,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.data.local.TranscriptionEntity
 import com.thivyanstudios.hark.ui.theme.HarkText
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,8 +41,8 @@ fun HistoryScreen(
     if (showDeleteAllDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAllDialog = false },
-            title = { HarkText("Clear History?") },
-            text = { HarkText("This will permanently delete all saved transcriptions.") },
+            title = { HarkText(stringResource(R.string.history_delete_all_title)) },
+            text = { HarkText(stringResource(R.string.history_delete_all_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -45,12 +50,15 @@ fun HistoryScreen(
                         showDeleteAllDialog = false
                     }
                 ) {
-                    HarkText("Delete All", color = MaterialTheme.colorScheme.error)
+                    HarkText(
+                        text = stringResource(R.string.history_delete_all_confirm),
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAllDialog = false }) {
-                    HarkText("Cancel")
+                    HarkText(stringResource(R.string.cancel))
                 }
             }
         )
@@ -71,7 +79,7 @@ fun HistoryScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     HarkText(
-                        text = "HISTORY",
+                        text = stringResource(R.string.history_title),
                         style = MaterialTheme.typography.labelLarge.copy(
                             letterSpacing = 4.sp,
                             fontWeight = FontWeight.Bold,
@@ -83,7 +91,7 @@ fun HistoryScreen(
                         IconButton(onClick = { showDeleteAllDialog = true }) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Delete all",
+                                contentDescription = stringResource(R.string.cd_delete_all_history),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -112,7 +120,7 @@ fun HistoryScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     HarkText(
-                        text = "No history yet",
+                        text = stringResource(R.string.history_empty),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                     )
@@ -155,7 +163,11 @@ fun HistoryItem(
     onShare: () -> Unit
 ) {
     val date = remember(item.timestamp) {
-        SimpleDateFormat("MMM dd, yyyy • HH:mm", Locale.getDefault()).format(Date(item.timestamp))
+        // Task 7: Using java.time (modern API) instead of SimpleDateFormat
+        val instant = Instant.ofEpochMilli(item.timestamp)
+        val dateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
+        val formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy • HH:mm", Locale.getDefault())
+        dateTime.format(formatter)
     }
 
     Surface(
@@ -183,7 +195,7 @@ fun HistoryItem(
                 ) {
                     Icon(
                         Icons.Default.Delete,
-                        contentDescription = "Delete",
+                        contentDescription = stringResource(R.string.cd_delete_history_item),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                         modifier = Modifier.size(18.dp)
                     )

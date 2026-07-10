@@ -2,11 +2,13 @@ package com.thivyanstudios.hark.ui.viewmodel
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.content.FileProvider
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -22,6 +24,7 @@ import com.thivyanstudios.hark.util.HarkLog
 import com.thivyanstudios.hark.util.SystemSettingsProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -43,12 +46,13 @@ class SettingsViewModel @Inject constructor(
     private val application: Application,
     private val systemSettingsProvider: SystemSettingsProvider,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
-) : ViewModel() {
+) : ViewModel(), DefaultLifecycleObserver {
 
     private val _versionName = MutableStateFlow("")
     private val _isNoiseSuppressionSupported = MutableStateFlow(true)
     private val _isDynamicsProcessingSupported = MutableStateFlow(true)
     private val _isDeveloperOptionsEnabled = MutableStateFlow(false)
+    private val _refreshBatteryTrigger = MutableStateFlow(System.currentTimeMillis())
     private var activeModelIdAtStart: String? = null
 
     private val devSettingsObserver by lazy {
@@ -128,7 +132,8 @@ class SettingsViewModel @Inject constructor(
         _isDynamicsProcessingSupported,
         _isDeveloperOptionsEnabled,
         whisperModelManager.downloadProgress,
-        whisperModelManager.modelStoreUpdateTrigger
+        whisperModelManager.modelStoreUpdateTrigger,
+        _refreshBatteryTrigger
     ) { args ->
         val prefs = args[0] as com.thivyanstudios.hark.data.model.UserPreferences
         val version = args[1] as String
@@ -136,12 +141,16 @@ class SettingsViewModel @Inject constructor(
         val dpSupported = args[3] as Boolean
         val devEnabled = args[4] as Boolean
         val progress = args[5] as Map<String, Float>
-        // args[6] is the refresh trigger, we just use it to react to changes
+        // args[6] is the model trigger
+        // args[7] is the battery refresh trigger
 
         val downloadedIds = whisperModelManager.availableModels
             .filter { whisperModelManager.isModelDownloaded(it) }
             .map { it.id }
             .toSet()
+
+        val isBatteryOptimizationIgnored = (application.getSystemService(Context.POWER_SERVICE) as PowerManager)
+            .isIgnoringBatteryOptimizations(application.packageName)
 
         SettingsUiState(
             versionName = version,
@@ -164,7 +173,8 @@ class SettingsViewModel @Inject constructor(
             downloadProgress = progress,
             isNoiseSuppressionSupported = nsSupported,
             isDynamicsProcessingSupported = dpSupported,
-            isDeveloperOptionsEnabled = devEnabled
+            isDeveloperOptionsEnabled = devEnabled,
+            isBatteryOptimizationIgnored = isBatteryOptimizationIgnored
         )
     }
     .stateIn(
@@ -273,6 +283,11 @@ class SettingsViewModel @Inject constructor(
                 userPreferencesRepository.setSelectedModelId("ggml-base-q8_0")
             }
         }
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+        super.onResume(owner)
+        _refreshBatteryTrigger.value = System.currentTimeMillis()
     }
 
     fun generateAndShareLog() {

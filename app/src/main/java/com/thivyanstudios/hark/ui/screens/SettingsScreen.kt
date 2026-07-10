@@ -3,6 +3,7 @@ package com.thivyanstudios.hark.ui.screens
 import android.annotation.SuppressLint
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,10 +20,13 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.thivyanstudios.hark.R
+import com.thivyanstudios.hark.ui.theme.BetaBadge
 import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.SquishyBox
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
@@ -35,7 +39,16 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(
     settingsViewModel: SettingsViewModel = hiltViewModel(),
+    onRequestBatteryOptimizationExemption: () -> Unit
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.addObserver(settingsViewModel)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(settingsViewModel)
+        }
+    }
+
     val haptic = LocalHapticFeedback.current
     val uiState by settingsViewModel.uiState.collectAsState()
     var showPrivacyDialog by remember { mutableStateOf(false) }
@@ -240,10 +253,41 @@ fun SettingsScreen(
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                     enabled = uiState.isDeveloperOptionsEnabled
                 )
+
+                if (!uiState.isBatteryOptimizationIgnored) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onRequestBatteryOptimizationExemption() }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.BatteryAlert,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        HarkText(
+                            text = "Disable Battery Optimization",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
             }
 
             // Section: Whisper AI
-            SettingsGroup(title = "Whisper AI Engine") {
+            SettingsGroup(
+                title = "Whisper AI Engine",
+                badge = { BetaBadge() }
+            ) {
                 // Available Models
                 HarkText(
                     text = "Transcription Models",
@@ -548,18 +592,27 @@ fun ConfirmLogButton(onConfirm: () -> Unit) {
 @Composable
 fun SettingsGroup(
     title: String,
+    badge: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(modifier = Modifier.padding(bottom = 24.dp)) {
-        HarkText(
-            text = title.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 1.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            ),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
-        )
+        ) {
+            HarkText(
+                text = title.uppercase(),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    letterSpacing = 1.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            )
+            if (badge != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                badge()
+            }
+        }
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),

@@ -27,5 +27,6 @@ data class SettingsUiState(
     // Feature support flags
     val isNoiseSuppressionSupported: Boolean = true,
     val isDynamicsProcessingSupported: Boolean = true,
-    val isDeveloperOptionsEnabled: Boolean = false
+    val isDeveloperOptionsEnabled: Boolean = false,
+    val isBatteryOptimizationIgnored: Boolean = true
 )

@@ -433,14 +433,12 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 if (accumulatedSamples >= 16000) { 
                     val currentLevel = _audioLevel.value
                     
-                    // If it's too quiet, we treat the audio as a "buffer" but don't transcribe yet.
-                    // This prevents hallucinated text during silence.
-                    if (currentLevel < silenceThreshold) {
-                        // If we've been quiet for a while (e.g. 3 seconds of accumulated quiet audio),
-                        // we start discarding the oldest parts of the buffer to keep context fresh
-                        // but not too old.
-                        if (accumulatedSamples > 48000) {
-                             val keepSamples = 16000 // Keep last 1 second
+                    // If it's extremely quiet and we have very little data, skip to save CPU.
+                    // But if we have a significant buffer, we should transcribe it anyway to avoid losing speech.
+                    if (currentLevel < silenceThreshold && accumulatedSamples < 32000) {
+                        if (accumulatedSamples > 16000) {
+                             // Slide the buffer to keep only the last bit of silence
+                             val keepSamples = 8000 
                              System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
                              accumulatedSamples = keepSamples
                         }
@@ -448,7 +446,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         continue
                     }
 
-                    val startTime = System.currentTimeMillis()
                     val audioToProcess = audioBuffer.copyOfRange(0, accumulatedSamples)
                     
                     val result = audioEngine.transcribe(
@@ -457,10 +454,14 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         language = language,
                         translate = translate
                     )
-                    val duration = System.currentTimeMillis() - startTime
                     
-                    // Basic sound event detection based on Whisper results
-                    updateSoundEvents(result)
+                    if (result.startsWith("ERROR")) {
+                        HarkLog.e(TAG, "Transcription error: $result")
+                    } else if (!result.contains("[SILENCE]") && !result.contains("[NO_RESULT]")) {
+                        HarkLog.d(TAG, "Transcription result: $result")
+                        // Restore sound event detection
+                        updateSoundEvents(result)
+                    }
 
                     val isSilence = result.contains("[SILENCE]") || result.contains("[EMPTY]")
                     val isNoResult = result.contains("[NO_RESULT]")
@@ -478,22 +479,17 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         }
                         // On success, we consume all audio used
                         accumulatedSamples = 0
-                    } else if (isSilence || isNoResult) {
-                        // If it's silent/empty, we don't want the buffer to grow indefinitely.
-                        if (accumulatedSamples >= 40000) {
-                            val keepSamples = 8000 // 500ms
+                    } else {
+                        // If it's silent/empty/error, we discard most of the buffer to avoid getting stuck
+                        // but keep a small overlap for continuity if needed.
+                        val keepSamples = 4000 // 250ms overlap
+                        if (accumulatedSamples > keepSamples) {
                             System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
                             accumulatedSamples = keepSamples
                         }
-                    } else if (accumulatedSamples >= maxBufferSize - 16000) {
-                        val discardSize = maxBufferSize / 2
-                        System.arraycopy(audioBuffer, discardSize, audioBuffer, 0, maxBufferSize - discardSize)
-                        accumulatedSamples = maxBufferSize - discardSize
-                        HarkLog.w(TAG, "Transcription buffer overflow, discarding old data.")
                     }
                     
-                    val loopDelay = if (duration > 1000) 100L else 300L
-                    kotlinx.coroutines.delay(loopDelay)
+                    kotlinx.coroutines.delay(300)
                 } else {
                     kotlinx.coroutines.delay(200)
                 }

@@ -12,7 +12,9 @@ data class MainUiState(
     val audioLevel: Float = 0f, // Normalized 0.0 to 1.0
     val isLoading: Boolean = true,
     val isModelAvailable: Boolean = false,
-    val history: List<com.thivyanstudios.hark.data.local.TranscriptionEntity> = emptyList()
+    val history: List<com.thivyanstudios.hark.data.local.TranscriptionEntity> = emptyList(),
+    val shouldShowBatteryOptimizationPrompt: Boolean = false,
+    val arePermissionsHandled: Boolean = false
 )
 
 data class SoundEvent(
