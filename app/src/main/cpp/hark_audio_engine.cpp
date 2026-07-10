@@ -1,6 +1,7 @@
 #include "hark_audio_engine.h"
 #include <android/log.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <oboe/FifoBuffer.h>
 
@@ -13,10 +14,21 @@ HarkAudioEngine::~HarkAudioEngine() {
 }
 
 bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
+    mShouldBeStreaming.store(false, std::memory_order_release);
+    joinRestartThread();
+
     std::lock_guard<std::mutex> lock(mStreamLock);
+    mSampleRate = sampleRate;
+    mFramesPerBurst = framesPerBurst;
+
+    bool success = openStreamsLocked();
+    mShouldBeStreaming.store(success, std::memory_order_release);
+    return success;
+}
+
+bool HarkAudioEngine::openStreamsLocked() {
     closeStreams();
 
-    mSampleRate = sampleRate;
     mResampleAccumulator = 0;
 
     // Reset processing states
@@ -25,7 +37,7 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
     mPrevOutput = 0.0f;
     mIsBuffering = true;
 
-    uint32_t fifoCapacity = std::max(static_cast<uint32_t>(framesPerBurst) * 16, static_cast<uint32_t>(4096));
+    uint32_t fifoCapacity = std::max(static_cast<uint32_t>(mFramesPerBurst) * 16, static_cast<uint32_t>(4096));
     mFifoBuffer = std::make_unique<oboe::FifoBuffer>(sizeof(float), fifoCapacity);
 
     // Whisper.cpp usually expects 16kHz audio.
@@ -38,7 +50,7 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
             ->setSharingMode(oboe::SharingMode::Exclusive)
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
-            ->setSampleRate(sampleRate)
+            ->setSampleRate(mSampleRate)
             ->setInputPreset(oboe::InputPreset::VoiceCommunication)
             ->setDataCallback(this)
             ->setErrorCallback(this);
@@ -55,7 +67,7 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
             ->setSharingMode(oboe::SharingMode::Exclusive)
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
-            ->setSampleRate(sampleRate)
+            ->setSampleRate(mSampleRate)
             ->setDataCallback(this)
             ->setErrorCallback(this);
 
@@ -66,7 +78,7 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
         return false;
     }
 
-    mOutStream->setBufferSizeInFrames(framesPerBurst * 2);
+    mOutStream->setBufferSizeInFrames(mFramesPerBurst * 2);
     mInStream->requestStart();
     mOutStream->requestStart();
 
@@ -74,8 +86,17 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
 }
 
 void HarkAudioEngine::stop() {
+    mShouldBeStreaming.store(false, std::memory_order_release);
+    joinRestartThread();
     std::lock_guard<std::mutex> lock(mStreamLock);
     closeStreams();
+}
+
+void HarkAudioEngine::joinRestartThread() {
+    std::lock_guard<std::mutex> lock(mRestartThreadLock);
+    if (mRestartThread.joinable()) {
+        mRestartThread.join();
+    }
 }
 
 void HarkAudioEngine::closeStreams() {
@@ -83,9 +104,12 @@ void HarkAudioEngine::closeStreams() {
     if (mInStream) { mInStream->stop(); mInStream->close(); mInStream.reset(); }
     mTranscriptionFifo.reset();
     mFifoBuffer.reset();
+    mTranscriptionLevel.store(0.0f, std::memory_order_release);
 }
 
 int32_t HarkAudioEngine::readTranscriptionData(float *target, int32_t numFrames) {
+    // Called from a JVM thread; the restart thread may swap the FIFO under us
+    std::lock_guard<std::mutex> lock(mStreamLock);
     if (!mTranscriptionFifo) return 0;
     return mTranscriptionFifo->read(target, numFrames);
 }
@@ -275,4 +299,40 @@ float HarkAudioEngine::applySoftKneeLimiter(float input) {
 
 void HarkAudioEngine::onErrorAfterClose(oboe::AudioStream *audioStream, oboe::Result error) {
     __android_log_print(ANDROID_LOG_ERROR, TAG, "Stream error: %s", oboe::convertToText(error));
+
+    // Exclusive low-latency streams are torn down by the OS on route changes and
+    // screen-off. Oboe requires reopening the stream after ErrorDisconnected.
+    if (error != oboe::Result::ErrorDisconnected) return;
+    if (!mShouldBeStreaming.load(std::memory_order_acquire)) return;
+
+    bool expected = false;
+    if (!mRestartPending.compare_exchange_strong(expected, true)) return;
+
+    std::lock_guard<std::mutex> lock(mRestartThreadLock);
+    if (mRestartThread.joinable()) {
+        mRestartThread.join();
+    }
+    mRestartThread = std::thread([this] { restartStreams(); });
+}
+
+void HarkAudioEngine::restartStreams() {
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        // Give the new audio route time to settle before reopening
+        std::this_thread::sleep_for(std::chrono::milliseconds(250 << attempt));
+        if (!mShouldBeStreaming.load(std::memory_order_acquire)) break;
+
+        std::lock_guard<std::mutex> lock(mStreamLock);
+        if (!mShouldBeStreaming.load(std::memory_order_acquire)) break;
+
+        if (openStreamsLocked()) {
+            __android_log_print(ANDROID_LOG_INFO, TAG,
+                    "Streams restarted after disconnect (attempt %d)", attempt + 1);
+            mRestartPending.store(false, std::memory_order_release);
+            return;
+        }
+        __android_log_print(ANDROID_LOG_WARN, TAG,
+                "Stream restart attempt %d failed", attempt + 1);
+    }
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "Giving up on stream restart");
+    mRestartPending.store(false, std::memory_order_release);
 }
