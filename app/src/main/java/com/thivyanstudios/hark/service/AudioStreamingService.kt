@@ -89,16 +89,25 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val _hearingAidConnected = MutableStateFlow(false)
     override val hearingAidConnected = _hearingAidConnected.asStateFlow()
 
+    private var pausedByFocusLoss = false
+
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                HarkLog.i(TAG, "Audio focus lost, stopping streaming")
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                HarkLog.i(TAG, "Audio focus lost permanently, stopping streaming")
                 stopStreaming()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                HarkLog.i(TAG, "Audio focus lost transiently, pausing streaming")
+                pauseStreaming()
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                HarkLog.i(TAG, "Audio focus regained, resuming streaming")
+                resumeStreamingAfterFocusGain()
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 HarkLog.i(TAG, "Audio focus lost (duckable), continuing streaming")
-                // We could lower our output volume here if we were playing audio, 
+                // We could lower our output volume here if we were playing audio,
                 // but since we are mainly recording/transcribing, we continue.
             }
         }
@@ -492,11 +501,36 @@ class AudioStreamingService : Service(), AudioStreamingController {
         }
     }
 
+    // Transient focus loss (call, alarm, assistant): keep the session alive so we can
+    // resume when focus returns. The foreground notification and wake lock stay held.
+    private fun pauseStreaming() {
+        if (!_isStreaming.value || pausedByFocusLoss) return
+        pausedByFocusLoss = true
+        _audioLevel.value = 0f
+        serviceScope.launch {
+            withContext(ioDispatcher) {
+                audioEngine.stop()
+            }
+        }
+    }
+
+    private fun resumeStreamingAfterFocusGain() {
+        if (!pausedByFocusLoss) return
+        pausedByFocusLoss = false
+        if (!_isStreaming.value) return
+        serviceScope.launch {
+            withContext(ioDispatcher) {
+                audioEngine.start()
+            }
+        }
+    }
+
     override fun stopStreaming() {
         if (!_isStreaming.value) return
-        
+
         HarkLog.i(TAG, "Stopping streaming")
         _isStreaming.value = false
+        pausedByFocusLoss = false
         clearAudioRouting()
         abandonAudioFocus()
         
