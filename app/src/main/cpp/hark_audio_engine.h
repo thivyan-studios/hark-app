@@ -7,6 +7,7 @@
 #include <memory>
 #include <cstdint>
 #include <vector>
+#include <thread>
 
 namespace oboe {
     class FifoBuffer;
@@ -62,6 +63,18 @@ private:
     bool mIsBuffering = true;
 
     std::mutex mStreamLock;
+
+    // Stream restart on disconnect (screen-off / route changes tear down
+    // exclusive low-latency streams; they must be reopened, see onErrorAfterClose)
+    std::atomic<bool> mShouldBeStreaming{false};
+    std::atomic<bool> mRestartPending{false};
+    std::thread mRestartThread;
+    std::mutex mRestartThreadLock;
+    int32_t mFramesPerBurst = 192;
+
+    bool openStreamsLocked();
+    void restartStreams();
+    void joinRestartThread();
 
     void closeStreams();
     float applySpeechEnhancement(float input);
