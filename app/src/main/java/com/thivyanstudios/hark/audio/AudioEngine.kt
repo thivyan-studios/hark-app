@@ -53,11 +53,8 @@ class AudioEngine @Inject constructor(
         if (isNativeLibraryLoaded) return
         try {
             System.loadLibrary("hark")
-            nativeHandle = nativeCreate()
-            isNativeLibraryLoaded = nativeHandle != 0L
-            if (isNativeLibraryLoaded) {
-                HarkLog.i(TAG, "Native library loaded and engine created: $nativeHandle")
-            }
+            isNativeLibraryLoaded = true
+            HarkLog.i(TAG, "Native library loaded")
         } catch (e: Exception) {
             HarkLog.e(TAG, "Failed to load native library", e)
         }
@@ -68,6 +65,11 @@ class AudioEngine @Inject constructor(
         
         if (!isNativeLibraryLoaded) {
             loadNativeLibrary()
+        }
+
+        // Task 3: Create native engine instance only when starting to avoid leaks and unnecessary resource usage
+        if (isNativeLibraryLoaded && nativeHandle == 0L) {
+            nativeHandle = nativeCreate()
         }
 
         val sampleRate = getOptimalSampleRate()
@@ -106,6 +108,9 @@ class AudioEngine @Inject constructor(
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
                 nativeStop(nativeHandle)
+                // Task 3: Explicitly delete native engine instance when stopping
+                nativeDelete(nativeHandle)
+                nativeHandle = 0
             } catch (e: UnsatisfiedLinkError) {
                 HarkLog.e(TAG, "Native stop failed", e)
             }

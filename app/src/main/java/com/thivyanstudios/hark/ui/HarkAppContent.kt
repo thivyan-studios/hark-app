@@ -8,26 +8,33 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.screens.BottomNavBar
 import com.thivyanstudios.hark.ui.screens.HistoryScreen
 import com.thivyanstudios.hark.ui.screens.HomeScreen
 import com.thivyanstudios.hark.ui.screens.SettingsScreen
 import com.thivyanstudios.hark.ui.screens.TranscribeScreen
+import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.HarkToast
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.util.Constants.Navigation
@@ -42,13 +49,54 @@ fun HarkAppContent(
     onToggleStreaming: () -> Unit,
     onClearTranscription: () -> Unit,
     onShareTranscription: (String) -> Unit,
+    onRequestBatteryOptimizationExemption: () -> Unit,
 ) {
     val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val navBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentRoute = navBackStackEntry?.destination?.route ?: Navigation.ROUTE_HOME
     
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+    if (uiState.shouldShowBatteryOptimizationPrompt) {
+        AlertDialog(
+            onDismissRequest = { mainViewModel.setBatteryOptimizationPromptShown(true) },
+            title = {
+                HarkText(
+                    text = stringResource(R.string.battery_optimization_title),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                HarkText(
+                    text = stringResource(R.string.battery_optimization_message),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        mainViewModel.setBatteryOptimizationPromptShown(true)
+                        onRequestBatteryOptimizationExemption()
+                    }
+                ) {
+                    HarkText(
+                        text = stringResource(R.string.battery_optimization_action),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mainViewModel.setBatteryOptimizationPromptShown(true) }) {
+                    HarkText(
+                        text = stringResource(R.string.battery_optimization_dismiss),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -100,7 +148,8 @@ fun HarkAppContent(
                 }
                 composable(Navigation.ROUTE_SETTINGS) {
                     SettingsScreen(
-                        settingsViewModel = settingsViewModel
+                        settingsViewModel = settingsViewModel,
+                        onRequestBatteryOptimizationExemption = onRequestBatteryOptimizationExemption
                     )
                 }
             }

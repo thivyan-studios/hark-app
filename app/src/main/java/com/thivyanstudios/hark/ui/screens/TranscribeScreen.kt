@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.SoundEvent
+import com.thivyanstudios.hark.ui.theme.BetaBadge
 import com.thivyanstudios.hark.ui.theme.HarkText
 
 @Composable
@@ -256,6 +257,10 @@ fun TranscriptionHeader() {
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            BetaBadge()
         }
     }
 }

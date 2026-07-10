@@ -1,6 +1,8 @@
 package com.thivyanstudios.hark.ui.viewmodel
 
 import android.Manifest
+import android.content.Context
+import android.os.PowerManager
 import androidx.annotation.RequiresPermission
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,8 +15,10 @@ import com.thivyanstudios.hark.data.model.UserPreferences
 import com.thivyanstudios.hark.util.Constants
 import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -29,6 +33,7 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MainViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val audioServiceManager: AudioServiceManager,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val transcriptionRepository: com.thivyanstudios.hark.data.TranscriptionRepository,
@@ -38,6 +43,9 @@ class MainViewModel @Inject constructor(
 
     private val _snackbarChannel = Channel<String>()
     val snackbarEvents = _snackbarChannel.receiveAsFlow()
+
+    private val refreshTrigger = MutableStateFlow(System.currentTimeMillis())
+    private val _arePermissionsHandled = MutableStateFlow(false)
 
     init {
         // QC: Listen for errors from the audio engine and bridge them to snackbars
@@ -60,7 +68,9 @@ class MainViewModel @Inject constructor(
                     service.audioLevel,
                     userPreferencesRepository.userPreferencesFlow,
                     transcriptionRepository.allTranscriptions,
-                    whisperModelManager.modelStoreUpdateTrigger
+                    whisperModelManager.modelStoreUpdateTrigger,
+                    refreshTrigger,
+                    _arePermissionsHandled
                 ) { args ->
                     val isStreaming = args[0] as Boolean
                     val hearingAidConnected = args[1] as Boolean
@@ -72,11 +82,16 @@ class MainViewModel @Inject constructor(
                     @Suppress("UNCHECKED_CAST")
                     val history = args[6] as List<com.thivyanstudios.hark.data.local.TranscriptionEntity>
                     // args[7] is modelStoreUpdateTrigger
+                    // args[8] is refreshTrigger
+                    val permissionsHandled = args[9] as Boolean
 
                     val isModelAvailable = whisperModelManager.availableModels.any { 
                         whisperModelManager.isModelDownloaded(it) 
                     }
                     
+                    val isBatteryOptimizationIgnored = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
+                        .isIgnoringBatteryOptimizations(context.packageName)
+
                     MainUiState(
                         isStreaming = isStreaming,
                         hearingAidConnected = hearingAidConnected,
@@ -89,18 +104,32 @@ class MainViewModel @Inject constructor(
                         audioLevel = audioLevel,
                         isLoading = false,
                         isModelAvailable = isModelAvailable,
-                        history = history
+                        history = history,
+                        shouldShowBatteryOptimizationPrompt = permissionsHandled && !prefs.batteryOptimizationPromptShown && !isBatteryOptimizationIgnored,
+                        arePermissionsHandled = permissionsHandled
                     )
                 }
             } else {
                 combine(
                     userPreferencesRepository.userPreferencesFlow,
                     transcriptionRepository.allTranscriptions,
-                    whisperModelManager.modelStoreUpdateTrigger
-                ) { prefs, history, _ ->
+                    whisperModelManager.modelStoreUpdateTrigger,
+                    refreshTrigger,
+                    _arePermissionsHandled
+                ) { args ->
+                    val prefs = args[0] as UserPreferences
+                    @Suppress("UNCHECKED_CAST")
+                    val history = args[1] as List<com.thivyanstudios.hark.data.local.TranscriptionEntity>
+                    // args[2] is modelStoreUpdateTrigger
+                    // args[3] is refreshTrigger
+                    val permissionsHandled = args[4] as Boolean
+
                     val isModelAvailable = whisperModelManager.availableModels.any { 
                         whisperModelManager.isModelDownloaded(it) 
                     }
+
+                    val isBatteryOptimizationIgnored = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
+                        .isIgnoringBatteryOptimizations(context.packageName)
                     
                     MainUiState(
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
@@ -109,7 +138,9 @@ class MainViewModel @Inject constructor(
                         transcriptModeEnabled = prefs.transcriptModeEnabled,
                         isLoading = false,
                         isModelAvailable = isModelAvailable,
-                        history = history
+                        history = history,
+                        shouldShowBatteryOptimizationPrompt = permissionsHandled && !prefs.batteryOptimizationPromptShown && !isBatteryOptimizationIgnored,
+                        arePermissionsHandled = permissionsHandled
                     )
                 }
             }
@@ -174,6 +205,20 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             transcriptionRepository.deleteAll()
         }
+    }
+
+    fun setBatteryOptimizationPromptShown(shown: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setBatteryOptimizationPromptShown(shown)
+        }
+    }
+
+    fun setPermissionsHandled(handled: Boolean) {
+        _arePermissionsHandled.value = handled
+    }
+
+    fun refreshBatteryStatus() {
+        refreshTrigger.value = System.currentTimeMillis()
     }
 
     private fun <T> kotlinx.coroutines.flow.Flow<T>.launchIn(scope: kotlinx.coroutines.CoroutineScope) {
