@@ -124,7 +124,6 @@ float HarkAudioEngine::getTranscriptionLevel() {
 }
 
 void HarkAudioEngine::setMicrophoneGain(float gain) { mGain.store(gain, std::memory_order_release); }
-void HarkAudioEngine::setAmbientGain(float gain) { mAmbientGain.store(gain, std::memory_order_release); }
 void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) {
     mIsNoiseSuppressionEnabled.store(enabled, std::memory_order_release);
 }
@@ -150,8 +149,8 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         float currentGain = mGain.load(std::memory_order_acquire);
         auto *inputData = static_cast<const float*>(audioData);
 
-        // Reasonable gain specifically for transcription
-        float transcriptionGain = currentGain * 2.5f;
+        // Significant gain specifically for transcription to help Whisper detect speech in quiet environments
+        float transcriptionGain = currentGain * 10.0f;
 
         float sumSquares = 0.0f;
         int32_t framesToProcess = std::min(numFrames, kMaxFrames);
@@ -193,7 +192,6 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
 
         // Cache atomic loads for the duration of this callback
         const float currentGain = mGain.load(std::memory_order_acquire);
-        const float currentAmbientGain = mAmbientGain.load(std::memory_order_acquire);
         const bool dynamicsEnabled = mIsDynamicsProcessingEnabled.load(std::memory_order_acquire);
         const bool nsEnabled = mIsNoiseSuppressionEnabled.load(std::memory_order_acquire);
         const bool trebleEnabled = mIsTrebleBoostEnabled.load(std::memory_order_acquire);
@@ -212,17 +210,11 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
                 }
                 float primarySignal = processedSample * currentGain;
 
-                // 2. AMBIENT PATH (The "Transparency" stream)
-                float ambientSignal = rawSample * currentAmbientGain;
-
-                // 3. MIXER
-                float mixedSignal = primarySignal + ambientSignal;
-
-                // 4. SAFETY: Dynamics Processing
+                // 2. SAFETY: Dynamics Processing
                 if (dynamicsEnabled) {
-                    outputData[i] = applySoftKneeLimiter(mixedSignal);
+                    outputData[i] = applySoftKneeLimiter(primarySignal);
                 } else {
-                    outputData[i] = std::clamp(mixedSignal, -1.1f, 1.1f);
+                    outputData[i] = std::clamp(primarySignal, -1.1f, 1.1f);
                 }
             }
 
@@ -242,14 +234,19 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
 void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFrames) {
     if (!mTranscriptionFifo || !data || numFrames <= 0) return;
 
+    static int32_t logCounter = 0;
+    if (++logCounter % 500 == 0) {
+        __android_log_print(ANDROID_LOG_INFO, TAG, "Pushing to transcription FIFO: %d frames", numFrames);
+    }
+
     double skip = (double)mSampleRate / 16000.0;
     int32_t resampledCount = 0;
 
     // Linear Interpolation Resampling to reduce aliasing
     while (mResampleAccumulator < (double)numFrames) {
-        int32_t index1 = (int32_t)mResampleAccumulator;
+        auto index1 = (int32_t)mResampleAccumulator;
         int32_t index2 = index1 + 1;
-        float fraction = (float)(mResampleAccumulator - index1);
+        auto fraction = (float)(mResampleAccumulator - index1);
 
         if (index1 >= 0 && index1 < numFrames) {
             float s1 = data[index1];

@@ -47,7 +47,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     @Inject
     lateinit var whisperModelManager: com.thivyanstudios.hark.data.WhisperModelManager
 
-    private val _isStreaming = MutableStateFlow(false)
+    private val _isStreaming = MutableStateFlow(value = false)
     override val isStreaming = _isStreaming.asStateFlow()
 
     private val _transcription = MutableStateFlow("")
@@ -147,11 +147,12 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
                 AudioDeviceInfo.TYPE_WIRED_HEADSET,
                 AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-                AudioDeviceInfo.TYPE_USB_HEADSET -> true
+                AudioDeviceInfo.TYPE_USB_HEADSET,
+                -> true
                 else -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        type == AudioDeviceInfo.TYPE_BLE_HEADSET || 
-                        type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+                        (type == AudioDeviceInfo.TYPE_BLE_HEADSET || 
+                        type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
                     } else false
                 }
             }
@@ -296,7 +297,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
         serviceScope.launch {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    startForeground(
+                        NOTIFICATION_ID, 
+                        notificationHelper.createNotification(),
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    )
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(
                         NOTIFICATION_ID, 
                         notificationHelper.createNotification(),
@@ -306,7 +313,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
                 }
                 
-                wakeLock?.acquire()
+                wakeLock?.acquire(60 * 60 * 1000L) // 1 hour timeout
                 withContext(ioDispatcher) {
                     // Initialize Whisper before starting engine
                     prepareWhisper()
@@ -390,7 +397,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
             while (_isStreaming.value) {
                 val level = audioEngine.getTranscriptionLevel()
                 _audioLevel.value = level
-                kotlinx.coroutines.delay(50) // 20fps for UI smoothness
+                kotlinx.coroutines.delay(50L) // 20fps for UI smoothness
             }
         }
     }
@@ -401,7 +408,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
             var threads = 4
             var language = "en"
             var translate = false
-            var silenceThreshold = 0.005f
 
             // Subscribe to preference changes
             launch {
@@ -409,7 +415,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     threads = prefs.whisperThreads
                     language = prefs.whisperLanguage
                     translate = prefs.whisperTranslate
-                    silenceThreshold = prefs.silenceThreshold
                 }
             }
 
@@ -427,6 +432,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     val read = audioEngine.readTranscriptionData(audioBuffer, accumulatedSamples, spaceRemaining)
                     if (read > 0) {
                         accumulatedSamples += read
+                        // HarkLog.v(TAG, "Read $read samples, total accumulated: $accumulatedSamples")
                     }
                 }
                 
@@ -434,18 +440,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 if (accumulatedSamples >= 16000) { 
                     val currentLevel = _audioLevel.value
                     
-                    // If it's extremely quiet and we have very little data, skip to save CPU.
-                    // But if we have a significant buffer, we should transcribe it anyway to avoid losing speech.
-                    if (currentLevel < silenceThreshold && accumulatedSamples < 32000) {
-                        if (accumulatedSamples > 16000) {
-                             // Slide the buffer to keep only the last bit of silence
-                             val keepSamples = 8000 
-                             System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
-                             accumulatedSamples = keepSamples
-                        }
-                        kotlinx.coroutines.delay(500)
-                        continue
-                    }
+                    // Force transcription for debugging
+                    HarkLog.d(TAG, "Transcribing $accumulatedSamples samples (Level: $currentLevel)")
 
                     val audioToProcess = audioBuffer.copyOfRange(0, accumulatedSamples)
                     
@@ -455,6 +451,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         language = language,
                         translate = translate
                     )
+                    
+                    HarkLog.d(TAG, "Whisper result: '$result' (Samples: ${audioToProcess.size}, Level: $currentLevel)")
                     
                     if (result.startsWith("ERROR")) {
                         HarkLog.e(TAG, "Transcription error: $result")
@@ -484,10 +482,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         // If it's silent/empty/error, we discard most of the buffer to avoid getting stuck
                         // but keep a small overlap for continuity if needed.
                         val keepSamples = 4000 // 250ms overlap
-                        if (accumulatedSamples > keepSamples) {
-                            System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
-                            accumulatedSamples = keepSamples
-                        }
+                        System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
+                        accumulatedSamples = keepSamples
                     }
                     
                     kotlinx.coroutines.delay(300)

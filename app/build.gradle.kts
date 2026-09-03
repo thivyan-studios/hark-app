@@ -66,6 +66,7 @@ configure<ApplicationExtension> {
         }
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // For builds from the MAIN branch
             buildConfigField("String", "BUILD_STATUS", "\"Stable-Release\"")

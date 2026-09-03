@@ -43,15 +43,6 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeSetMicrophoneGain(JNIEnv *e
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_thivyanstudios_hark_audio_AudioEngine_nativeSetAmbientGain(JNIEnv *env, jobject thiz, jlong handle, jfloat gain) {
-    auto *engine = reinterpret_cast<HarkAudioEngine *>(handle);
-    if (engine) {
-        engine->setAmbientGain(gain);
-    }
-}
-
-extern "C"
-JNIEXPORT void JNICALL
 Java_com_thivyanstudios_hark_audio_AudioEngine_nativeSetNoiseSuppressionEnabled(JNIEnv *env, jobject thiz, jlong handle, jboolean enabled) {
     auto *engine = reinterpret_cast<HarkAudioEngine *>(handle);
     if (engine) {

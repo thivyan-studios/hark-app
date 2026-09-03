@@ -34,9 +34,9 @@ fun HistoryScreen(
     history: List<TranscriptionEntity>,
     onDeleteAll: () -> Unit,
     onDeleteById: (Long) -> Unit,
-    onShare: (String) -> Unit
+    onShare: (String) -> Unit,
 ) {
-    var showDeleteAllDialog by remember { mutableStateOf(false) }
+    var showDeleteAllDialog by remember { mutableStateOf(value = false) }
 
     if (showDeleteAllDialog) {
         AlertDialog(
@@ -134,9 +134,8 @@ fun HistoryScreen(
                     items(history, key = { it.id }) { item ->
                         HistoryItem(
                             item = item,
-                            onDelete = { onDeleteById(item.id) },
-                            onShare = { onShare(item.text) }
-                        )
+                            onDelete = { onDeleteById(item.id) }
+                        ) { onShare(item.text) }
                     }
                 }
             }

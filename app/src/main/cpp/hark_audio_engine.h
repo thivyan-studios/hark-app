@@ -25,7 +25,6 @@ public:
     float getTranscriptionLevel();
 
     void setMicrophoneGain(float gain);
-    void setAmbientGain(float gain);
     void setNoiseSuppressionEnabled(bool enabled);
     void setDynamicsProcessingEnabled(bool enabled);
     void setTranscriptModeEnabled(bool enabled);
@@ -49,7 +48,6 @@ private:
 
     // Use atomic for thread-safe access from audio thread without locking
     std::atomic<float> mGain{1.0f};
-    std::atomic<float> mAmbientGain{0.0f};
     std::atomic<bool> mIsNoiseSuppressionEnabled{false};
     std::atomic<bool> mIsDynamicsProcessingEnabled{false};
     std::atomic<bool> mIsTranscriptModeEnabled{false};

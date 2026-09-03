@@ -23,7 +23,7 @@ import javax.inject.Singleton
 @Singleton
 class UserPreferencesRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+    @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
 
     private object PreferenceKeys {
@@ -68,7 +68,7 @@ class UserPreferencesRepository @Inject constructor(
                 whisperThreads = preferences[PreferenceKeys.WHISPER_THREADS] ?: 4,
                 whisperLanguage = preferences[PreferenceKeys.WHISPER_LANGUAGE] ?: "en",
                 whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false,
-                silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.005f,
+                silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.002f,
                 transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
                 selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0",
                 batteryOptimizationPromptShown = preferences[PreferenceKeys.BATTERY_OPTIMIZATION_PROMPT_SHOWN] ?: false
