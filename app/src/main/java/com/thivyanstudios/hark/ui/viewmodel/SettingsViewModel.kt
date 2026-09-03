@@ -160,6 +160,7 @@ class SettingsViewModel @Inject constructor(
             microphoneGain = prefs.microphoneGain,
             noiseSuppressionEnabled = prefs.noiseSuppressionEnabled,
             dynamicsProcessingEnabled = prefs.dynamicsProcessingEnabled,
+            trebleBoostEnabled = prefs.trebleBoostEnabled,
             bypassBluetoothChecks = prefs.bypassBluetoothChecks,
             transcriptModeEnabled = prefs.transcriptModeEnabled,
             whisperThreads = prefs.whisperThreads,
@@ -216,6 +217,12 @@ class SettingsViewModel @Inject constructor(
     fun setDynamicsProcessingEnabled(isEnabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setDynamicsProcessingEnabled(isEnabled)
+        }
+    }
+
+    fun setTrebleBoostEnabled(isEnabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setTrebleBoostEnabled(isEnabled)
         }
     }
 

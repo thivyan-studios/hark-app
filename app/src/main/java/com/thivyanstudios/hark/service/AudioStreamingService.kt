@@ -215,6 +215,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 audioEngine.setMicrophoneGain(gain)
                 audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
                 audioEngine.setDynamicsProcessingEnabled(prefs.dynamicsProcessingEnabled)
+                audioEngine.setTrebleBoostEnabled(prefs.trebleBoostEnabled)
                 audioEngine.setTranscriptModeEnabled(prefs.transcriptModeEnabled)
             }
             .launchIn(serviceScope)
@@ -555,38 +556,24 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private fun requestAudioFocus(): Boolean {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val attributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build()
-            
-            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
-                .setAudioAttributes(attributes)
-                .setAcceptsDelayedFocusGain(false)
-                .setOnAudioFocusChangeListener(audioFocusChangeListener)
-                .build()
-            
-            audioManager.requestAudioFocus(audioFocusRequest!!)
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.requestAudioFocus(
-                audioFocusChangeListener,
-                AudioManager.STREAM_VOICE_CALL,
-                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
-            )
-        }
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
+        
+        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+            .setAudioAttributes(attributes)
+            .setAcceptsDelayedFocusGain(false)
+            .setOnAudioFocusChangeListener(audioFocusChangeListener)
+            .build()
+        
+        val result = audioManager.requestAudioFocus(audioFocusRequest!!)
         return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
     private fun abandonAudioFocus() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.abandonAudioFocus(audioFocusChangeListener)
-        }
+        audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
     }
 
     private fun updateAudioRouting() {

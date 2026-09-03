@@ -17,7 +17,6 @@
 
 static std::mutex g_whisper_mutex;
 static struct whisper_context * g_whisper_ctx = nullptr;
-static std::vector<char> g_model_buffer;
 
 // Custom log callback to pipe Whisper logs to Logcat
 void whisper_log_callback(enum ggml_log_level level, const char * text, void * user_data) {
@@ -35,7 +34,6 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeInitWhisper(JNIEnv *env, jo
         LOGI("Re-initializing Whisper: Freeing existing context");
         whisper_free(g_whisper_ctx);
         g_whisper_ctx = nullptr;
-        g_model_buffer.clear();
     }
 
     whisper_log_set(whisper_log_callback, nullptr);
@@ -43,33 +41,14 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeInitWhisper(JNIEnv *env, jo
     const char * path = env->GetStringUTFChars(model_path, nullptr);
     LOGI("Loading Whisper model: %s", path);
 
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
-    if (!file.is_open()) {
-        LOGE("Failed to open model file");
-        env->ReleaseStringUTFChars(model_path, path);
-        return JNI_FALSE;
-    }
+    whisper_context_params cparams = whisper_context_default_params();
+    // whisper.cpp will handle the file reading and potentially use mmap for efficiency
+    g_whisper_ctx = whisper_init_from_file_with_params(path, cparams);
 
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    g_model_buffer.resize(size);
-    if (!file.read(g_model_buffer.data(), size)) {
-        LOGE("Failed to read model file into buffer");
-        g_model_buffer.clear();
-        env->ReleaseStringUTFChars(model_path, path);
-        return JNI_FALSE;
-    }
     env->ReleaseStringUTFChars(model_path, path);
 
-    LOGI("Model buffer size: %lld bytes. Initializing context...", (long long)size);
-
-    whisper_context_params cparams = whisper_context_default_params();
-    g_whisper_ctx = whisper_init_from_buffer_with_params(g_model_buffer.data(), g_model_buffer.size(), cparams);
-
     if (g_whisper_ctx == nullptr) {
-        LOGE("Failed to initialize Whisper context from buffer");
-        g_model_buffer.clear();
+        LOGE("Failed to initialize Whisper context from file");
         return JNI_FALSE;
     }
 
@@ -170,7 +149,7 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     // Very low silence threshold to catch faint voices
     if (rms < 0.0005f) {
         LOGI("Signal RMS too low (%.5f), skipping transcription.", rms);
-        // Task 6: Use JNI_ABORT as we didn't modify the array (or don't need to commit changes back)
+        // Use JNI_ABORT as we didn't modify the array (or don't need to commit changes back)
         env->ReleaseFloatArrayElements(audio_data, p_audio, JNI_ABORT);
         return env->NewStringUTF("[SILENCE]");
     }
@@ -196,7 +175,7 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     LOGI("whisper_full ret %d in %lld ms (RMS: %.5f)", ret, (long long)(t_end - t_start), rms);
 
     if (ret != 0) {
-        // Task 6: Use JNI_ABORT to avoid unnecessary copy-back to Java
+        // Use JNI_ABORT to avoid unnecessary copy-back to Java
         env->ReleaseFloatArrayElements(audio_data, p_audio, JNI_ABORT);
         return env->NewStringUTF("ERROR: Transcription failed");
     }
@@ -218,7 +197,7 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
         }
     }
 
-    // Task 6: Use JNI_ABORT to avoid unnecessary copy-back to Java
+    // Use JNI_ABORT to avoid unnecessary copy-back to Java
     env->ReleaseFloatArrayElements(audio_data, p_audio, JNI_ABORT);
 
     if (result_text.empty()) {
@@ -235,7 +214,6 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeReleaseWhisper(JNIEnv *env,
     if (g_whisper_ctx != nullptr) {
         whisper_free(g_whisper_ctx);
         g_whisper_ctx = nullptr;
-        g_model_buffer.clear();
-        LOGI("Whisper context and buffer released");
+        LOGI("Whisper context released");
     }
 }

@@ -10,6 +10,7 @@ data class SettingsUiState(
     val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
     val noiseSuppressionEnabled: Boolean = false,
     val dynamicsProcessingEnabled: Boolean = false,
+    val trebleBoostEnabled: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
     val transcriptModeEnabled: Boolean = false,
     
