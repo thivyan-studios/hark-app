@@ -21,7 +21,7 @@ import javax.inject.Singleton
 
 /**
  * Orchestrates audio processing between Native (Oboe/C++) and Java/Kotlin fallbacks.
- * Also handles Whisper AI transcription lifecycle.
+ * Sherpa-ONNX is managed at the Service level using the native FIFO provided here.
  */
 @Singleton
 class AudioEngine @Inject constructor(
@@ -31,6 +31,7 @@ class AudioEngine @Inject constructor(
     val events: Channel<AudioEngineEvent>,
 ) {
     private val _isStreaming = MutableStateFlow(value = false)
+    val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var isNativeLibraryLoaded = false
@@ -118,8 +119,8 @@ class AudioEngine @Inject constructor(
                 // Explicitly delete native engine instance when stopping
                 nativeDelete(nativeHandle)
                 nativeHandle = 0
-            } catch (e: UnsatisfiedLinkError) {
-                HarkLog.e(TAG, "Native stop failed", e)
+            } catch (_: UnsatisfiedLinkError) {
+                HarkLog.e(TAG, "Native stop failed")
             }
         }
         streamManager.stop()
@@ -202,28 +203,6 @@ class AudioEngine @Inject constructor(
         return 0.0f
     }
 
-    // --- Whisper AI Bridge ---
-
-    fun initWhisper(modelPath: String): Boolean {
-        if (!isNativeLibraryLoaded) return false
-        return try {
-            nativeInitWhisper(modelPath)
-        } catch (_: UnsatisfiedLinkError) { false }
-    }
-
-    fun transcribe(audioData: FloatArray, threads: Int, language: String, translate: Boolean): String {
-        if (!isNativeLibraryLoaded) return "ERROR: Lib not loaded"
-        return try {
-            nativeTranscribe(audioData, audioData.size, threads, language, translate)
-        } catch (_: UnsatisfiedLinkError) { "ERROR: JNI fail" }
-    }
-
-    fun releaseWhisper() {
-        if (isNativeLibraryLoaded) {
-            try { nativeReleaseWhisper() } catch (_: UnsatisfiedLinkError) {}
-        }
-    }
-
     private inline fun applyToNative(action: (Long) -> Unit) {
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try { action(nativeHandle) } catch (_: UnsatisfiedLinkError) {}
@@ -244,10 +223,6 @@ class AudioEngine @Inject constructor(
     private external fun nativeReadTranscriptionData(handle: Long, target: FloatArray, offset: Int, numFrames: Int): Int
     private external fun nativeGetTranscriptionLevel(handle: Long): Float
     private external fun nativeGetSessionId(handle: Long): Int
-
-    private external fun nativeInitWhisper(modelPath: String): Boolean
-    private external fun nativeTranscribe(audioData: FloatArray, len: Int, threads: Int, language: String, translate: Boolean): String
-    private external fun nativeReleaseWhisper()
 
     companion object {
         private const val TAG = "AudioEngine"

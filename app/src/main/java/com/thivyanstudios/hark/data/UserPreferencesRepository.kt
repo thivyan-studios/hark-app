@@ -70,7 +70,7 @@ class UserPreferencesRepository @Inject constructor(
                 whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false,
                 silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.002f,
                 transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
-                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "ggml-base-q8_0",
+                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "zipformer-en-streaming",
                 batteryOptimizationPromptShown = preferences[PreferenceKeys.BATTERY_OPTIMIZATION_PROMPT_SHOWN] ?: false
             )
         }

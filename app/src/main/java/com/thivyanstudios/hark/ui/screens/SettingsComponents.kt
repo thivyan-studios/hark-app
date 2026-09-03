@@ -37,11 +37,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.thivyanstudios.hark.data.model.WhisperModel
+import com.thivyanstudios.hark.data.model.SherpaModel
 
 @Composable
-fun WhisperModelItem(
-    model: WhisperModel,
+fun SherpaModelItem(
+    model: SherpaModel,
     isSelected: Boolean,
     isDownloaded: Boolean,
     downloadProgress: Float?,

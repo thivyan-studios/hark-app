@@ -44,6 +44,10 @@ configure<ApplicationExtension> {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Default status for debug builds
         buildConfigField("String", "BUILD_STATUS", "\"Release-Candidate\"")
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
         
         externalNativeBuild {
             cmake {
@@ -162,6 +166,9 @@ dependencies {
     
     // Oboe
     implementation(libs.oboe)
+
+    // Sherpa-ONNX STT
+    implementation("com.github.k2-fsa:sherpa-onnx:v1.13.0")
 
     testImplementation(libs.junit)
     testImplementation(libs.turbine)

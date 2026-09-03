@@ -53,7 +53,7 @@ fun SettingsScreen(
     val uiState by settingsViewModel.uiState.collectAsState()
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var modelToDelete by remember { mutableStateOf<com.thivyanstudios.hark.data.model.WhisperModel?>(null) }
+    var modelToDelete by remember { mutableStateOf<com.thivyanstudios.hark.data.model.SherpaModel?>(null) }
 
     if (showDeleteDialog && modelToDelete != null) {
         AlertDialog(
@@ -293,7 +293,7 @@ fun SettingsScreen(
 
             // Section: Whisper AI
             SettingsGroup(
-                title = "Whisper AI Engine",
+                title = "Sherpa-ONNX STT Engine",
                 badge = { BetaBadge() }
             ) {
                 // Available Models
@@ -307,7 +307,7 @@ fun SettingsScreen(
                 )
 
                 uiState.availableModels.forEach { model ->
-                    WhisperModelItem(
+                    SherpaModelItem(
                         model = model,
                         isSelected = uiState.selectedModelId == model.id,
                         isDownloaded = uiState.downloadedModelIds.contains(model.id),
