@@ -23,9 +23,11 @@ versionPropertiesFile.inputStream().use {
 val appVersionCode = versionProperties.getProperty("APP_VERSION_CODE", "1").toInt()
 val appVersionName: String = versionProperties.getProperty("APP_VERSION_NAME", "0.1.0")
 
+val enableAsan = project.findProperty("enableAsan") == "true"
+
 configure<ApplicationExtension> {
     namespace = "com.thivyanstudios.hark"
-    compileSdk = 36
+    compileSdk = 37
 
     dependenciesInfo {
         includeInApk = false
@@ -35,7 +37,7 @@ configure<ApplicationExtension> {
     defaultConfig {
         applicationId = "com.thivyanstudios.hark"
         minSdk = 28
-        targetSdk = 36
+        targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersionName
 
@@ -46,11 +48,22 @@ configure<ApplicationExtension> {
         externalNativeBuild {
             cmake {
                 arguments("-DANDROID_STL=c++_shared")
+                if (enableAsan) {
+                    arguments("-DENABLE_ASAN=ON")
+                    cppFlags("-fsanitize=address", "-fno-omit-frame-pointer")
+                }
             }
         }
     }
 
     buildTypes {
+        debug {
+            if (enableAsan) {
+                // ASan requires debuggable to be true for wrap.sh to work
+                isDebuggable = true
+                signingConfig = signingConfigs.getByName("debug")
+            }
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -62,6 +75,24 @@ configure<ApplicationExtension> {
             matchingFallbacks += "release"
             // For builds from the BETA branch
             buildConfigField("String", "BUILD_STATUS", "\"Pre-Release\"")
+        }
+    }
+
+    packaging {
+        jniLibs {
+            if (enableAsan) {
+                useLegacyPackaging = true
+                keepDebugSymbols.add("**/*.so")
+            }
+        }
+    }
+
+    sourceSets {
+        getByName("debug") {
+            if (enableAsan) {
+                jniLibs.srcDirs("src/debug/asanJniLibs")
+                resources.srcDirs("src/debug/asanResources")
+            }
         }
     }
 

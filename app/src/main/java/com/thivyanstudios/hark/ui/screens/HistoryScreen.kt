@@ -163,7 +163,7 @@ fun HistoryItem(
     onShare: () -> Unit
 ) {
     val date = remember(item.timestamp) {
-        // Task 7: Using java.time (modern API) instead of SimpleDateFormat
+        // Using java.time (modern API) instead of SimpleDateFormat
         val instant = Instant.ofEpochMilli(item.timestamp)
         val dateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
         val formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy • HH:mm", Locale.getDefault())

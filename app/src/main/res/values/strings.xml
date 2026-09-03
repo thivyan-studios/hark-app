@@ -14,6 +14,7 @@
     <string name="gain_db_format">%1$s dB</string>
     <string name="settings_noise_suppression">Noise Suppression</string>
     <string name="settings_dynamics_processing">Dynamics Processing (Compressor)</string>
+    <string name="settings_treble_boost">Speech Clarity (Treble Boost)</string>
     <string name="settings_generate_log">Generate log</string>
     <string name="settings_bypass_bluetooth_checks">Bypass Bluetooth Checks</string>
     <string name="settings_transcript_mode">Transcript Mode (No Audio Output)</string>

@@ -29,6 +29,7 @@ public:
     void setNoiseSuppressionEnabled(bool enabled);
     void setDynamicsProcessingEnabled(bool enabled);
     void setTranscriptModeEnabled(bool enabled);
+    void setTrebleBoostEnabled(bool enabled);
 
     // From oboe::AudioStreamDataCallback
     oboe::DataCallbackResult onAudioReady(
@@ -52,6 +53,7 @@ private:
     std::atomic<bool> mIsNoiseSuppressionEnabled{false};
     std::atomic<bool> mIsDynamicsProcessingEnabled{false};
     std::atomic<bool> mIsTranscriptModeEnabled{false};
+    std::atomic<bool> mIsTrebleBoostEnabled{false};
 
     // Live audio level for transcription gating/visuals
     std::atomic<float> mTranscriptionLevel{0.0f};
@@ -60,6 +62,11 @@ private:
     float mEnvelope = 0.0f;
     float mPrevInput = 0.0f;
     float mPrevOutput = 0.0f;
+
+    // Treble boost filter state (Biquad)
+    float mX1 = 0, mX2 = 0, mY1 = 0, mY2 = 0;
+    float mB0 = 1, mB1 = 0, mB2 = 0, mA1 = 0, mA2 = 0;
+
     bool mIsBuffering = true;
 
     std::mutex mStreamLock;
@@ -76,8 +83,10 @@ private:
     void restartStreams();
     void joinRestartThread();
 
+    void updateTrebleBoostCoefficients(int32_t sampleRate);
     void closeStreams();
     float applySpeechEnhancement(float input);
+    float applyTrebleBoost(float input);
     float applySoftKneeLimiter(float input);
 
     // Resampling for transcription

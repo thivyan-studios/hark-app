@@ -78,6 +78,15 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeSetTranscriptModeEnabled(JN
 }
 
 extern "C"
+JNIEXPORT void JNICALL
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeSetTrebleBoostEnabled(JNIEnv *env, jobject thiz, jlong handle, jboolean enabled) {
+    auto *engine = reinterpret_cast<HarkAudioEngine *>(handle);
+    if (engine) {
+        engine->setTrebleBoostEnabled(enabled);
+    }
+}
+
+extern "C"
 JNIEXPORT jint JNICALL
 Java_com_thivyanstudios_hark_audio_AudioEngine_nativeReadTranscriptionData(JNIEnv *env, jobject thiz, jlong handle, jfloatArray target, jint offset, jint num_frames) {
     auto *engine = reinterpret_cast<HarkAudioEngine *>(handle);

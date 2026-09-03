@@ -190,6 +190,14 @@ fun SettingsScreen(
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                     enabled = uiState.isDynamicsProcessingSupported
                 )
+
+                SettingsSwitchRow(
+                    text = stringResource(R.string.settings_treble_boost),
+                    icon = Icons.Default.RecordVoiceOver,
+                    checked = uiState.trebleBoostEnabled,
+                    onCheckedChange = settingsViewModel::setTrebleBoostEnabled,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 

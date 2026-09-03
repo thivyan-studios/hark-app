@@ -67,7 +67,7 @@ class AudioEngine @Inject constructor(
             loadNativeLibrary()
         }
 
-        // Task 3: Create native engine instance only when starting to avoid leaks and unnecessary resource usage
+        // Create native engine instance only when starting to avoid leaks and unnecessary resource usage
         if (isNativeLibraryLoaded && nativeHandle == 0L) {
             nativeHandle = nativeCreate()
         }
@@ -108,7 +108,7 @@ class AudioEngine @Inject constructor(
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
                 nativeStop(nativeHandle)
-                // Task 3: Explicitly delete native engine instance when stopping
+                // Explicitly delete native engine instance when stopping
                 nativeDelete(nativeHandle)
                 nativeHandle = 0
             } catch (e: UnsatisfiedLinkError) {
@@ -151,6 +151,10 @@ class AudioEngine @Inject constructor(
 
     fun setTranscriptModeEnabled(enabled: Boolean) {
         applyToNative { nativeSetTranscriptModeEnabled(it, enabled) }
+    }
+
+    fun setTrebleBoostEnabled(enabled: Boolean) {
+        applyToNative { nativeSetTrebleBoostEnabled(it, enabled) }
     }
 
     // --- Transcription Data Access ---
@@ -212,6 +216,7 @@ class AudioEngine @Inject constructor(
     private external fun nativeSetNoiseSuppressionEnabled(handle: Long, enabled: Boolean)
     private external fun nativeSetDynamicsProcessingEnabled(handle: Long, enabled: Boolean)
     private external fun nativeSetTranscriptModeEnabled(handle: Long, enabled: Boolean)
+    private external fun nativeSetTrebleBoostEnabled(handle: Long, enabled: Boolean)
     private external fun nativeReadTranscriptionData(handle: Long, target: FloatArray, offset: Int, numFrames: Int): Int
     private external fun nativeGetTranscriptionLevel(handle: Long): Float
 

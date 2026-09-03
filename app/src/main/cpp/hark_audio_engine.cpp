@@ -44,6 +44,11 @@ bool HarkAudioEngine::openStreamsLocked() {
     // 16000 * 10 seconds = 160000 samples capacity.
     mTranscriptionFifo = std::make_unique<oboe::FifoBuffer>(sizeof(float), 160000);
 
+    // Initialize Treble Boost coefficients (High Shelf, 3kHz, 6dB @ 48kHz)
+    // These are pre-calculated for the default 48kHz sample rate.
+    // If the sample rate is different, they will be recalculated in openStreamsLocked.
+    updateTrebleBoostCoefficients(mSampleRate);
+
     oboe::AudioStreamBuilder inBuilder;
     inBuilder.setDirection(oboe::Direction::Input)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
@@ -129,6 +134,9 @@ void HarkAudioEngine::setDynamicsProcessingEnabled(bool enabled) {
 void HarkAudioEngine::setTranscriptModeEnabled(bool enabled) {
     mIsTranscriptModeEnabled.store(enabled, std::memory_order_release);
 }
+void HarkAudioEngine::setTrebleBoostEnabled(bool enabled) {
+    mIsTrebleBoostEnabled.store(enabled, std::memory_order_release);
+}
 
 oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         oboe::AudioStream *audioStream,
@@ -188,6 +196,7 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         const float currentAmbientGain = mAmbientGain.load(std::memory_order_acquire);
         const bool dynamicsEnabled = mIsDynamicsProcessingEnabled.load(std::memory_order_acquire);
         const bool nsEnabled = mIsNoiseSuppressionEnabled.load(std::memory_order_acquire);
+        const bool trebleEnabled = mIsTrebleBoostEnabled.load(std::memory_order_acquire);
 
         if (framesRead > 0) {
             for (int i = 0; i < framesRead; i++) {
@@ -196,7 +205,10 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
                 // 1. PRIMARY PATH (The "Hearing Aid" stream)
                 float processedSample = rawSample;
                 if (nsEnabled) {
-                    processedSample = applySpeechEnhancement(rawSample);
+                    processedSample = applySpeechEnhancement(processedSample);
+                }
+                if (trebleEnabled) {
+                    processedSample = applyTrebleBoost(processedSample);
                 }
                 float primarySignal = processedSample * currentGain;
 
@@ -233,7 +245,7 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
     double skip = (double)mSampleRate / 16000.0;
     int32_t resampledCount = 0;
 
-    // Task 2: Linear Interpolation Resampling to reduce aliasing
+    // Linear Interpolation Resampling to reduce aliasing
     while (mResampleAccumulator < (double)numFrames) {
         int32_t index1 = (int32_t)mResampleAccumulator;
         int32_t index2 = index1 + 1;
@@ -252,7 +264,6 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
     if (resampledCount > 0) {
         int32_t written = mTranscriptionFifo->write(mResampleBuffer, resampledCount);
         if (written < resampledCount) {
-            // Task 1: Removed blocking loop on audio thread.
             // If the FIFO is full, we simply drop the remaining resampled frames to maintain real-time safety.
             // The consumer (Java side) is likely struggling to keep up.
         }
@@ -266,6 +277,35 @@ float HarkAudioEngine::applySpeechEnhancement(float input) {
     mPrevInput = input;
     mPrevOutput = output;
     return output;
+}
+
+float HarkAudioEngine::applyTrebleBoost(float input) {
+    float output = mB0 * input + mB1 * mX1 + mB2 * mX2 - mA1 * mY1 - mA2 * mY2;
+    mX2 = mX1;
+    mX1 = input;
+    mY2 = mY1;
+    mY1 = output;
+    return output;
+}
+
+void HarkAudioEngine::updateTrebleBoostCoefficients(int32_t sampleRate) {
+    const float f0 = 3000.0f;
+    const float gainDb = 8.0f; // Slightly more boost for clarity
+    const float A = powf(10, gainDb / 40.0f);
+    const float w0 = 2.0f * (float)M_PI * f0 / (float)sampleRate;
+    const float cosW0 = cosf(w0);
+    const float sinW0 = sinf(w0);
+    const float alpha = sinW0 / 2.0f; // S=1
+
+    const float a0 = (A + 1.0f) - (A - 1.0f) * cosW0 + 2.0f * sqrtf(A) * alpha;
+    mB0 = (A * ((A + 1.0f) + (A - 1.0f) * cosW0 + 2.0f * sqrtf(A) * alpha)) / a0;
+    mB1 = (-2.0f * A * ((A - 1.0f) + (A + 1.0f) * cosW0)) / a0;
+    mB2 = (A * ((A + 1.0f) + (A - 1.0f) * cosW0 - 2.0f * sqrtf(A) * alpha)) / a0;
+    mA1 = (2.0f * ((A - 1.0f) - (A + 1.0f) * cosW0)) / a0;
+    mA2 = ((A + 1.0f) - (A - 1.0f) * cosW0 - 2.0f * sqrtf(A) * alpha) / a0;
+
+    // Reset filter state
+    mX1 = mX2 = mY1 = mY2 = 0;
 }
 
 float HarkAudioEngine::applySoftKneeLimiter(float input) {
