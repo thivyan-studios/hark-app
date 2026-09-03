@@ -318,7 +318,6 @@ class SettingsViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
         try {
             application.contentResolver.unregisterContentObserver(devSettingsObserver)
         } catch (e: Exception) {

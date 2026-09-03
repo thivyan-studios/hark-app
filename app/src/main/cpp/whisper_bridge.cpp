@@ -129,22 +129,18 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     params.suppress_blank = true;
     params.suppress_nst = true;
     params.no_context = true;
-    params.single_segment = true;
 
     params.temperature = 0.0f;
-    params.no_speech_thold = 0.3f; // Less aggressive VAD
+    params.no_speech_thold = 0.6f; // More relaxed VAD
     params.entropy_thold = 2.4f;
     params.logprob_thold = -1.0f; // Reject low-confidence results
-
-    // Disable any internal state/context to prevent loops
-    params.max_tokens = 64;
 
     // Audio signal check
     float sum_sq = 0.0f;
     for (int i = 0; i < len; ++i) {
         sum_sq += p_audio[i] * p_audio[i];
     }
-    float rms = std::sqrt(sum_sq / len);
+    float rms = std::sqrt(sum_sq / (float)len);
 
     // Very low silence threshold to catch faint voices
     if (rms < 0.0005f) {
@@ -162,10 +158,11 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
     }
 
     if (max_abs > 0.0f) {
-        float target = 0.6f;
+        float target = 0.8f;
         float gain = target / max_abs;
-        if (gain > 15.0f) gain = 15.0f; // Limit amplification of floor noise
+        if (gain > 50.0f) gain = 50.0f; // More aggressive amplification
         for (int i = 0; i < len; ++i) p_audio[i] *= gain;
+        LOGI("AGC applied gain: %.2f (max_abs was %.5f)", gain, max_abs);
     }
 
     int64_t t_start = ggml_time_ms();
@@ -182,14 +179,18 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeTranscribe(JNIEnv *env, job
 
     std::string result_text;
     int n_segments = whisper_full_n_segments(g_whisper_ctx);
+    LOGI("whisper_full n_segments: %d", n_segments);
     for (int i = 0; i < n_segments; ++i) {
         float prob = whisper_full_get_segment_no_speech_prob(g_whisper_ctx, i);
-        if (prob > 0.80f) {
-            LOGI("Segment %d rejected by no_speech_prob: %.3f", i, prob);
+        const char * text = whisper_full_get_segment_text(g_whisper_ctx, i);
+
+        LOGI("Segment %d: '%s' (no_speech_prob: %.3f)", i, text ? text : "NULL", prob);
+
+        if (prob > 0.85f) { // Slightly more relaxed
+            LOGI("Segment %d rejected by no_speech_prob", i);
             continue;
         }
 
-        const char * text = whisper_full_get_segment_text(g_whisper_ctx, i);
         if (text && !is_hallucination(text)) {
             result_text += text;
         } else if (text) {

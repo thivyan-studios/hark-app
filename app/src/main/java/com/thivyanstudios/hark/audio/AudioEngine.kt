@@ -6,7 +6,6 @@ import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
 import com.thivyanstudios.hark.audio.processor.AudioProcessor
 import com.thivyanstudios.hark.audio.stream.AudioStreamManager
-import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.util.HarkLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
@@ -25,14 +24,12 @@ import javax.inject.Singleton
  */
 @Singleton
 class AudioEngine @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val audioProcessor: AudioProcessor,
     private val streamManager: AudioStreamManager,
     val events: Channel<AudioEngineEvent>,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    private val _isStreaming = MutableStateFlow(false)
-    val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
+    private val _isStreaming = MutableStateFlow(value = false)
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var isNativeLibraryLoaded = false
@@ -68,7 +65,7 @@ class AudioEngine @Inject constructor(
         }
 
         // Create native engine instance only when starting to avoid leaks and unnecessary resource usage
-        if (isNativeLibraryLoaded && nativeHandle == 0L) {
+        if (isNativeLibraryLoaded && (nativeHandle == 0L)) {
             nativeHandle = nativeCreate()
         }
 
@@ -131,12 +128,6 @@ class AudioEngine @Inject constructor(
         streamManager.updateConfig(currentConfig)
     }
 
-    fun setAmbientGain(gain: Float) {
-        currentConfig = currentConfig.copy(ambientGain = gain)
-        applyToNative { nativeSetAmbientGain(it, gain) }
-        streamManager.updateConfig(currentConfig)
-    }
-
     fun setNoiseSuppressionEnabled(enabled: Boolean) {
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
         applyToNative { nativeSetNoiseSuppressionEnabled(it, enabled) }
@@ -163,7 +154,7 @@ class AudioEngine @Inject constructor(
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             return try {
                 nativeReadTranscriptionData(nativeHandle, target, offset, numFrames)
-            } catch (e: UnsatisfiedLinkError) { 0 }
+            } catch (_: UnsatisfiedLinkError) { 0 }
         }
         return 0
     }
@@ -172,7 +163,7 @@ class AudioEngine @Inject constructor(
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             return try {
                 nativeGetTranscriptionLevel(nativeHandle)
-            } catch (e: UnsatisfiedLinkError) { 0.0f }
+            } catch (_: UnsatisfiedLinkError) { 0.0f }
         }
         return 0.0f
     }
@@ -183,14 +174,14 @@ class AudioEngine @Inject constructor(
         if (!isNativeLibraryLoaded) return false
         return try {
             nativeInitWhisper(modelPath)
-        } catch (e: UnsatisfiedLinkError) { false }
+        } catch (_: UnsatisfiedLinkError) { false }
     }
 
     fun transcribe(audioData: FloatArray, threads: Int, language: String, translate: Boolean): String {
         if (!isNativeLibraryLoaded) return "ERROR: Lib not loaded"
         return try {
             nativeTranscribe(audioData, audioData.size, threads, language, translate)
-        } catch (e: UnsatisfiedLinkError) { "ERROR: JNI fail" }
+        } catch (_: UnsatisfiedLinkError) { "ERROR: JNI fail" }
     }
 
     fun releaseWhisper() {
@@ -212,7 +203,6 @@ class AudioEngine @Inject constructor(
     private external fun nativeStart(handle: Long, sampleRate: Int, framesPerBurst: Int): Boolean
     private external fun nativeStop(handle: Long)
     private external fun nativeSetMicrophoneGain(handle: Long, gain: Float)
-    private external fun nativeSetAmbientGain(handle: Long, gain: Float)
     private external fun nativeSetNoiseSuppressionEnabled(handle: Long, enabled: Boolean)
     private external fun nativeSetDynamicsProcessingEnabled(handle: Long, enabled: Boolean)
     private external fun nativeSetTranscriptModeEnabled(handle: Long, enabled: Boolean)
