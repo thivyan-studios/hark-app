@@ -2,6 +2,7 @@ package com.thivyanstudios.hark.audio
 
 import android.content.Context
 import android.media.AudioManager
+import android.media.audiofx.NoiseSuppressor
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.audio.model.AudioProcessingConfig
 import com.thivyanstudios.hark.audio.processor.AudioProcessor
@@ -33,6 +34,7 @@ class AudioEngine @Inject constructor(
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var isNativeLibraryLoaded = false
+    private var noiseSuppressor: NoiseSuppressor? = null
     
     // Native handle to the C++ HarkAudioEngine instance
     private var nativeHandle: Long = 0
@@ -78,8 +80,14 @@ class AudioEngine @Inject constructor(
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
                 success = nativeStart(nativeHandle, sampleRate, framesPerBurst)
-            } catch (e: UnsatisfiedLinkError) {
-                HarkLog.e(TAG, "Native start failed", e)
+                if (success) {
+                    val sessionId = nativeGetSessionId(nativeHandle)
+                    if (sessionId != -1) {
+                        setupNoiseSuppressor(sessionId)
+                    }
+                }
+            } catch (_: UnsatisfiedLinkError) {
+                HarkLog.e(TAG, "Native start failed")
             }
         }
         
@@ -101,6 +109,8 @@ class AudioEngine @Inject constructor(
     fun stop() {
         if (!_isStreaming.value) return
         _isStreaming.value = false
+        
+        releaseNoiseSuppressor()
         
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
@@ -131,6 +141,9 @@ class AudioEngine @Inject constructor(
     fun setNoiseSuppressionEnabled(enabled: Boolean) {
         currentConfig = currentConfig.copy(noiseSuppressionEnabled = enabled)
         applyToNative { nativeSetNoiseSuppressionEnabled(it, enabled) }
+        
+        noiseSuppressor?.enabled = enabled
+        
         streamManager.updateConfig(currentConfig)
     }
     
@@ -146,6 +159,27 @@ class AudioEngine @Inject constructor(
 
     fun setTrebleBoostEnabled(enabled: Boolean) {
         applyToNative { nativeSetTrebleBoostEnabled(it, enabled) }
+    }
+
+    private fun setupNoiseSuppressor(sessionId: Int) {
+        if (NoiseSuppressor.isAvailable()) {
+            try {
+                releaseNoiseSuppressor()
+                noiseSuppressor = NoiseSuppressor.create(sessionId).apply {
+                    enabled = currentConfig.noiseSuppressionEnabled
+                }
+                HarkLog.i(TAG, "System NoiseSuppressor initialized on session $sessionId")
+            } catch (e: Exception) {
+                HarkLog.e(TAG, "Failed to create NoiseSuppressor", e)
+            }
+        } else {
+            HarkLog.w(TAG, "System NoiseSuppressor is not available on this device")
+        }
+    }
+
+    private fun releaseNoiseSuppressor() {
+        noiseSuppressor?.release()
+        noiseSuppressor = null
     }
 
     // --- Transcription Data Access ---
@@ -209,6 +243,7 @@ class AudioEngine @Inject constructor(
     private external fun nativeSetTrebleBoostEnabled(handle: Long, enabled: Boolean)
     private external fun nativeReadTranscriptionData(handle: Long, target: FloatArray, offset: Int, numFrames: Int): Int
     private external fun nativeGetTranscriptionLevel(handle: Long): Float
+    private external fun nativeGetSessionId(handle: Long): Int
 
     private external fun nativeInitWhisper(modelPath: String): Boolean
     private external fun nativeTranscribe(audioData: FloatArray, len: Int, threads: Int, language: String, translate: Boolean): String

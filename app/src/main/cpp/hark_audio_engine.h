@@ -23,6 +23,7 @@ public:
 
     int32_t readTranscriptionData(float *target, int32_t numFrames);
     float getTranscriptionLevel();
+    int32_t getSessionId();
 
     void setMicrophoneGain(float gain);
     void setNoiseSuppressionEnabled(bool enabled);
@@ -83,7 +84,6 @@ private:
 
     void updateTrebleBoostCoefficients(int32_t sampleRate);
     void closeStreams();
-    float applySpeechEnhancement(float input);
     float applyTrebleBoost(float input);
     float applySoftKneeLimiter(float input);
 

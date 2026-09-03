@@ -10,7 +10,6 @@ import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.ui.MainUiState
-import com.thivyanstudios.hark.ui.SoundEvent
 import com.thivyanstudios.hark.data.model.UserPreferences
 import com.thivyanstudios.hark.util.Constants
 import com.thivyanstudios.hark.util.HarkLog
@@ -64,7 +63,6 @@ class MainViewModel @Inject constructor(
                     service.isStreaming,
                     service.hearingAidConnected,
                     service.transcription,
-                    service.activeSoundEvents,
                     service.audioLevel,
                     userPreferencesRepository.userPreferencesFlow,
                     transcriptionRepository.allTranscriptions,
@@ -75,15 +73,13 @@ class MainViewModel @Inject constructor(
                     val isStreaming = args[0] as Boolean
                     val hearingAidConnected = args[1] as Boolean
                     val transcription = args[2] as String
+                    val audioLevel = args[3] as Float
+                    val prefs = args[4] as UserPreferences
                     @Suppress("UNCHECKED_CAST")
-                    val activeSoundEvents = args[3] as List<SoundEvent>
-                    val audioLevel = args[4] as Float
-                    val prefs = args[5] as UserPreferences
-                    @Suppress("UNCHECKED_CAST")
-                    val history = args[6] as List<com.thivyanstudios.hark.data.local.TranscriptionEntity>
-                    // args[7] is modelStoreUpdateTrigger
-                    // args[8] is refreshTrigger
-                    val permissionsHandled = args[9] as Boolean
+                    val history = args[5] as List<com.thivyanstudios.hark.data.local.TranscriptionEntity>
+                    // args[6] is modelStoreUpdateTrigger
+                    // args[7] is refreshTrigger
+                    val permissionsHandled = args[8] as Boolean
 
                     val isModelAvailable = whisperModelManager.availableModels.any { 
                         whisperModelManager.isModelDownloaded(it) 
@@ -100,7 +96,6 @@ class MainViewModel @Inject constructor(
                         bypassBluetoothChecks = prefs.bypassBluetoothChecks,
                         transcriptModeEnabled = prefs.transcriptModeEnabled,
                         transcription = transcription,
-                        activeSoundEvents = activeSoundEvents,
                         audioLevel = audioLevel,
                         isLoading = false,
                         isModelAvailable = isModelAvailable,

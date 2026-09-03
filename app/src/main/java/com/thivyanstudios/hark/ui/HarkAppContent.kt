@@ -132,7 +132,6 @@ fun HarkAppContent(
                     TranscribeScreen(
                         isStreaming = uiState.isStreaming,
                         transcription = uiState.transcription,
-                        activeSoundEvents = uiState.activeSoundEvents,
                         onClearTranscription = onClearTranscription,
                         onShareTranscription = onShareTranscription,
                         fontSize = settingsState.transcriptionFontSize

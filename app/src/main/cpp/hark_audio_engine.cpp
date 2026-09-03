@@ -123,6 +123,14 @@ float HarkAudioEngine::getTranscriptionLevel() {
     return mTranscriptionLevel.load(std::memory_order_acquire);
 }
 
+int32_t HarkAudioEngine::getSessionId() {
+    std::lock_guard<std::mutex> lock(mStreamLock);
+    if (mInStream) {
+        return mInStream->getSessionId();
+    }
+    return -1;
+}
+
 void HarkAudioEngine::setMicrophoneGain(float gain) { mGain.store(gain, std::memory_order_release); }
 void HarkAudioEngine::setNoiseSuppressionEnabled(bool enabled) {
     mIsNoiseSuppressionEnabled.store(enabled, std::memory_order_release);
@@ -193,7 +201,6 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
         // Cache atomic loads for the duration of this callback
         const float currentGain = mGain.load(std::memory_order_acquire);
         const bool dynamicsEnabled = mIsDynamicsProcessingEnabled.load(std::memory_order_acquire);
-        const bool nsEnabled = mIsNoiseSuppressionEnabled.load(std::memory_order_acquire);
         const bool trebleEnabled = mIsTrebleBoostEnabled.load(std::memory_order_acquire);
 
         if (framesRead > 0) {
@@ -202,9 +209,6 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
 
                 // 1. PRIMARY PATH (The "Hearing Aid" stream)
                 float processedSample = rawSample;
-                if (nsEnabled) {
-                    processedSample = applySpeechEnhancement(processedSample);
-                }
                 if (trebleEnabled) {
                     processedSample = applyTrebleBoost(processedSample);
                 }
@@ -235,7 +239,7 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
     if (!mTranscriptionFifo || !data || numFrames <= 0) return;
 
     static int32_t logCounter = 0;
-    if (++logCounter % 500 == 0) {
+    if (++logCounter % 1000 == 0) {
         __android_log_print(ANDROID_LOG_INFO, TAG, "Pushing to transcription FIFO: %d frames", numFrames);
     }
 
@@ -267,14 +271,6 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
     }
 }
 
-
-float HarkAudioEngine::applySpeechEnhancement(float input) {
-    // Simple DC-offset / High-pass filter to reduce low-end rumble
-    float output = input - mPrevInput + 0.95f * mPrevOutput;
-    mPrevInput = input;
-    mPrevOutput = output;
-    return output;
-}
 
 float HarkAudioEngine::applyTrebleBoost(float input) {
     float output = mB0 * input + mB1 * mX1 + mB2 * mX2 - mA1 * mY1 - mA2 * mY2;
