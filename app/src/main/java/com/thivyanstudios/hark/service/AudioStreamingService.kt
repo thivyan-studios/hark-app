@@ -53,9 +53,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val _transcription = MutableStateFlow("")
     override val transcription = _transcription.asStateFlow()
 
-    private val _activeSoundEvents = MutableStateFlow<List<com.thivyanstudios.hark.ui.SoundEvent>>(emptyList())
-    override val activeSoundEvents = _activeSoundEvents.asStateFlow()
-
     private val _audioLevel = MutableStateFlow(0f)
     override val audioLevel = _audioLevel.asStateFlow()
 
@@ -359,37 +356,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
     override fun clearTranscription() {
         fullTranscript.setLength(0)
         _transcription.value = ""
-        _activeSoundEvents.value = emptyList()
-    }
-
-    private fun updateSoundEvents(transcription: String) {
-        val currentEvents = _activeSoundEvents.value.toMutableList()
-        val now = System.currentTimeMillis()
-        
-        // Remove events older than 3 seconds
-        currentEvents.removeAll { now - it.timestamp > 3000 }
-
-        val lowerText = transcription.lowercase()
-        val detectedLabels = mutableListOf<String>()
-
-        if (lowerText.contains("[music]") || lowerText.contains("♪")) detectedLabels.add("Music")
-        if (lowerText.contains("[laughing]") || lowerText.contains("(laughter)")) detectedLabels.add("Laughter")
-        if (lowerText.contains("[clapping]") || lowerText.contains("[applause]")) detectedLabels.add("Applause")
-        if (lowerText.contains("[doorbell]")) detectedLabels.add("Doorbell")
-        if (lowerText.contains("[dog barking]")) detectedLabels.add("Dog Bark")
-        if (lowerText.contains("[siren]")) detectedLabels.add("Siren")
-
-        detectedLabels.forEach { label ->
-            if (currentEvents.none { it.label == label }) {
-                currentEvents.add(com.thivyanstudios.hark.ui.SoundEvent(label, now))
-            } else {
-                // Update timestamp for existing event to keep it alive
-                val index = currentEvents.indexOfFirst { it.label == label }
-                currentEvents[index] = currentEvents[index].copy(timestamp = now)
-            }
-        }
-
-        _activeSoundEvents.value = currentEvents
     }
 
     private fun startLevelMonitoringLoop() {
@@ -458,8 +424,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         HarkLog.e(TAG, "Transcription error: $result")
                     } else if (!result.contains("[SILENCE]") && !result.contains("[NO_RESULT]")) {
                         HarkLog.d(TAG, "Transcription result: $result")
-                        // Restore sound event detection
-                        updateSoundEvents(result)
                     }
 
                     val isSilence = result.contains("[SILENCE]") || result.contains("[EMPTY]")
