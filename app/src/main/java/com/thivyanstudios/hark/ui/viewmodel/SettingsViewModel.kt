@@ -19,6 +19,7 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import com.thivyanstudios.hark.data.STTModelManager
 import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.util.HarkLog
 import com.thivyanstudios.hark.util.SystemSettingsProvider
@@ -41,7 +42,7 @@ import javax.inject.Inject
 @SuppressLint("MissingPermission")
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val whisperModelManager: com.thivyanstudios.hark.data.WhisperModelManager,
+    private val sttModelManager: STTModelManager,
     private val audioEngine: AudioEngine,
     private val application: Application,
     private val systemSettingsProvider: SystemSettingsProvider,
@@ -131,8 +132,8 @@ class SettingsViewModel @Inject constructor(
         _isNoiseSuppressionSupported,
         _isDynamicsProcessingSupported,
         _isDeveloperOptionsEnabled,
-        whisperModelManager.downloadProgress,
-        whisperModelManager.modelStoreUpdateTrigger,
+        sttModelManager.downloadProgress,
+        sttModelManager.modelStoreUpdateTrigger,
         _refreshBatteryTrigger
     ) { args ->
         val prefs = args[0] as com.thivyanstudios.hark.data.model.UserPreferences
@@ -144,8 +145,8 @@ class SettingsViewModel @Inject constructor(
         // args[6] is the model trigger
         // args[7] is the battery refresh trigger
 
-        val downloadedIds = whisperModelManager.availableModels
-            .filter { whisperModelManager.isModelDownloaded(it) }
+        val downloadedIds = sttModelManager.availableModels
+            .filter { sttModelManager.isModelDownloaded(it) }
             .map { it.id }
             .toSet()
 
@@ -169,7 +170,7 @@ class SettingsViewModel @Inject constructor(
             silenceThreshold = prefs.silenceThreshold,
             transcriptionFontSize = prefs.transcriptionFontSize,
             selectedModelId = prefs.selectedModelId,
-            availableModels = whisperModelManager.availableModels,
+            availableModels = sttModelManager.availableModels,
             downloadedModelIds = downloadedIds,
             downloadProgress = progress,
             isNoiseSuppressionSupported = nsSupported,
@@ -275,19 +276,19 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun downloadModel(modelId: String) {
-        val model = whisperModelManager.availableModels.find { it.id == modelId } ?: return
+        val model = sttModelManager.availableModels.find { it.id == modelId } ?: return
         viewModelScope.launch {
-            whisperModelManager.downloadModel(model)
+            sttModelManager.downloadModel(model)
         }
     }
 
     fun deleteModel(modelId: String) {
         viewModelScope.launch(ioDispatcher) {
-            whisperModelManager.deleteModel(modelId)
+            sttModelManager.deleteModel(modelId)
             // If the deleted model was the selected one, revert to base
             val prefs = userPreferencesRepository.userPreferencesFlow.first()
             if (prefs.selectedModelId == modelId) {
-                userPreferencesRepository.setSelectedModelId("ggml-base-q8_0")
+                userPreferencesRepository.setSelectedModelId("zipformer-en-streaming")
             }
         }
     }

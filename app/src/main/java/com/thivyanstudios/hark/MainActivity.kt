@@ -118,8 +118,6 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-
-        audioServiceManager.startService()
     }
 
     private fun requestBatteryOptimizationExemption() {
@@ -149,6 +147,7 @@ class MainActivity : ComponentActivity() {
     private fun toggleStreaming() {
         HarkLog.i("MainActivity", "Toggle streaming button clicked")
         if (permissionManager.hasPermissions()) {
+            audioServiceManager.startService() // Ensure service is started
             @SuppressLint("MissingPermission")
             mainViewModel.toggleStreaming(getString(R.string.connect_hearing_system_first))
         } else {

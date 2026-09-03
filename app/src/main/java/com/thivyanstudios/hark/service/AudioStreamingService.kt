@@ -17,10 +17,14 @@ import androidx.annotation.RequiresPermission
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
+import com.thivyanstudios.hark.data.STTModelManager
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.di.MainDispatcher
 import com.thivyanstudios.hark.util.HarkLog
+import com.k2fsa.sherpa.onnx.OnlineRecognizer
+import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OnlineStream
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +49,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private val binder = LocalBinder()
     
     @Inject
-    lateinit var whisperModelManager: com.thivyanstudios.hark.data.WhisperModelManager
+    lateinit var sttModelManager: STTModelManager
 
     private val _isStreaming = MutableStateFlow(value = false)
     override val isStreaming = _isStreaming.asStateFlow()
@@ -60,6 +64,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
     private var lastTranscriptionTime = 0L
 
     private var wakeLock: PowerManager.WakeLock? = null
+
+    private var recognizer: OnlineRecognizer? = null
+    private var sherpaStream: OnlineStream? = null
 
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository
@@ -238,7 +245,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
             .launchIn(serviceScope)
 
         // Stop streaming if model library changes (download or delete)
-        whisperModelManager.modelStoreUpdateTrigger
+        sttModelManager.modelStoreUpdateTrigger
             .onEach {
                 if (_isStreaming.value) {
                     HarkLog.i(TAG, "Model library changed, stopping stream")
@@ -312,8 +319,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 
                 wakeLock?.acquire(60 * 60 * 1000L) // 1 hour timeout
                 withContext(ioDispatcher) {
-                    // Initialize Whisper before starting engine
-                    prepareWhisper()
+                    // Initialize Sherpa before starting engine
+                    prepareSherpa()
                     updateAudioRouting()
                     audioEngine.start()
                     startTranscriptionLoop()
@@ -326,30 +333,34 @@ class AudioStreamingService : Service(), AudioStreamingController {
         }
     }
 
-    private suspend fun prepareWhisper() = withContext(ioDispatcher) {
+    private suspend fun prepareSherpa() = withContext(ioDispatcher) {
         val prefs = userPreferencesRepository.userPreferencesFlow.first()
         val modelId = prefs.selectedModelId
-        val model = whisperModelManager.availableModels.find { it.id == modelId } ?: whisperModelManager.availableModels.first()
+        val model = sttModelManager.availableModels.find { it.id == modelId } ?: sttModelManager.availableModels.first()
         
-        val modelFile = File(filesDir, model.fileName)
-        
-        // It's a downloaded model
-        if (!whisperModelManager.isModelDownloaded(model)) {
-            HarkLog.i(TAG, "No model downloaded, skipping Whisper initialization.")
+        if (!sttModelManager.isModelDownloaded(model)) {
+            HarkLog.i(TAG, "No model downloaded, skipping Sherpa initialization.")
             return@withContext
         }
         
-        if (!modelFile.exists()) {
-            HarkLog.e(TAG, "Whisper model file not found: ${modelFile.absolutePath}")
-            audioEngine.sendError(getString(R.string.error_model_file_corrupt))
-            return@withContext
-        }
+        try {
+            val config = OnlineRecognizerConfig()
+            config.featConfig.sampleRate = 16000
+            config.featConfig.featureDim = 80
+            config.modelConfig.transducer.encoder = File(filesDir, model.encoderFileName).absolutePath
+            config.modelConfig.transducer.decoder = File(filesDir, model.decoderFileName).absolutePath
+            config.modelConfig.transducer.joiner = File(filesDir, model.joinerFileName).absolutePath
+            config.modelConfig.tokens = File(filesDir, model.tokensFileName).absolutePath
+            config.modelConfig.numThreads = prefs.whisperThreads
+            config.modelConfig.debug = false
+            
+            recognizer = OnlineRecognizer(null, config)
+            sherpaStream = recognizer?.createStream()
 
-        HarkLog.i(TAG, "Initializing Whisper with model: ${modelFile.absolutePath}")
-        val success = audioEngine.initWhisper(modelFile.absolutePath)
-        if (!success) {
-            HarkLog.e(TAG, "Failed to initialize Whisper")
-            audioEngine.sendError(getString(R.string.error_whisper_init_failed))
+            HarkLog.i(TAG, "Sherpa-ONNX initialized successfully with model: ${model.name}")
+        } catch (e: Exception) {
+            HarkLog.e(TAG, "Failed to initialize Sherpa-ONNX", e)
+            audioEngine.sendError("STT Engine failed to initialize")
         }
     }
 
@@ -370,90 +381,54 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private fun startTranscriptionLoop() {
         serviceScope.launch(ioDispatcher) {
-            // Get current preferences
-            var threads = 4
-            var language = "en"
-            var translate = false
+            val currentRecognizer = recognizer ?: return@launch
+            val currentStream = sherpaStream ?: return@launch
 
-            // Subscribe to preference changes
-            launch {
-                userPreferencesRepository.userPreferencesFlow.collect { prefs ->
-                    threads = prefs.whisperThreads
-                    language = prefs.whisperLanguage
-                    translate = prefs.whisperTranslate
-                }
-            }
-
-            // Increased buffer to 15 seconds to handle potential processing delays
-            val maxBufferSize = 16000 * 15 
-            val audioBuffer = FloatArray(maxBufferSize)
-            var accumulatedSamples = 0
+            val bufferSize = 1600 * 2 // 100ms of audio
+            val audioBuffer = FloatArray(bufferSize)
             
             fullTranscript.setLength(0)
             
             while (_isStreaming.value) {
-                // 1. Read available data from the native FIFO
-                val spaceRemaining = maxBufferSize - accumulatedSamples
-                if (spaceRemaining > 0) {
-                    val read = audioEngine.readTranscriptionData(audioBuffer, accumulatedSamples, spaceRemaining)
-                    if (read > 0) {
-                        accumulatedSamples += read
-                        // HarkLog.v(TAG, "Read $read samples, total accumulated: $accumulatedSamples")
+                val read = audioEngine.readTranscriptionData(audioBuffer, 0, bufferSize)
+                if (read > 0) {
+                    // HarkLog.d(TAG, "Read $read frames from native FIFO")
+                    val samples = if (read < bufferSize) audioBuffer.copyOfRange(0, read) else audioBuffer
+                    currentStream.acceptWaveform(samples, sampleRate = 16000)
+                    
+                    while (currentRecognizer.isReady(currentStream)) {
+                        currentRecognizer.decode(currentStream)
                     }
-                }
-                
-                // 2. Decide if we should transcribe
-                if (accumulatedSamples >= 16000) { 
-                    val currentLevel = _audioLevel.value
                     
-                    // Force transcription for debugging
-                    HarkLog.d(TAG, "Transcribing $accumulatedSamples samples (Level: $currentLevel)")
-
-                    val audioToProcess = audioBuffer.copyOfRange(0, accumulatedSamples)
-                    
-                    val result = audioEngine.transcribe(
-                        audioData = audioToProcess,
-                        threads = threads,
-                        language = language,
-                        translate = translate
-                    )
-                    
-                    HarkLog.d(TAG, "Whisper result: '$result' (Samples: ${audioToProcess.size}, Level: $currentLevel)")
-                    
-                    if (result.startsWith("ERROR")) {
-                        HarkLog.e(TAG, "Transcription error: $result")
-                    } else if (!result.contains("[SILENCE]") && !result.contains("[NO_RESULT]")) {
-                        HarkLog.d(TAG, "Transcription result: $result")
-                    }
-
-                    val isSilence = result.contains("[SILENCE]") || result.contains("[EMPTY]")
-                    val isNoResult = result.contains("[NO_RESULT]")
-                    val isError = result.startsWith("ERROR")
-                    
-                    if (!isError && !isSilence && !isNoResult && result.isNotBlank()) {
-                        val cleanedResult = result.trim()
-                        if (cleanedResult.isNotEmpty()) {
-                            if (fullTranscript.isNotEmpty()) {
-                                fullTranscript.append(" ")
-                            }
-                            fullTranscript.append(cleanedResult)
-                            _transcription.value = fullTranscript.toString()
-                            lastTranscriptionTime = System.currentTimeMillis()
+                    val result = currentRecognizer.getResult(currentStream)
+                    if (result.text.isNotBlank()) {
+                        val newText = result.text.trim()
+                        HarkLog.d(TAG, "Sherpa Partial Result: '$newText'")
+                        
+                        // Handle sentences with fullTranscript to avoid infinite growth in a single result
+                        val displayResult = if (fullTranscript.isNotEmpty()) {
+                            "$fullTranscript $newText"
+                        } else {
+                            newText
                         }
-                        // On success, we consume all audio used
-                        accumulatedSamples = 0
-                    } else {
-                        // If it's silent/empty/error, we discard most of the buffer to avoid getting stuck
-                        // but keep a small overlap for continuity if needed.
-                        val keepSamples = 4000 // 250ms overlap
-                        System.arraycopy(audioBuffer, accumulatedSamples - keepSamples, audioBuffer, 0, keepSamples)
-                        accumulatedSamples = keepSamples
+
+                        if (displayResult != _transcription.value) {
+                             _transcription.value = displayResult
+                             lastTranscriptionTime = System.currentTimeMillis()
+                        }
                     }
-                    
-                    kotlinx.coroutines.delay(300)
-                } else {
-                    kotlinx.coroutines.delay(200)
+
+                    if (currentRecognizer.isEndpoint(currentStream)) {
+                        val finalResult = currentRecognizer.getResult(currentStream).text
+                        HarkLog.i(TAG, "Sherpa Endpoint Detected. Final: '$finalResult'")
+                        if (finalResult.isNotBlank()) {
+                            if (fullTranscript.isNotEmpty()) fullTranscript.append(" ")
+                            fullTranscript.append(finalResult.trim())
+                        }
+                        currentRecognizer.reset(currentStream)
+                    }
                 }
+                kotlinx.coroutines.delay(30L) // Fast loop for low latency
             }
         }
     }
@@ -509,7 +484,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
         serviceScope.launch {
             withContext(ioDispatcher) {
                 audioEngine.stop()
-                audioEngine.releaseWhisper()
+                recognizer?.release()
+                recognizer = null
+                sherpaStream = null
             }
         }
     }

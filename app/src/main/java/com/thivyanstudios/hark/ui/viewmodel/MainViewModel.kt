@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import com.thivyanstudios.hark.data.STTModelManager
 import com.thivyanstudios.hark.service.AudioServiceManager
 import com.thivyanstudios.hark.ui.MainUiState
 import com.thivyanstudios.hark.data.model.UserPreferences
@@ -22,7 +23,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -36,7 +36,7 @@ class MainViewModel @Inject constructor(
     private val audioServiceManager: AudioServiceManager,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val transcriptionRepository: com.thivyanstudios.hark.data.TranscriptionRepository,
-    private val whisperModelManager: com.thivyanstudios.hark.data.WhisperModelManager,
+    private val sttModelManager: STTModelManager,
     private val audioEngine: AudioEngine
 ) : ViewModel() {
 
@@ -66,7 +66,7 @@ class MainViewModel @Inject constructor(
                     service.audioLevel,
                     userPreferencesRepository.userPreferencesFlow,
                     transcriptionRepository.allTranscriptions,
-                    whisperModelManager.modelStoreUpdateTrigger,
+                    sttModelManager.modelStoreUpdateTrigger,
                     refreshTrigger,
                     _arePermissionsHandled
                 ) { args ->
@@ -81,8 +81,8 @@ class MainViewModel @Inject constructor(
                     // args[7] is refreshTrigger
                     val permissionsHandled = args[8] as Boolean
 
-                    val isModelAvailable = whisperModelManager.availableModels.any { 
-                        whisperModelManager.isModelDownloaded(it) 
+                    val isModelAvailable = sttModelManager.availableModels.any { 
+                        sttModelManager.isModelDownloaded(it) 
                     }
                     
                     val isBatteryOptimizationIgnored = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
@@ -108,7 +108,7 @@ class MainViewModel @Inject constructor(
                 combine(
                     userPreferencesRepository.userPreferencesFlow,
                     transcriptionRepository.allTranscriptions,
-                    whisperModelManager.modelStoreUpdateTrigger,
+                    sttModelManager.modelStoreUpdateTrigger,
                     refreshTrigger,
                     _arePermissionsHandled
                 ) { args ->
@@ -119,8 +119,8 @@ class MainViewModel @Inject constructor(
                     // args[3] is refreshTrigger
                     val permissionsHandled = args[4] as Boolean
 
-                    val isModelAvailable = whisperModelManager.availableModels.any { 
-                        whisperModelManager.isModelDownloaded(it) 
+                    val isModelAvailable = sttModelManager.availableModels.any { 
+                        sttModelManager.isModelDownloaded(it)
                     }
 
                     val isBatteryOptimizationIgnored = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
