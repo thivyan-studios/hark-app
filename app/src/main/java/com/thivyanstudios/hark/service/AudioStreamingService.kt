@@ -344,16 +344,23 @@ class AudioStreamingService : Service(), AudioStreamingController {
         }
         
         try {
+            // 1. Initialize the base config
             val config = OnlineRecognizerConfig()
-            config.featConfig.sampleRate = 16000
-            config.featConfig.featureDim = 80
+
+            // 2. Point it to your downloaded files
             config.modelConfig.transducer.encoder = File(filesDir, model.encoderFileName).absolutePath
             config.modelConfig.transducer.decoder = File(filesDir, model.decoderFileName).absolutePath
             config.modelConfig.transducer.joiner = File(filesDir, model.joinerFileName).absolutePath
             config.modelConfig.tokens = File(filesDir, model.tokensFileName).absolutePath
+
+            config.decodingMethod = "modified_beam_search" 
+
+            config.featConfig.sampleRate = 16000
+            config.featConfig.featureDim = 80
             config.modelConfig.numThreads = prefs.whisperThreads
             config.modelConfig.debug = false
             
+            // 3. Create the actual instance
             recognizer = OnlineRecognizer(null, config)
             sherpaStream = recognizer?.createStream()
 
