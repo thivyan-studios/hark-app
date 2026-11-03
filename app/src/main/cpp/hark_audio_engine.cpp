@@ -29,8 +29,6 @@ bool HarkAudioEngine::start(int32_t sampleRate, int32_t framesPerBurst) {
 bool HarkAudioEngine::openStreamsLocked() {
     closeStreams();
 
-    mResampleAccumulator = 0;
-
     // Reset processing states
     mEnvelope = 0.0f;
     mPrevInput = 0.0f;
@@ -40,9 +38,9 @@ bool HarkAudioEngine::openStreamsLocked() {
     uint32_t fifoCapacity = std::max(static_cast<uint32_t>(mFramesPerBurst) * 16, static_cast<uint32_t>(4096));
     mFifoBuffer = std::make_unique<oboe::FifoBuffer>(sizeof(float), fifoCapacity);
 
-    // Whisper.cpp usually expects 16kHz audio.
-    // 16000 * 10 seconds = 160000 samples capacity.
-    mTranscriptionFifo = std::make_unique<oboe::FifoBuffer>(sizeof(float), 160000);
+    // Sherpa-ONNX usually expects 16kHz audio, but we can buffer more for higher rates.
+    // Buffer for 10 seconds of audio at the hardware sample rate.
+    mTranscriptionFifo = std::make_unique<oboe::FifoBuffer>(sizeof(float), mSampleRate * 10);
 
     // Initialize Treble Boost coefficients (High Shelf, 3kHz, 6dB @ 48kHz)
     // These are pre-calculated for the default 48kHz sample rate.
@@ -243,31 +241,9 @@ void HarkAudioEngine::pushToTranscriptionFifo(const float* data, int32_t numFram
         __android_log_print(ANDROID_LOG_INFO, TAG, "Pushing to transcription FIFO: %d frames", numFrames);
     }
 
-    double skip = (double)mSampleRate / 16000.0;
-    int32_t resampledCount = 0;
-
-    // Linear Interpolation Resampling to reduce aliasing
-    while (mResampleAccumulator < (double)numFrames) {
-        auto index1 = (int32_t)mResampleAccumulator;
-        int32_t index2 = index1 + 1;
-        auto fraction = (float)(mResampleAccumulator - index1);
-
-        if (index1 >= 0 && index1 < numFrames) {
-            float s1 = data[index1];
-            float s2 = (index2 < numFrames) ? data[index2] : s1;
-            mResampleBuffer[resampledCount++] = s1 + fraction * (s2 - s1);
-            if (resampledCount >= kMaxFrames) break;
-        }
-        mResampleAccumulator += skip;
-    }
-    mResampleAccumulator -= (double)numFrames;
-
-    if (resampledCount > 0) {
-        int32_t written = mTranscriptionFifo->write(mResampleBuffer, resampledCount);
-        if (written < resampledCount) {
-            // If the FIFO is full, we simply drop the remaining resampled frames to maintain real-time safety.
-            // The consumer (Java side) is likely struggling to keep up.
-        }
+    int32_t written = mTranscriptionFifo->write(data, numFrames);
+    if (written < numFrames) {
+        // If the FIFO is full, we simply drop the remaining frames to maintain real-time safety.
     }
 }
 

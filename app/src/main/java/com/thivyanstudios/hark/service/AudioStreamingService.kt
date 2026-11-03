@@ -353,14 +353,20 @@ class AudioStreamingService : Service(), AudioStreamingController {
             config.modelConfig.transducer.joiner = File(filesDir, model.joinerFileName).absolutePath
             config.modelConfig.tokens = File(filesDir, model.tokensFileName).absolutePath
 
-            config.decodingMethod = "modified_beam_search" 
+            config.decodingMethod = "modified_beam_search"
+            config.maxActivePaths = 4
+            config.enableEndpoint = true
+            config.endpointConfig.rule1.minTrailingSilence = 1.5f
+            config.endpointConfig.rule2.minTrailingSilence = 0.8f
 
+            // Sherpa-ONNX streaming models expect 16kHz feature sample rate.
+            // Input audio from hardware (e.g. 48kHz) passed via acceptWaveform will be resampled automatically.
             config.featConfig.sampleRate = 16000
             config.featConfig.featureDim = 80
             config.modelConfig.numThreads = prefs.whisperThreads
             config.modelConfig.debug = false
             
-            // 3. Create the actual instance
+            // Initialize the engine with these bounds
             recognizer = OnlineRecognizer(null, config)
             sherpaStream = recognizer?.createStream()
 
@@ -391,6 +397,8 @@ class AudioStreamingService : Service(), AudioStreamingController {
             val currentRecognizer = recognizer ?: return@launch
             val currentStream = sherpaStream ?: return@launch
 
+            val inputSampleRate = audioEngine.getOptimalSampleRate()
+
             val bufferSize = 1600 * 2 // 100ms of audio
             val audioBuffer = FloatArray(bufferSize)
             
@@ -399,9 +407,15 @@ class AudioStreamingService : Service(), AudioStreamingController {
             while (_isStreaming.value) {
                 val read = audioEngine.readTranscriptionData(audioBuffer, 0, bufferSize)
                 if (read > 0) {
-                    // HarkLog.d(TAG, "Read $read frames from native FIFO")
-                    val samples = if (read < bufferSize) audioBuffer.copyOfRange(0, read) else audioBuffer
-                    currentStream.acceptWaveform(samples, sampleRate = 16000)
+                    // If the read buffer was partial, slice it down to the exact data read
+                    val activeSamples = if (read < audioBuffer.size) {
+                        audioBuffer.copyOfRange(0, read)
+                    } else {
+                        audioBuffer
+                    }
+
+                    // Pass the hardware-rate audio data into Sherpa
+                    currentStream.acceptWaveform(activeSamples, sampleRate = inputSampleRate)
                     
                     while (currentRecognizer.isReady(currentStream)) {
                         currentRecognizer.decode(currentStream)

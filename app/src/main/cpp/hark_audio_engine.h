@@ -90,11 +90,9 @@ private:
     // Resampling for transcription
     void pushToTranscriptionFifo(const float* data, int32_t numFrames);
     int32_t mSampleRate = 48000;
-    double mResampleAccumulator = 0;
 
     // Pre-allocated buffers for audio processing to avoid heap allocation in callback
     static constexpr int32_t kMaxFrames = 2048;
-    float mResampleBuffer[kMaxFrames]{};
     float mGainedBuffer[kMaxFrames]{};
 };
 

@@ -168,7 +168,9 @@ dependencies {
     implementation(libs.oboe)
 
     // Sherpa-ONNX STT
-    implementation("com.github.k2-fsa:sherpa-onnx:v1.13.0")
+    implementation("com.github.k2-fsa:sherpa-onnx:v1.13.7") {
+        exclude(group = "com.github.k2-fsa.sherpa-onnx", module = "sherpa-onnx-jvm")
+    }
 
     testImplementation(libs.junit)
     testImplementation(libs.turbine)
