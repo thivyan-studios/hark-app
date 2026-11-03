@@ -99,11 +99,11 @@ class AudioEngine @Inject constructor(
         }
     }
 
-    private fun getOptimalSampleRate(): Int {
+    fun getOptimalSampleRate(): Int {
         return audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 48000
     }
 
-    private fun getOptimalFramesPerBurst(): Int {
+    fun getOptimalFramesPerBurst(): Int {
         return audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull() ?: 192
     }
 
