@@ -100,7 +100,6 @@ class MainViewModel @Inject constructor(
                         isLoading = false,
                         isModelAvailable = isModelAvailable,
                         history = history,
-                        shouldShowBatteryOptimizationPrompt = permissionsHandled && !prefs.batteryOptimizationPromptShown && !isBatteryOptimizationIgnored,
                         arePermissionsHandled = permissionsHandled
                     )
                 }
@@ -122,9 +121,6 @@ class MainViewModel @Inject constructor(
                     val isModelAvailable = sttModelManager.availableModels.any { 
                         sttModelManager.isModelDownloaded(it)
                     }
-
-                    val isBatteryOptimizationIgnored = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
-                        .isIgnoringBatteryOptimizations(context.packageName)
                     
                     MainUiState(
                         hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
@@ -134,7 +130,6 @@ class MainViewModel @Inject constructor(
                         isLoading = false,
                         isModelAvailable = isModelAvailable,
                         history = history,
-                        shouldShowBatteryOptimizationPrompt = permissionsHandled && !prefs.batteryOptimizationPromptShown && !isBatteryOptimizationIgnored,
                         arePermissionsHandled = permissionsHandled
                     )
                 }
@@ -199,12 +194,6 @@ class MainViewModel @Inject constructor(
     fun deleteAllHistory() {
         viewModelScope.launch {
             transcriptionRepository.deleteAll()
-        }
-    }
-
-    fun setBatteryOptimizationPromptShown(shown: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.setBatteryOptimizationPromptShown(shown)
         }
     }
 

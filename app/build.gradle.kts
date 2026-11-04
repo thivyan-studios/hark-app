@@ -2,6 +2,7 @@
 
 import java.util.Properties
 import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.variant.FilterConfiguration
 
 plugins {
     alias(libs.plugins.android.application)

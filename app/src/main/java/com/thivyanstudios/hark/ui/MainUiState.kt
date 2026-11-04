@@ -12,6 +12,5 @@ data class MainUiState(
     val isLoading: Boolean = true,
     val isModelAvailable: Boolean = false,
     val history: List<com.thivyanstudios.hark.data.local.TranscriptionEntity> = emptyList(),
-    val shouldShowBatteryOptimizationPrompt: Boolean = false,
     val arePermissionsHandled: Boolean = false
 )
