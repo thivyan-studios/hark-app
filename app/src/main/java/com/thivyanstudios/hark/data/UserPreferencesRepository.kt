@@ -42,7 +42,6 @@ class UserPreferencesRepository @Inject constructor(
         val SILENCE_THRESHOLD = floatPreferencesKey("silence_threshold")
         val TRANSCRIPTION_FONT_SIZE = floatPreferencesKey("transcription_font_size")
         val SELECTED_MODEL_ID = androidx.datastore.preferences.core.stringPreferencesKey("selected_model_id")
-        val BATTERY_OPTIMIZATION_PROMPT_SHOWN = booleanPreferencesKey("battery_optimization_prompt_shown")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data
@@ -70,8 +69,7 @@ class UserPreferencesRepository @Inject constructor(
                 whisperTranslate = preferences[PreferenceKeys.WHISPER_TRANSLATE] ?: false,
                 silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.002f,
                 transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
-                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "zipformer-en-streaming",
-                batteryOptimizationPromptShown = preferences[PreferenceKeys.BATTERY_OPTIMIZATION_PROMPT_SHOWN] ?: false
+                selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "zipformer-en-streaming"
             )
         }
         .flowOn(ioDispatcher)
@@ -134,10 +132,6 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setSelectedModelId(id: String) = update {
         it[PreferenceKeys.SELECTED_MODEL_ID] = id
-    }
-
-    suspend fun setBatteryOptimizationPromptShown(isShown: Boolean) = update {
-        it[PreferenceKeys.BATTERY_OPTIMIZATION_PROMPT_SHOWN] = isShown
     }
 
     private suspend fun update(action: (MutablePreferences) -> Unit) {

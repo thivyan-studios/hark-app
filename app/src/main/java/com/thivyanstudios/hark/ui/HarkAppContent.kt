@@ -58,46 +58,6 @@ fun HarkAppContent(
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    if (uiState.shouldShowBatteryOptimizationPrompt) {
-        AlertDialog(
-            onDismissRequest = { mainViewModel.setBatteryOptimizationPromptShown(true) },
-            title = {
-                HarkText(
-                    text = stringResource(R.string.battery_optimization_title),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-                )
-            },
-            text = {
-                HarkText(
-                    text = stringResource(R.string.battery_optimization_message),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        mainViewModel.setBatteryOptimizationPromptShown(true)
-                        onRequestBatteryOptimizationExemption()
-                    }
-                ) {
-                    HarkText(
-                        text = stringResource(R.string.battery_optimization_action),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mainViewModel.setBatteryOptimizationPromptShown(true) }) {
-                    HarkText(
-                        text = stringResource(R.string.battery_optimization_dismiss),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        )
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             snackbarHost = {

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.MotionEvent
 import android.view.WindowManager
@@ -39,6 +40,16 @@ class MainActivity : ComponentActivity() {
     private val settingsViewModel: SettingsViewModel by viewModels()
 
     private lateinit var permissionManager: PermissionManager
+    private var hasRequestedBatteryOptimization = false
+
+    private fun checkAndRequestBatteryOptimization() {
+        if (hasRequestedBatteryOptimization) return
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            hasRequestedBatteryOptimization = true
+            requestBatteryOptimizationExemption()
+        }
+    }
 
     override fun onStart() {
         super.onStart()
@@ -75,11 +86,13 @@ class MainActivity : ComponentActivity() {
                 HarkLog.i("MainActivity", "Permission result: $permissions")
                 permissionManager.handlePermissionsResult(permissions)
                 mainViewModel.setPermissionsHandled(true)
+                checkAndRequestBatteryOptimization()
             }
         ) { mainViewModel.showPermissionsRequiredMessage(getString(R.string.permissions_required)) }
 
         if (permissionManager.hasPermissions()) {
             mainViewModel.setPermissionsHandled(true)
+            checkAndRequestBatteryOptimization()
         } else {
             permissionManager.requestPermissions()
         }

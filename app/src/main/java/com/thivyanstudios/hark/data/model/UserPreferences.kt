@@ -17,6 +17,5 @@ data class UserPreferences(
     val whisperTranslate: Boolean = false,
     val silenceThreshold: Float = 0.005f,
     val transcriptionFontSize: Float = 22f,
-    val selectedModelId: String = "ggml-base-q8_0",
-    val batteryOptimizationPromptShown: Boolean = false
+    val selectedModelId: String = "ggml-base-q8_0"
 )
