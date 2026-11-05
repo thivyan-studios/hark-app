@@ -63,10 +63,12 @@ flowchart TD
         DataStore["UserPreferencesRepository"]
     end
 
-    UI --> Core
-    Core --> Native
-    Core --> ML
-    Core --> Storage
+    HomeScreen --> Service
+    TranscribeScreen --> Service
+    SettingsScreen --> DataStore
+    AudioEngine --> HarkNative
+    Service --> Sherpa
+    Service --> RoomDB
 ```
 
 For complete architectural breakdown, threading diagrams, and module responsibilities, read the **[System Architecture Guide](docs/ARCHITECTURE.md)**.
