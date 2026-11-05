@@ -105,24 +105,11 @@ flowchart TD
 
 ## Threading & Concurrency Model
 
-```
-+-----------------------------------------------------------------------------------------+
-|                                    THREADING ARCHITECTURE                               |
-+-----------------------------------------------------------------------------------------+
-| [Real-time Audio Thread] (C++/Oboe)                                                    |
-|  - High priority, zero heap allocations, lock-free atomics                             |
-|  - Reads mic input -> DSP Processing -> Writes output FIFO & Transcription FIFO        |
-+-----------------------------------------------------------------------------------------+
-| [IO Coroutine Dispatcher] (Kotlin Coroutines)                                           |
-|  - Service background loop: Reads transcription FIFO -> Sherpa ONNX acceptWaveform     |
-|  - Model downloading via OkHttp                                                         |
-|  - Room DB reads/writes & DataStore IO                                                  |
-+-----------------------------------------------------------------------------------------+
-| [Main Thread / UI Thread]                                                               |
-|  - Jetpack Compose rendering & user interactions                                       |
-|  - StateFlow collect / UI state updates                                                 |
-+-----------------------------------------------------------------------------------------+
-```
+| Thread / Context | Execution Model & Tech | Responsibilities & Constraints |
+| :--- | :--- | :--- |
+| **Real-time Audio Thread** | Native C++ / Oboe Callback | • High priority real-time execution<br>• Zero heap allocations (`new`/`malloc`) inside callback<br>• Lock-free parameter updates via `std::atomic`<br>• Reads mic input $\rightarrow$ DSP processing $\rightarrow$ Writes output FIFO & Transcription FIFO |
+| **IO Coroutine Dispatcher** | Kotlin Coroutines (`Dispatchers.IO`) | • Background loop polling native transcription FIFO<br>• Passes PCM samples to Sherpa-ONNX `acceptWaveform`<br>• Asynchronous model downloads via OkHttp<br>• Room Database reads/writes & DataStore Preferences IO |
+| **Main Thread / UI Thread** | Android Main (`Dispatchers.Main`) | • Jetpack Compose UI rendering & user touch input<br>• Collects `StateFlow` streams from ViewModels<br>• Material 3 layout & navigation updates |
 
 1. **Audio Hardware Callbacks**: Executed on high-priority real-time threads managed by Oboe. No memory allocations (`new`/`malloc`) or locking primitives are permitted inside `onAudioReady`. Dynamic parameters (`mGain`, DSP flags) use `std::atomic<T>`.
 2. **Transcription Processing**: Executed on `Dispatchers.IO` via Kotlin Coroutines inside `AudioStreamingService`. Continuously polls `nativeReadTranscriptionData` without blocking the audio callback thread.
