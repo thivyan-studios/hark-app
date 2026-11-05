@@ -123,7 +123,7 @@ hark-app/
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/thivyanpillay/hark-app.git
+   git clone https://github.com/thivyan-studios/hark-app.git
    cd hark-app
    ```
 
