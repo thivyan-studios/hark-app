@@ -59,16 +59,14 @@ flowchart TD
     end
 
     subgraph Storage ["Data & Storage Layer"]
-        DataStore["UserPreferencesRepository"]
         RoomDB["HarkDatabase (Room)"]
+        DataStore["UserPreferencesRepository"]
     end
 
-    HomeScreen --> Service
-    TranscribeScreen --> Service
-    SettingsScreen --> DataStore
-    AudioEngine --> HarkNative
-    Service --> Sherpa
-    Service --> RoomDB
+    UI --> Core
+    Core --> Native
+    Core --> ML
+    Core --> Storage
 ```
 
 For complete architectural breakdown, threading diagrams, and module responsibilities, read the **[System Architecture Guide](docs/ARCHITECTURE.md)**.

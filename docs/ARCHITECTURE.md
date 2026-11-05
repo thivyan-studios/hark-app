@@ -56,11 +56,10 @@ flowchart TD
         DS["DataStore Preferences (UserPreferencesRepository)"]
     end
 
-    VM_Main --> SVC
-    VM_Settings --> DS
-    SVC --> AE
-    SVC --> SHERPA
-    SVC --> ROOM
+    UI --> Service
+    Service --> Audio
+    Service --> STT
+    Service --> Data
 ```
 
 ---
