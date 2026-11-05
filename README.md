@@ -63,10 +63,11 @@ flowchart TD
         RoomDB["HarkDatabase (Room)"]
     end
 
-    UI --> Core
-    UI --> Storage
-    AudioEngine --> Native
-    Service --> ML
+    HomeScreen --> Service
+    TranscribeScreen --> Service
+    SettingsScreen --> DataStore
+    AudioEngine --> HarkNative
+    Service --> Sherpa
     Service --> RoomDB
 ```
 
