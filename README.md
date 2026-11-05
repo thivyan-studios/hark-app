@@ -39,36 +39,34 @@ flowchart TD
         SettingsScreen["SettingsScreen"]
     end
 
-    subgraph Core ["Foreground Service & Coordinator"]
+    subgraph Core ["Foreground Service & Audio Coordinator"]
         Service["AudioStreamingService"]
         AudioEngine["AudioEngine (Kotlin)"]
+        Service --> AudioEngine
     end
 
-    subgraph Native ["C++ / Oboe Audio Engine"]
+    subgraph Native ["C++ Native Audio Engine (Oboe)"]
         HarkNative["HarkAudioEngine (C++)"]
-        TrebleFilter["Treble Boost Biquad Filter"]
-        Limiter["Soft-Knee Dynamics Limiter"]
+        TrebleFilter["Treble Boost Filter"]
+        Limiter["Soft-Knee Limiter"]
+        HarkNative --> TrebleFilter --> Limiter
     end
 
     subgraph ML ["Speech-To-Text Engine"]
         Sherpa["Sherpa-ONNX Recognizer"]
         ModelMgr["STTModelManager"]
+        Sherpa --> ModelMgr
     end
 
-    subgraph Storage ["Data Layer"]
+    subgraph Storage ["Data & Storage Layer"]
         DataStore["UserPreferencesRepository"]
         RoomDB["HarkDatabase (Room)"]
     end
 
-    HomeScreen --> Service
-    TranscribeScreen --> Service
-    SettingsScreen --> DataStore
-    Service --> AudioEngine
-    AudioEngine --> HarkNative
-    HarkNative --> TrebleFilter
-    TrebleFilter --> Limiter
-    Service --> Sherpa
-    Sherpa --> ModelMgr
+    UI --> Core
+    UI --> Storage
+    AudioEngine --> Native
+    Service --> ML
     Service --> RoomDB
 ```
 

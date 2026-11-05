@@ -17,49 +17,50 @@ flowchart TD
         UI_Settings["SettingsScreen"]
         VM_Main["MainViewModel"]
         VM_Settings["SettingsViewModel"]
+
+        UI_Home --> VM_Main
+        UI_Transcribe --> VM_Main
+        UI_History --> VM_Main
+        UI_Settings --> VM_Settings
     end
 
     subgraph Service ["Service & Lifecycle Layer"]
         SVC["AudioStreamingService (Foreground Service)"]
         NOTIF["NotificationHelper"]
         FOCUS["Audio Focus & Route Callback"]
+
+        SVC --> NOTIF
+        SVC --> FOCUS
     end
 
-    subgraph Audio ["Audio Pipeline Layer"]
+    subgraph Audio ["Native & Kotlin Audio Pipeline Layer"]
         AE["AudioEngine (Kotlin Wrapper)"]
         JNI["JNI Bridge (jni_bridge.cpp)"]
         HAE["HarkAudioEngine (C++/Oboe)"]
-        FALLBACK["AudioStreamManager / DefaultAudioProcessor (Kotlin Fallback)"]
+        FALLBACK["AudioStreamManager (Fallback)"]
+
+        AE --> JNI
+        JNI --> HAE
+        AE -.->|Fallback| FALLBACK
     end
 
     subgraph STT ["Speech-To-Text & ML Layer"]
         SHERPA["Sherpa-ONNX (OnlineRecognizer)"]
         STT_MGR["STTModelManager"]
+
+        SHERPA --> STT_MGR
     end
 
-    subgraph Data ["Data & Storage Layer"]
+    subgraph Data ["Data & Persistence Layer"]
         ROOM["Room DB (TranscriptionDao)"]
         DS["DataStore Preferences (UserPreferencesRepository)"]
     end
 
-    UI_Home --> VM_Main
-    UI_Transcribe --> VM_Main
-    UI_Settings --> VM_Settings
-    VM_Main --> SVC
-    VM_Settings --> DS
-
-    SVC --> AE
-    SVC --> SHERPA
-    SVC --> NOTIF
-    SVC --> FOCUS
-
-    AE --> JNI
-    JNI --> HAE
-    AE -.->|Fallback| FALLBACK
-
-    SHERPA --> STT_MGR
-    SVC --> ROOM
-    SVC --> DS
+    UI --> Service
+    UI --> Data
+    Service --> Audio
+    Service --> STT
+    Service --> ROOM
 ```
 
 ---
