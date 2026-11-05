@@ -20,28 +20,30 @@ HARK provides live continuous transcription of spoken audio directly on-device w
 ```mermaid
 flowchart TD
     subgraph Audio_Capture ["Audio Hardware & C++ Layer"]
-        MIC[Microphone] --> C_ENGINE[HarkAudioEngine C++]
-        C_ENGINE --> TX_FIFO[mTranscriptionFifo Buffer]
+        MIC["Microphone Input"] --> C_ENGINE["HarkAudioEngine (C++)"]
+        C_ENGINE --> TX_FIFO["mTranscriptionFifo Buffer"]
     end
 
     subgraph Service_Loop ["AudioStreamingService Coroutine (IO Dispatcher)"]
-        JNI_READ[nativeReadTranscriptionData] -->|1600 float samples| BUF[FloatArray Buffer]
-        BUF --> ACCEPT[sherpaStream.acceptWaveform]
-        ACCEPT --> DECODE_LOOP{recognizer.isReady?}
-        DECODE_LOOP -->|Yes| DECODE[recognizer.decode]
-        DECODE --> RESULT[recognizer.getResult]
-        RESULT --> EP_CHECK{recognizer.isEndpoint?}
-        EP_CHECK -->|No| PARTIAL[Emit Partial Text to UI]
-        EP_CHECK -->|Yes| FINAL[Append Final Sentence & Reset Stream]
+        JNI_READ["nativeReadTranscriptionData"] --> BUF["FloatArray Buffer (1600 samples)"]
+        BUF --> ACCEPT["sherpaStream.acceptWaveform"]
+        ACCEPT --> DECODE_LOOP{"recognizer.isReady?"}
+        DECODE_LOOP -->|Yes| DECODE["recognizer.decode"]
+        DECODE --> RESULT["recognizer.getResult"]
+        RESULT --> EP_CHECK{"recognizer.isEndpoint?"}
+        EP_CHECK -->|No| PARTIAL["Emit Partial Text"]
+        EP_CHECK -->|Yes| FINAL["Append Final Sentence & Reset"]
     end
 
-    subgraph Storage ["Storage & UI"]
-        PARTIAL --> UI[TranscribeScreen Jetpack Compose]
-        FINAL --> REPO[TranscriptionRepository]
-        REPO --> ROOM[Room Database - TranscriptionEntity]
+    subgraph Storage ["Storage & Presentation Layer"]
+        UI["TranscribeScreen (Jetpack Compose)"]
+        REPO["TranscriptionRepository"]
+        ROOM["Room Database (TranscriptionEntity)"]
+        REPO --> ROOM
     end
 
-    TX_FIFO --> JNI_READ
+    Audio_Capture --> Service_Loop
+    Service_Loop --> Storage
 ```
 
 ---
