@@ -228,7 +228,7 @@ fun SettingsScreen(
                 }
 
                 // Section: Audio
-                SettingsGroup(title = "Audio engine") {
+                SettingsGroup(title = "Audio Engine") {
                     SettingsSwitchRow(
                         text = stringResource(R.string.settings_noise_suppression),
                         icon = Icons.Default.FilterList,
@@ -325,7 +325,7 @@ fun SettingsScreen(
 
                 // Section: Sherpa-ONNX STT Engine
                 SettingsGroup(
-                    title = "Sherpa-ONNX STT engine",
+                    title = "Sherpa-ONNX STT Engine",
                     badge = { BetaBadge() }
                 ) {
                     HarkText(
