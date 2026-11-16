@@ -1,5 +1,9 @@
 package com.thivyanstudios.hark.ui
 
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -38,6 +42,8 @@ import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.HarkToast
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.util.Constants.Navigation
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,81 +59,129 @@ fun HarkAppContent(
 ) {
     val navController = rememberNavController()
     val navBackStackEntry = navController.currentBackStackEntryAsState().value
-    val currentRoute = navBackStackEntry?.destination?.route ?: Navigation.ROUTE_HOME
-    
+
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // Shared between the screens (blur source) and the floating navbar (blur effect)
+    val hazeState = rememberHazeState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            snackbarHost = {
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier.padding(bottom = 120.dp + navigationBarsPadding) // Lift above navbar
-                ) { data ->
-                    HarkToast(
-                        snackbarData = data,
-                        icon = Icons.Default.Info
-                    )
-                }
-            },
-            contentWindowInsets = WindowInsets(0, 0, 0, 0)
-        ) { innerPadding ->
-            NavHost(
-                navController = navController,
-                startDestination = Navigation.ROUTE_HOME,
+    // Tablets (shortest side >= 600dp, in either orientation) get Home and the other
+    // pages side by side. Phones keep the single-screen layout.
+    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val startRoute = if (isTablet) Navigation.ROUTE_SETTINGS else Navigation.ROUTE_HOME
+    val currentRoute = navBackStackEntry?.destination?.route ?: startRoute
+
+    val homeScreen: @Composable () -> Unit = {
+        HomeScreen(
+            isStreaming = uiState.isStreaming,
+            onStreamButtonClick = onToggleStreaming,
+            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+            isModelAvailable = uiState.isModelAvailable
+        )
+    }
+
+    val onNavigate: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    // The pages reachable from the navbar. On tablets Home lives in its own pane instead.
+    val pages: @Composable (Modifier) -> Unit = { modifier ->
+        NavHost(
+            navController = navController,
+            startDestination = startRoute,
+            modifier = modifier.hazeSource(hazeState)
+        ) {
+            if (!isTablet) {
+                composable(Navigation.ROUTE_HOME) { homeScreen() }
+            }
+            composable(Navigation.ROUTE_TRANSCRIBE) {
+                TranscribeScreen(
+                    isStreaming = uiState.isStreaming,
+                    transcription = uiState.transcription,
+                    onClearTranscription = onClearTranscription,
+                    onShareTranscription = onShareTranscription,
+                    fontSize = settingsState.transcriptionFontSize
+                )
+            }
+            composable(Navigation.ROUTE_HISTORY) {
+                HistoryScreen(
+                    history = uiState.history,
+                    onDeleteAll = { mainViewModel.deleteAllHistory() },
+                    onDeleteById = { id -> mainViewModel.deleteHistoryItem(id) },
+                    onShare = onShareTranscription
+                )
+            }
+            composable(Navigation.ROUTE_SETTINGS) {
+                SettingsScreen(
+                    settingsViewModel = settingsViewModel,
+                    onRequestBatteryOptimizationExemption = onRequestBatteryOptimizationExemption
+                )
+            }
+        }
+    }
+
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = 120.dp + navigationBarsPadding) // Lift above navbar
+            ) { data ->
+                HarkToast(
+                    snackbarData = data,
+                    icon = Icons.Default.Info
+                )
+            }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { innerPadding ->
+        if (isTablet) {
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                composable(Navigation.ROUTE_HOME) {
-                    HomeScreen(
-                        isStreaming = uiState.isStreaming,
-                        onStreamButtonClick = onToggleStreaming,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                        isModelAvailable = uiState.isModelAvailable
-                    )
+                Box(modifier = Modifier.weight(0.42f).fillMaxHeight()) {
+                    homeScreen()
                 }
-                composable(Navigation.ROUTE_TRANSCRIBE) {
-                    TranscribeScreen(
-                        isStreaming = uiState.isStreaming,
-                        transcription = uiState.transcription,
-                        onClearTranscription = onClearTranscription,
-                        onShareTranscription = onShareTranscription,
-                        fontSize = settingsState.transcriptionFontSize
-                    )
-                }
-                composable(Navigation.ROUTE_HISTORY) {
-                    HistoryScreen(
-                        history = uiState.history,
-                        onDeleteAll = { mainViewModel.deleteAllHistory() },
-                        onDeleteById = { id -> mainViewModel.deleteHistoryItem(id) },
-                        onShare = onShareTranscription
-                    )
-                }
-                composable(Navigation.ROUTE_SETTINGS) {
-                    SettingsScreen(
-                        settingsViewModel = settingsViewModel,
-                        onRequestBatteryOptimizationExemption = onRequestBatteryOptimizationExemption
-                    )
+                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                Box(modifier = Modifier.weight(0.58f).fillMaxHeight()) {
+                    pages(Modifier.fillMaxSize())
+                    // With no transcription model, Settings is the only page, so no navbar is needed
+                    if (uiState.isModelAvailable) {
+                        BottomNavBar(
+                            currentRoute = currentRoute,
+                            onNavigate = onNavigate,
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            isModelAvailable = uiState.isModelAvailable,
+                            hazeState = hazeState,
+                            showStreamTab = false,
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+                    }
                 }
             }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                pages(Modifier.fillMaxSize())
+                BottomNavBar(
+                    currentRoute = currentRoute,
+                    onNavigate = onNavigate,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                    isModelAvailable = uiState.isModelAvailable,
+                    hazeState = hazeState,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
         }
-
-        BottomNavBar(
-            currentRoute = currentRoute,
-            onNavigate = { route ->
-                navController.navigate(route) {
-                    popUpTo(navController.graph.findStartDestination().id) {
-                        saveState = true
-                    }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            },
-            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-            isModelAvailable = uiState.isModelAvailable,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }

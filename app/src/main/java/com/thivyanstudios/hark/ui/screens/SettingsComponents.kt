@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -18,9 +16,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.thivyanstudios.hark.R
+import com.thivyanstudios.hark.ui.theme.GlassFader
+import com.thivyanstudios.hark.ui.theme.GlassSwitch
+import com.thivyanstudios.hark.ui.theme.HarkSliderStyle
+import com.thivyanstudios.hark.ui.theme.faderZoneColor
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.thivyanstudios.hark.ui.theme.HarkText
 
 import androidx.compose.foundation.layout.Spacer
@@ -179,7 +182,7 @@ fun SettingsSwitchRow(
                 .weight(1f)
                 .padding(end = 16.dp)
         )
-        Switch(
+        GlassSwitch(
             checked = checked,
             onCheckedChange = {
                 if (hapticFeedbackEnabled) {
@@ -188,21 +191,90 @@ fun SettingsSwitchRow(
                 onCheckedChange(it)
             },
             enabled = enabled,
-            thumbContent = if (checked) {
-                {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_check),
-                        contentDescription = null,
-                        modifier = Modifier.size(SwitchDefaults.IconSize),
-                    )
-                }
-            } else null,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.primary,
-                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-            )
         )
+    }
+}
+
+/**
+ * A settings row with an icon, label and current value, and a [GlassFader] below.
+ * Every slider in Settings uses this, and every slider's looks come from
+ * [HarkSliderStyle], so changing either restyles all of them together.
+ *
+ * @param valueLabel Formats a value for the header and the drag bubble, e.g. "+3 dB".
+ * @param step Distance between allowed values, or null for a smooth slider.
+ * @param origin Where the fill starts from (null = left end). Use e.g. 0 for a ±dB slider.
+ * @param warnAbove Values above this turn amber→red and show [warningText].
+ */
+@Composable
+fun SettingsSliderRow(
+    icon: ImageVector,
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    valueLabel: @Composable (Float) -> String,
+    hapticFeedbackEnabled: Boolean,
+    modifier: Modifier = Modifier,
+    step: Float? = null,
+    origin: Float? = null,
+    warnAbove: Float? = null,
+    warningText: String? = null,
+) {
+    // The fader's bubble shows the value while dragging, so fade the header copy out
+    var dragging by remember { mutableStateOf(false) }
+    val headerValueAlpha by animateFloatAsState(if (dragging) 0f else 1f, label = "SliderHeaderAlpha")
+    val zoneColor = faderZoneColor(
+        value = value,
+        base = MaterialTheme.colorScheme.primary,
+        origin = origin ?: valueRange.start,
+        max = valueRange.endInclusive,
+        warnAbove = warnAbove,
+    )
+
+    Column(modifier = modifier.padding(horizontal = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(HarkSliderStyle.IconSize)
+                )
+                Spacer(modifier = Modifier.width(HarkSliderStyle.IconToLabelGap))
+                HarkText(text = label)
+            }
+            HarkText(
+                text = valueLabel(value),
+                style = MaterialTheme.typography.labelLarge,
+                color = zoneColor,
+                modifier = Modifier.alpha(headerValueAlpha)
+            )
+        }
+        Spacer(modifier = Modifier.height(HarkSliderStyle.LabelToSliderGap))
+        GlassFader(
+            value = value,
+            onValueChange = onValueChange,
+            onValueChangeFinished = onValueChangeFinished,
+            valueRange = valueRange,
+            valueLabel = valueLabel,
+            origin = origin,
+            step = step,
+            warnAbove = warnAbove,
+            hapticFeedbackEnabled = hapticFeedbackEnabled,
+            onDraggingChange = { dragging = it },
+        )
+        if (warningText != null && warnAbove != null && value > warnAbove) {
+            HarkText(
+                text = warningText,
+                style = MaterialTheme.typography.bodySmall,
+                color = zoneColor,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
     }
 }

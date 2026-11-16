@@ -4,7 +4,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,7 +32,6 @@ import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -48,6 +51,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.util.Constants.Navigation
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.HazeColorEffect
+import dev.chrisbanes.haze.blur.hazeBlur
 
 @Composable
 fun BottomNavBar(
@@ -55,8 +63,37 @@ fun BottomNavBar(
     onNavigate: (String) -> Unit,
     hapticFeedbackEnabled: Boolean,
     isModelAvailable: Boolean,
-    modifier: Modifier = Modifier
+    hazeState: HazeState,
+    modifier: Modifier = Modifier,
+    // Tablets keep Home on screen in its own pane, so the Stream tab isn't needed there
+    showStreamTab: Boolean = true,
 ) {
+    val shape = RoundedCornerShape(36.dp)
+    val isDark = isSystemInDarkTheme()
+    val surface = MaterialTheme.colorScheme.surface
+    val fallback = MaterialTheme.colorScheme.surfaceContainerHigh
+
+    // Frosted glass: blur whatever scrolls behind the bar, then wash it with a light
+    // tint of the surface colour so icons stay readable (like Samsung's One UI pills).
+    // Android 12+ gets the real blur; older versions fall back to a near-opaque tint.
+    val glassStyle = remember(surface, fallback, isDark) {
+        HazeBlurStyle {
+            blurRadius(28.dp)
+            backgroundColor(surface)
+            colorEffects(listOf(HazeColorEffect.tint(surface.copy(alpha = if (isDark) 0.55f else 0.45f))))
+            noiseFactor(0.06f)
+            fallbackColorEffect(HazeColorEffect.tint(fallback.copy(alpha = 0.94f)))
+        }
+    }
+
+    // Thin highlight along the top edge that fades out, to sell the glass edge
+    val rimBrush = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = if (isDark) 0.22f else 0.6f),
+            Color.White.copy(alpha = 0.04f),
+        )
+    )
+
     val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     Box(
@@ -65,29 +102,35 @@ fun BottomNavBar(
             .padding(bottom = 16.dp + navigationBarsPadding, start = 20.dp, end = 20.dp),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
+        Box(
             modifier = Modifier
                 .widthIn(max = 440.dp)
                 .fillMaxWidth()
-                .height(72.dp),
-            shape = RoundedCornerShape(36.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
-            tonalElevation = 10.dp,
-            shadowElevation = 16.dp,
-            border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                .height(72.dp)
+                .shadow(
+                    elevation = 18.dp,
+                    shape = shape,
+                    ambientColor = Color.Black.copy(alpha = 0.25f),
+                    spotColor = Color.Black.copy(alpha = 0.35f),
+                )
+                .clip(shape)
+                .hazeBlur(input = HazeInput.Sources(hazeState), style = glassStyle)
+                .border(1.dp, rimBrush, shape)
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AnimatedNavigationBarItem(
-                    icon = Icons.Rounded.Mic,
-                    labelResId = R.string.nav_stream,
-                    selected = currentRoute == Navigation.ROUTE_HOME,
-                    onClick = { onNavigate(Navigation.ROUTE_HOME) },
-                    hapticFeedbackEnabled = hapticFeedbackEnabled
-                )
+                if (showStreamTab) {
+                    AnimatedNavigationBarItem(
+                        icon = Icons.Rounded.Mic,
+                        labelResId = R.string.nav_stream,
+                        selected = currentRoute == Navigation.ROUTE_HOME,
+                        onClick = { onNavigate(Navigation.ROUTE_HOME) },
+                        hapticFeedbackEnabled = hapticFeedbackEnabled
+                    )
+                }
                 if (isModelAvailable) {
                     AnimatedNavigationBarItem(
                         icon = Icons.Rounded.RecordVoiceOver,
@@ -149,7 +192,7 @@ fun AnimatedNavigationBarItem(
         targetValue = if (selected)
             MaterialTheme.colorScheme.secondaryContainer
         else
-            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+            Color.Transparent,
         label = "IndicatorColor"
     )
 

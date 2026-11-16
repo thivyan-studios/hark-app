@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.BetaBadge
 import com.thivyanstudios.hark.ui.theme.HarkText
-import com.thivyanstudios.hark.ui.theme.SquishyBox
+import com.thivyanstudios.hark.ui.theme.GlassOrbButton
 import kotlinx.coroutines.delay
 
 @Composable
@@ -115,9 +115,9 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             HarkText(
-                text = if (isStreaming) "STREAMING" else "READY",
+                text = if (isStreaming) "Streaming" else "Ready",
                 style = MaterialTheme.typography.labelLarge.copy(
-                    letterSpacing = 4.sp,
+                    letterSpacing = 0.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (isStreaming) greenColor else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -136,51 +136,46 @@ fun HomeScreen(
             modifier = Modifier.align(Alignment.Center),
             contentAlignment = Alignment.Center
         ) {
-            // Pulsing Rings (Only visible when streaming)
-            if (isStreaming) {
-                repeat(3) { index ->
-                    Box(
-                        modifier = Modifier
-                            .size(140.dp)
-                            .graphicsLayer {
-                                val finalScale = basePulseScale + (index * 0.15f)
-                                scaleX = finalScale
-                                scaleY = finalScale
-                                alpha = pulseAlpha / (index + 1)
-                            }
-                            .background(buttonColor.copy(alpha = 0.35f), CircleShape)
-                            .border(1.dp, buttonColor.copy(alpha = 0.6f), CircleShape)
-                    )
-                }
-            }
-
-            // The Main Button
-            SquishyBox(
+            // Liquid-glass mic button. The pulse rings sit behind the glass so they
+            // ripple through it while streaming.
+            GlassOrbButton(
+                color = buttonColor,
                 onClick = {
                     if (isButtonEnabled) {
                         isButtonEnabled = false
                         onStreamButtonClick()
                     }
                 },
-                modifier = Modifier.size(150.dp),
-                backgroundColor = buttonColor,
                 enabled = isButtonEnabled,
-                hapticFeedbackEnabled = hapticFeedbackEnabled
+                hapticFeedbackEnabled = hapticFeedbackEnabled,
+                backdrop = {
+                    if (isStreaming) {
+                        repeat(3) { index ->
+                            Box(
+                                modifier = Modifier
+                                    .size(140.dp)
+                                    .graphicsLayer {
+                                        val finalScale = basePulseScale + (index * 0.15f)
+                                        scaleX = finalScale
+                                        scaleY = finalScale
+                                        alpha = pulseAlpha / (index + 1)
+                                    }
+                                    .background(buttonColor.copy(alpha = 0.35f), CircleShape)
+                                    .border(1.dp, buttonColor.copy(alpha = 0.6f), CircleShape)
+                            )
+                        }
+                    }
+                },
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Image(
-                        painter = if (isStreaming) {
-                            painterResource(id = R.drawable.ic_mic_on)
-                        } else {
-                            painterResource(id = R.drawable.ic_mic_off)
-                        },
-                        contentDescription = stringResource(R.string.cd_stream_button),
-                        modifier = Modifier.size(76.dp)
-                    )
-                }
+                Image(
+                    painter = if (isStreaming) {
+                        painterResource(id = R.drawable.ic_mic_on)
+                    } else {
+                        painterResource(id = R.drawable.ic_mic_off)
+                    },
+                    contentDescription = stringResource(R.string.cd_stream_button),
+                    modifier = Modifier.size(76.dp)
+                )
             }
         }
         

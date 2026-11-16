@@ -26,8 +26,11 @@ turbine = "1.2.1"
 mockito-kotlin = "5.4.0"
 kotlinx-coroutines = "1.11.0"
 okhttp = "5.5.0"
+haze = "2.1.0"
 
 [libraries]
+haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
+haze-blur = { group = "dev.chrisbanes.haze", name = "haze-blur", version.ref = "haze" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-ktx-v1120 = { module = "androidx.core:core-ktx", version.ref = "coreKtxVersion" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

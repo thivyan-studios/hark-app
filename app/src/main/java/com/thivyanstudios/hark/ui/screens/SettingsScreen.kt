@@ -1,5 +1,7 @@
 package com.thivyanstudios.hark.ui.screens
 
+import androidx.compose.ui.draw.alpha
+import androidx.compose.animation.core.animateFloatAsState
 import android.annotation.SuppressLint
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -48,7 +50,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -204,7 +205,8 @@ fun SettingsScreen(
                     .padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(12.dp))
+                // Clears the 32dp top fade so the first header isn't washed out
+                Spacer(modifier = Modifier.height(36.dp))
 
                 // Section: Experience
                 SettingsGroup(title = "Experience") {
@@ -226,7 +228,7 @@ fun SettingsScreen(
                 }
 
                 // Section: Audio
-                SettingsGroup(title = "Audio Engine") {
+                SettingsGroup(title = "Audio engine") {
                     SettingsSwitchRow(
                         text = stringResource(R.string.settings_noise_suppression),
                         icon = Icons.Default.FilterList,
@@ -256,45 +258,21 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Microphone Gain Slider
-                    Column(modifier = Modifier.padding(horizontal = 4.dp)) {
-                        var sliderValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
-                        val formattedGain = when {
-                            sliderValue > 0.01f -> "+${formatOneDecimal(sliderValue)}"
-                            sliderValue < -0.01f -> formatOneDecimal(sliderValue)
-                            else -> "0"
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Mic,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                HarkText(text = stringResource(R.string.settings_microphone_gain))
-                            }
-                            HarkText(
-                                text = stringResource(R.string.gain_db_format, formattedGain),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Slider(
-                            value = sliderValue,
-                            onValueChange = { sliderValue = it },
-                            valueRange = Constants.Preferences.MIN_MIC_GAIN..Constants.Preferences.MAX_MIC_GAIN,
-                            steps = Constants.Preferences.MIC_GAIN_STEPS,
-                            onValueChangeFinished = {
-                                settingsViewModel.setMicrophoneGain(sliderValue)
-                                if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }
-                        )
-                    }
+                    var gainValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
+                    SettingsSliderRow(
+                        icon = Icons.Default.Mic,
+                        label = stringResource(R.string.settings_microphone_gain),
+                        value = gainValue,
+                        onValueChange = { gainValue = it },
+                        onValueChangeFinished = { settingsViewModel.setMicrophoneGain(gainValue) },
+                        valueRange = Constants.Preferences.MIN_MIC_GAIN..Constants.Preferences.MAX_MIC_GAIN,
+                        valueLabel = { stringResource(R.string.gain_db_format, formatGain(it)) },
+                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                        step = 1f,
+                        origin = Constants.Preferences.DEFAULT_GAIN,
+                        warnAbove = GAIN_WARNING_DB,
+                        warningText = stringResource(R.string.gain_loud_warning),
+                    )
                 }
 
                 // Section: Connectivity
@@ -347,7 +325,7 @@ fun SettingsScreen(
 
                 // Section: Sherpa-ONNX STT Engine
                 SettingsGroup(
-                    title = "Sherpa-ONNX STT Engine",
+                    title = "Sherpa-ONNX STT engine",
                     badge = { BetaBadge() }
                 ) {
                     HarkText(
@@ -389,40 +367,18 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // Font Size Slider
-                        Column(modifier = Modifier.padding(horizontal = 4.dp)) {
-                            var sliderValue by remember(uiState.transcriptionFontSize) { mutableFloatStateOf(uiState.transcriptionFontSize) }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.FormatSize,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    HarkText(text = stringResource(R.string.settings_font_size))
-                                }
-                                HarkText(
-                                    text = "${sliderValue.toInt()} sp",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Slider(
-                                value = sliderValue,
-                                onValueChange = { sliderValue = it },
-                                valueRange = 14f..48f,
-                                steps = 17,
-                                onValueChangeFinished = {
-                                    settingsViewModel.setTranscriptionFontSize(sliderValue)
-                                    if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                            )
-                        }
+                        var fontSizeValue by remember(uiState.transcriptionFontSize) { mutableFloatStateOf(uiState.transcriptionFontSize) }
+                        SettingsSliderRow(
+                            icon = Icons.Default.FormatSize,
+                            label = stringResource(R.string.settings_font_size),
+                            value = fontSizeValue,
+                            onValueChange = { fontSizeValue = it },
+                            onValueChangeFinished = { settingsViewModel.setTranscriptionFontSize(fontSizeValue) },
+                            valueRange = 14f..48f,
+                            valueLabel = { "${it.toInt()} sp" },
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            step = 2f,
+                        )
 
                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -488,75 +444,32 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Silence Threshold Slider
-                        Column(modifier = Modifier.padding(horizontal = 4.dp)) {
-                            var sliderValue by remember(uiState.silenceThreshold) { mutableFloatStateOf(uiState.silenceThreshold) }
-                            val displayValue = (sliderValue * 1000).toInt()
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.SurroundSound,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    HarkText(text = stringResource(R.string.settings_silence_threshold))
-                                }
-                                HarkText(
-                                    text = stringResource(R.string.sensitivity_format, displayValue),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Slider(
-                                value = sliderValue,
-                                onValueChange = { sliderValue = it },
-                                valueRange = 0.0001f..0.02f,
-                                onValueChangeFinished = {
-                                    settingsViewModel.setSilenceThreshold(sliderValue)
-                                    if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                            )
-                        }
+                        // Silence Threshold Slider (smooth, no steps)
+                        var thresholdValue by remember(uiState.silenceThreshold) { mutableFloatStateOf(uiState.silenceThreshold) }
+                        SettingsSliderRow(
+                            icon = Icons.Default.SurroundSound,
+                            label = stringResource(R.string.settings_silence_threshold),
+                            value = thresholdValue,
+                            onValueChange = { thresholdValue = it },
+                            onValueChangeFinished = { settingsViewModel.setSilenceThreshold(thresholdValue) },
+                            valueRange = 0.0001f..0.02f,
+                            valueLabel = { stringResource(R.string.sensitivity_format, (it * 1000).toInt()) },
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                        )
 
                         // Thread Count Slider
-                        Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Memory,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    HarkText(text = "CPU Threads")
-                                }
-                                HarkText(
-                                    text = "${uiState.sttThreads}",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Slider(
-                                value = uiState.sttThreads.toFloat(),
-                                onValueChange = { settingsViewModel.setSttThreads(it.toInt()) },
-                                valueRange = 1f..8f,
-                                steps = 6,
-                                onValueChangeFinished = {
-                                    if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                            )
-                        }
+                        SettingsSliderRow(
+                            icon = Icons.Default.Memory,
+                            label = "CPU Threads",
+                            value = uiState.sttThreads.toFloat(),
+                            onValueChange = { settingsViewModel.setSttThreads(it.toInt()) },
+                            onValueChangeFinished = {},
+                            valueRange = 1f..8f,
+                            valueLabel = { "${it.toInt()}" },
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            step = 1f,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
                     }
                 }
 
@@ -654,9 +567,8 @@ fun SettingsGroup(
             modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
         ) {
             HarkText(
-                text = title.uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 1.5.sp,
+                text = title,
+                style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -686,4 +598,13 @@ fun SettingsGroup(
 
 private fun formatOneDecimal(value: Float): String {
     return String.format(Locale.US, "%.1f", value)
+}
+
+// Above this, extra mic gain risks distortion and uncomfortable loudness
+private const val GAIN_WARNING_DB = 20f
+
+private fun formatGain(value: Float): String = when {
+    value > 0.01f -> "+${formatOneDecimal(value)}"
+    value < -0.01f -> formatOneDecimal(value)
+    else -> "0"
 }
