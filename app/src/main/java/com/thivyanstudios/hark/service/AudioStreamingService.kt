@@ -327,6 +327,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _isStreaming.value = true
 
         launchLifecycle {
+            // Stopped again before this got to run (a very quick start/stop): don't bring
+            // up the notification, wake lock or engine for a session that's already over
+            if (!_isStreaming.value) return@launchLifecycle
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(
@@ -538,18 +541,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
         _transcription.value = ""
         _audioLevel.value = 0f
 
-        if (wakeLock?.isHeld == true) {
-            wakeLock?.release()
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        // Drop the notification straight away so it feels instant...
+        leaveForeground()
 
         launchLifecycle {
+            // ...and again once any start still in flight has finished, since a start that
+            // was mid-way when Stop was tapped may have only just posted it
+            leaveForeground()
             // Wait for the loops to exit so the recognizer is never released mid-decode
             transcriptionJob?.cancelAndJoin()
             levelMonitoringJob?.cancelAndJoin()
@@ -564,6 +562,18 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 recognizer = null
                 sherpaStream = null
             }
+        }
+    }
+
+    private fun leaveForeground() {
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
         }
     }
 
