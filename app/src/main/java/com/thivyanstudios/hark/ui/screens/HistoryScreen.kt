@@ -2,7 +2,13 @@ package com.thivyanstudios.hark.ui.screens
 
 import android.os.Build
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,9 +16,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -28,12 +37,11 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
@@ -162,23 +170,14 @@ fun HistoryScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 },
-                actions = {
-                    if (history.isNotEmpty()) {
-                        IconButton(onClick = { showDeleteAllDialog = true }) {
-                            Icon(
-                                Icons.Outlined.Delete,
-                                contentDescription = stringResource(R.string.cd_delete_all_history),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }
     ) { paddingValues ->
+        // The list scrolls behind the floating Delete all pill, which blurs it like the navbar
+        val hazeState = rememberHazeState()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -206,8 +205,11 @@ fun HistoryScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 140.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .hazeSource(hazeState),
+                    // Room to scroll the last card clear of the pill and navbar
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 220.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(history, key = { it.id }) { item ->
@@ -216,6 +218,27 @@ fun HistoryScreen(
                             onOpen = { editingId = item.id },
                         )
                     }
+                }
+            }
+
+            // Floating glass Delete all, in the same spot as Transcribe's action pill
+            val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            AnimatedVisibility(
+                visible = history.isNotEmpty(),
+                enter = fadeIn() + slideInVertically { it / 2 },
+                exit = fadeOut() + slideOutVertically { it / 2 },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 104.dp + navigationBarsPadding)
+            ) {
+                GlassActionBar(hazeState = hazeState) {
+                    GlassActionButton(
+                        icon = Icons.Rounded.DeleteSweep,
+                        label = stringResource(R.string.cd_delete_all_history),
+                        tint = MaterialTheme.colorScheme.error,
+                        hapticFeedbackEnabled = hapticFeedbackEnabled,
+                        onClick = { showDeleteAllDialog = true },
+                    )
                 }
             }
         }
@@ -227,11 +250,14 @@ fun HistoryItem(
     item: TranscriptionEntity,
     onOpen: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(24.dp)
+    // Solid card, matching the blocks in Settings
+    val shape = RoundedCornerShape(20.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassSurface(shape, elevation = 4.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
             .clickable(onClickLabel = "Edit transcript", onClick = onOpen)
             .padding(20.dp)
     ) {

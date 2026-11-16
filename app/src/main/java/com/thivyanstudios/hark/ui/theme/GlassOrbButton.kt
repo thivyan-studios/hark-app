@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -24,6 +25,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -68,8 +70,12 @@ fun GlassOrbButton(
         label = "OrbCore",
     )
 
-    // Smoky, faintly tinted glass body
-    val glassBase = lerp(Color.Black, color, 0.14f)
+    // Follows the app's theme (not just the system's), so check the actual background
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    // Dark: smoky, faintly tinted glass. Light: frosted milky glass with the colour glowing through
+    val glassBase = if (isDark) lerp(Color.Black, color, 0.14f) else lerp(Color.White, color, 0.1f)
+    val sheenTop = if (isDark) 0.22f else 0.55f
+    val rimBottom = if (isDark) 0.7f else 0.45f
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         // Sharp copy of the backdrop, visible only around the outside of the glass
@@ -84,8 +90,8 @@ fun GlassOrbButton(
                 .shadow(
                     elevation = 28.dp,
                     shape = shape,
-                    ambientColor = color,
-                    spotColor = color,
+                    ambientColor = if (isDark) color else color.copy(alpha = 0.6f),
+                    spotColor = if (isDark) color else color.copy(alpha = 0.6f),
                 )
                 .clip(shape)
                 .background(glassBase)
@@ -121,7 +127,7 @@ fun GlassOrbButton(
                     .matchParentSize()
                     .background(
                         Brush.verticalGradient(
-                            0f to Color.White.copy(alpha = 0.22f),
+                            0f to Color.White.copy(alpha = sheenTop),
                             0.45f to Color.White.copy(alpha = 0.03f),
                             1f to Color.Transparent,
                         )
@@ -135,7 +141,7 @@ fun GlassOrbButton(
                     .border(
                         width = 1.5.dp,
                         brush = Brush.verticalGradient(
-                            listOf(Color.White.copy(alpha = 0.75f), Color.White.copy(alpha = 0.1f), color.copy(alpha = 0.7f))
+                            listOf(Color.White.copy(alpha = if (isDark) 0.75f else 0.95f), Color.White.copy(alpha = 0.1f), color.copy(alpha = rimBottom))
                         ),
                         shape = shape,
                     )
