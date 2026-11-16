@@ -23,6 +23,7 @@ import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.di.MainDispatcher
 import com.thivyanstudios.hark.util.HarkLog
+import com.thivyanstudios.hark.util.TranscriptFormatter
 import com.k2fsa.sherpa.onnx.OnlineRecognizer
 import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OnlineStream
@@ -451,7 +452,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     
                     val result = currentRecognizer.getResult(currentStream)
                     if (result.text.isNotBlank()) {
-                        val newText = result.text.trim()
+                        val newText = TranscriptFormatter.partial(result.text)
                         HarkLog.d(TAG, "Sherpa Partial Result: '$newText'")
                         
                         // Handle sentences with fullTranscript to avoid infinite growth in a single result
@@ -472,7 +473,10 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         HarkLog.i(TAG, "Sherpa Endpoint Detected. Final: '$finalResult'")
                         if (finalResult.isNotBlank()) {
                             if (fullTranscript.isNotEmpty()) fullTranscript.append(" ")
-                            fullTranscript.append(finalResult.trim())
+                            fullTranscript.append(TranscriptFormatter.sentence(finalResult))
+                            // Show the finished sentence (with its full stop) straight away,
+                            // rather than waiting for the next words to refresh the display
+                            _transcription.value = fullTranscript.toString()
                         }
                         currentRecognizer.reset(currentStream)
                     }
