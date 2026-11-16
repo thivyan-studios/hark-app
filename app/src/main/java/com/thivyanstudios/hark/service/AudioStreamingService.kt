@@ -18,6 +18,7 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.STTModelManager
+import com.thivyanstudios.hark.data.TranscriptionRepository
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.di.MainDispatcher
@@ -53,6 +54,12 @@ class AudioStreamingService : Service(), AudioStreamingController {
     
     @Inject
     lateinit var sttModelManager: STTModelManager
+
+    @Inject
+    lateinit var transcriptionRepository: TranscriptionRepository
+
+    // Outlives serviceScope so a transcript saved during onDestroy isn't cancelled mid-write
+    private val persistScope by lazy { CoroutineScope(SupervisorJob() + ioDispatcher) }
 
     private val _isStreaming = MutableStateFlow(value = false)
     override val isStreaming = _isStreaming.asStateFlow()
@@ -494,6 +501,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
         if (!_isStreaming.value) return
 
         HarkLog.i(TAG, "Stopping streaming")
+        // Save the session's transcript to History before it's cleared. Previously it was
+        // only saved when the user tapped Clear, so stopping the stream silently lost it.
+        val finishedTranscript = _transcription.value
+        if (finishedTranscript.isNotBlank()) {
+            persistScope.launch { transcriptionRepository.insert(finishedTranscript) }
+        }
+
         _isStreaming.value = false
         pausedByFocusLoss = false
         clearAudioRouting()
