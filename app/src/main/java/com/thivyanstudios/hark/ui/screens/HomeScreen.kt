@@ -124,7 +124,7 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             HarkText(
-                text = if (isStreaming) "Tap to stop" else "Tap the mic to start",
+                text = if (isStreaming) "Tap the mic to stop" else "Tap the mic to start",
                 style = MaterialTheme.typography.bodyMedium.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )

@@ -119,6 +119,7 @@ fun HarkAppContent(
                     onShareTranscription = onShareTranscription,
                     fontSize = settingsState.transcriptionFontSize,
                     hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                    micOnSamePage = isTablet,
                 )
             }
             composable(Navigation.ROUTE_HISTORY) {

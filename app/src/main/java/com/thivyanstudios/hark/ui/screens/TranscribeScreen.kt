@@ -72,6 +72,8 @@ fun TranscribeScreen(
     onShareTranscription: (String) -> Unit,
     fontSize: Float = 22f,
     hapticFeedbackEnabled: Boolean = false,
+    // In the tablet split view the mic sits beside this page, not on a separate Stream page
+    micOnSamePage: Boolean = false,
 ) {
     val scrollState = rememberScrollState()
     val clipboardManager = LocalClipboardManager.current
@@ -151,7 +153,7 @@ fun TranscribeScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     HarkText(
-                        text = if (isStreaming) "Speak clearly to begin real-time transcription" else "Tap the mic on Stream to start",
+                        text = if (isStreaming) "Speak clearly to begin real-time transcription" else if (micOnSamePage) "Tap the mic to start" else "Tap the mic on Stream to start",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             textAlign = TextAlign.Center
