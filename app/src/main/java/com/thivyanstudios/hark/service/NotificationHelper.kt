@@ -39,11 +39,19 @@ class NotificationHelper @Inject constructor(
             context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
 
+        // The Stop button: ends streaming without opening the app
+        val stop = PendingIntent.getService(
+            context, 1,
+            Intent(context, AudioStreamingService::class.java).setAction(AudioStreamingService.ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+
         return NotificationCompat.Builder(context, channelId)
             .setContentTitle(context.getString(R.string.notification_title))
             .setContentText(context.getString(R.string.notification_text))
             .setSmallIcon(R.drawable.ic_mic_on)
             .setContentIntent(pendingIntent)
+            .addAction(R.drawable.ic_mic_off, context.getString(R.string.notification_action_stop), stop)
             .setOngoing(true)
             .setWhen(System.currentTimeMillis())
             .setUsesChronometer(true)

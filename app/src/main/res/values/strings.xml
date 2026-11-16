@@ -41,6 +41,7 @@
     <string name="notification_channel_description">Notification for ongoing audio streaming</string>
     <string name="notification_title">HARK is running</string>
     <string name="notification_text">Streaming live audio</string>
+    <string name="notification_action_stop">Stop</string>
 
     <!-- History Screen -->
     <string name="history_title">History</string>

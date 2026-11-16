@@ -206,6 +206,15 @@ class AudioStreamingService : Service(), AudioStreamingController {
         fun getService(): AudioStreamingController = this@AudioStreamingService
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // The notification's Stop button
+        if (intent?.action == ACTION_STOP) {
+            HarkLog.i(TAG, "Stop tapped in notification")
+            stopStreaming()
+        }
+        return START_NOT_STICKY
+    }
+
     override fun onBind(intent: Intent?): IBinder {
         HarkLog.i(TAG, "onBind")
         return binder
@@ -626,5 +635,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
     companion object {
         private const val TAG = "AudioStreamingService"
         private const val NOTIFICATION_ID = 1
+        const val ACTION_STOP = "com.thivyanstudios.hark.action.STOP_STREAMING"
     }
 }
