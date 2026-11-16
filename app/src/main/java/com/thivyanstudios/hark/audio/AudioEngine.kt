@@ -55,7 +55,9 @@ class AudioEngine @Inject constructor(
             System.loadLibrary("hark")
             isNativeLibraryLoaded = true
             HarkLog.i(TAG, "Native library loaded")
-        } catch (e: Exception) {
+        } catch (e: UnsatisfiedLinkError) {
+            // loadLibrary throws an Error, not an Exception; catching it lets start()
+            // fall back to the Kotlin engine instead of crashing.
             HarkLog.e(TAG, "Failed to load native library", e)
         }
     }
@@ -80,6 +82,9 @@ class AudioEngine @Inject constructor(
         var success = false
         if (isNativeLibraryLoaded && nativeHandle != 0L) {
             try {
+                // A freshly created native engine starts with every option off, so push
+                // the current settings before audio begins flowing.
+                applyConfigToNative(nativeHandle)
                 success = nativeStart(nativeHandle, sampleRate, framesPerBurst)
                 if (success) {
                     val sessionId = nativeGetSessionId(nativeHandle)
@@ -155,11 +160,22 @@ class AudioEngine @Inject constructor(
     }
 
     fun setTranscriptModeEnabled(enabled: Boolean) {
+        currentConfig = currentConfig.copy(transcriptModeEnabled = enabled)
         applyToNative { nativeSetTranscriptModeEnabled(it, enabled) }
     }
 
     fun setTrebleBoostEnabled(enabled: Boolean) {
+        currentConfig = currentConfig.copy(trebleBoostEnabled = enabled)
         applyToNative { nativeSetTrebleBoostEnabled(it, enabled) }
+    }
+
+    private fun applyConfigToNative(handle: Long) {
+        val config = currentConfig
+        nativeSetMicrophoneGain(handle, config.microphoneGain)
+        nativeSetNoiseSuppressionEnabled(handle, config.noiseSuppressionEnabled)
+        nativeSetDynamicsProcessingEnabled(handle, config.dynamicsProcessingEnabled)
+        nativeSetTrebleBoostEnabled(handle, config.trebleBoostEnabled)
+        nativeSetTranscriptModeEnabled(handle, config.transcriptModeEnabled)
     }
 
     private fun setupNoiseSuppressor(sessionId: Int) {

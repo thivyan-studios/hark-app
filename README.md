@@ -156,9 +156,8 @@ hark-app/
 
 ## Author & Credits
 
-**Author**: Thivyan Pillay  
-**LinkedIn**: [thivyan-pillay](https://www.linkedin.com/in/thivyan-pillay/)
+**Author**: [Thivyan Pillay](https://www.linkedin.com/in/thivyan-pillay/)
 
 > *"Hearing aid tech should be accessible — not locked behind overpriced accessories."*
 
-> Built and architected with assistance from Gemini.
+<sub>Built and architected with assistance from Gemini.</sub>

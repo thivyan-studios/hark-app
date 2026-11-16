@@ -1,7 +1,11 @@
 package com.thivyanstudios.hark.ui.viewmodel
 
+import android.content.Context
+import android.os.PowerManager
 import app.cash.turbine.test
 import com.thivyanstudios.hark.audio.AudioEngine
+import com.thivyanstudios.hark.data.STTModelManager
+import com.thivyanstudios.hark.data.TranscriptionRepository
 import com.thivyanstudios.hark.data.UserPreferencesRepository
 import com.thivyanstudios.hark.data.model.UserPreferences
 import com.thivyanstudios.hark.service.AudioServiceManager
@@ -18,18 +22,22 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import org.mockito.ArgumentMatchers.anyString
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     
+    private lateinit var context: Context
+    private lateinit var powerManager: PowerManager
     private lateinit var audioServiceManager: AudioServiceManager
     private lateinit var userPreferencesRepository: UserPreferencesRepository
+    private lateinit var transcriptionRepository: TranscriptionRepository
+    private lateinit var sttModelManager: STTModelManager
     private lateinit var audioEngine: AudioEngine
     private lateinit var viewModel: MainViewModel
 
@@ -41,17 +49,39 @@ class MainViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         
+        powerManager = mock {
+            on { isIgnoringBatteryOptimizations(anyString()) } doReturn true
+        }
+        context = mock {
+            on { packageName } doReturn "com.thivyanstudios.hark"
+            on { getSystemService(Context.POWER_SERVICE) } doReturn powerManager
+        }
         audioServiceManager = mock {
             on { service } doReturn serviceFlow
         }
         userPreferencesRepository = mock {
             on { userPreferencesFlow } doReturn prefsFlow
         }
+        transcriptionRepository = mock {
+            on { allTranscriptions } doReturn MutableStateFlow(emptyList())
+        }
+        sttModelManager = mock {
+            on { modelStoreUpdateTrigger } doReturn MutableStateFlow(0L)
+            on { downloadProgress } doReturn MutableStateFlow(emptyMap())
+            on { availableModels } doReturn emptyList()
+        }
         audioEngine = mock {
             on { errorEvents } doReturn errorEvents
         }
         
-        viewModel = MainViewModel(audioServiceManager, userPreferencesRepository, audioEngine)
+        viewModel = MainViewModel(
+            context,
+            audioServiceManager,
+            userPreferencesRepository,
+            transcriptionRepository,
+            sttModelManager,
+            audioEngine
+        )
     }
 
     @After
@@ -59,11 +89,21 @@ class MainViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private fun createMockService(
+        isStreaming: Boolean = false,
+        hearingAidConnected: Boolean = false
+    ): AudioStreamingController {
+        return mock {
+            on { this.isStreaming } doReturn MutableStateFlow(isStreaming)
+            on { this.hearingAidConnected } doReturn MutableStateFlow(hearingAidConnected)
+            on { this.transcription } doReturn MutableStateFlow("")
+            on { this.audioLevel } doReturn MutableStateFlow(0f)
+        }
+    }
+
     @Test
     fun `toggleStreaming stops streaming if already streaming`() = runTest {
-        val mockService = mock<AudioStreamingController> {
-            on { isStreaming } doReturn MutableStateFlow(true)
-        }
+        val mockService = createMockService(isStreaming = true)
         serviceFlow.value = mockService
         
         viewModel.toggleStreaming("Connect Message")
@@ -73,10 +113,7 @@ class MainViewModelTest {
 
     @Test
     fun `toggleStreaming starts streaming if not streaming and hearing aid connected`() = runTest {
-        val mockService = mock<AudioStreamingController> {
-            on { isStreaming } doReturn MutableStateFlow(false)
-            on { hearingAidConnected } doReturn MutableStateFlow(true)
-        }
+        val mockService = createMockService(isStreaming = false, hearingAidConnected = true)
         serviceFlow.value = mockService
         
         viewModel.toggleStreaming("Connect Message")
@@ -86,13 +123,9 @@ class MainViewModelTest {
 
     @Test
     fun `toggleStreaming starts streaming if not streaming and bypass is enabled even if not connected`() = runTest {
-        val mockService = mock<AudioStreamingController> {
-            on { isStreaming } doReturn MutableStateFlow(false)
-            on { hearingAidConnected } doReturn MutableStateFlow(false)
-        }
+        val mockService = createMockService(isStreaming = false, hearingAidConnected = false)
         serviceFlow.value = mockService
         
-        // Use turbine to wait for the UI state to actually reflect the preference change
         viewModel.uiState.test {
             awaitItem() // Initial state
             
@@ -102,7 +135,6 @@ class MainViewModelTest {
             val updatedState = awaitItem()
             assertEquals(true, updatedState.bypassBluetoothChecks)
             
-            // Now that we KNOW the state has updated, call the action
             viewModel.toggleStreaming("Connect Message")
             
             verify(mockService).startStreaming()
@@ -111,13 +143,9 @@ class MainViewModelTest {
 
     @Test
     fun `toggleStreaming shows error and does not start if not connected and no bypass`() = runTest {
-        val mockService = mock<AudioStreamingController> {
-            on { isStreaming } doReturn MutableStateFlow(false)
-            on { hearingAidConnected } doReturn MutableStateFlow(false)
-        }
+        val mockService = createMockService(isStreaming = false, hearingAidConnected = false)
         serviceFlow.value = mockService
         
-        // Ensure bypass is disabled
         prefsFlow.value = UserPreferences(bypassBluetoothChecks = false)
         
         viewModel.snackbarEvents.test {
@@ -130,10 +158,7 @@ class MainViewModelTest {
 
     @Test
     fun `uiState correctly merges service and preference states`() = runTest {
-        val mockService = mock<AudioStreamingController> {
-            on { isStreaming } doReturn MutableStateFlow(true)
-            on { hearingAidConnected } doReturn MutableStateFlow(false)
-        }
+        val mockService = createMockService(isStreaming = true, hearingAidConnected = false)
         
         viewModel.uiState.test {
             awaitItem() // Initial empty state
@@ -146,7 +171,6 @@ class MainViewModelTest {
             prefsFlow.value = UserPreferences(hapticFeedbackEnabled = true)
             item = awaitItem()
             assertEquals(true, item.hapticFeedbackEnabled)
-            // The isStreaming should remain true as it comes from the service
             assertEquals(true, item.isStreaming)
         }
     }

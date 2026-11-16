@@ -28,8 +28,11 @@ import com.k2fsa.sherpa.onnx.OnlineStream
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -94,6 +97,21 @@ class AudioStreamingService : Service(), AudioStreamingController {
     override val hearingAidConnected = _hearingAidConnected.asStateFlow()
 
     private var pausedByFocusLoss = false
+
+    // Start/stop/pause/resume each do their engine work in a coroutine. Chaining them
+    // guarantees they run in the order they were requested (e.g. a stop issued just
+    // before a restart's start always finishes first).
+    private var lastLifecycleJob: Job? = null
+    private var transcriptionJob: Job? = null
+    private var levelMonitoringJob: Job? = null
+
+    private fun launchLifecycle(block: suspend () -> Unit) {
+        val previous = lastLifecycleJob
+        lastLifecycleJob = serviceScope.launch {
+            previous?.join()
+            block()
+        }
+    }
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
@@ -299,15 +317,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
         HarkLog.i(TAG, "Starting streaming")
         _isStreaming.value = true
 
-        serviceScope.launch {
+        launchLifecycle {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    startForeground(
-                        NOTIFICATION_ID, 
-                        notificationHelper.createNotification(),
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                    )
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(
                         NOTIFICATION_ID, 
                         notificationHelper.createNotification(),
@@ -323,9 +335,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     prepareSherpa()
                     updateAudioRouting()
                     audioEngine.start()
-                    startTranscriptionLoop()
-                    startLevelMonitoringLoop()
                 }
+                startTranscriptionLoop()
+                startLevelMonitoringLoop()
             } catch (e: Exception) {
                 HarkLog.e(TAG, "Failed to start streaming", e)
                 stopStreaming()
@@ -363,7 +375,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
             // Input audio from hardware (e.g. 48kHz) passed via acceptWaveform will be resampled automatically.
             config.featConfig.sampleRate = 16000
             config.featConfig.featureDim = 80
-            config.modelConfig.numThreads = prefs.whisperThreads
+            config.modelConfig.numThreads = prefs.sttThreads
             config.modelConfig.debug = false
             
             // Initialize the engine with these bounds
@@ -383,17 +395,17 @@ class AudioStreamingService : Service(), AudioStreamingController {
     }
 
     private fun startLevelMonitoringLoop() {
-        serviceScope.launch(ioDispatcher) {
+        levelMonitoringJob = serviceScope.launch(ioDispatcher) {
             while (_isStreaming.value) {
                 val level = audioEngine.getTranscriptionLevel()
                 _audioLevel.value = level
-                kotlinx.coroutines.delay(50L) // 20fps for UI smoothness
+                delay(50L) // 20fps for UI smoothness
             }
         }
     }
 
     private fun startTranscriptionLoop() {
-        serviceScope.launch(ioDispatcher) {
+        transcriptionJob = serviceScope.launch(ioDispatcher) {
             val currentRecognizer = recognizer ?: return@launch
             val currentStream = sherpaStream ?: return@launch
 
@@ -449,7 +461,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         currentRecognizer.reset(currentStream)
                     }
                 }
-                kotlinx.coroutines.delay(30L) // Fast loop for low latency
+                delay(30L) // Fast loop for low latency
             }
         }
     }
@@ -460,7 +472,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         if (!_isStreaming.value || pausedByFocusLoss) return
         pausedByFocusLoss = true
         _audioLevel.value = 0f
-        serviceScope.launch {
+        launchLifecycle {
             withContext(ioDispatcher) {
                 audioEngine.stop()
             }
@@ -471,7 +483,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
         if (!pausedByFocusLoss) return
         pausedByFocusLoss = false
         if (!_isStreaming.value) return
-        serviceScope.launch {
+        launchLifecycle {
             withContext(ioDispatcher) {
                 audioEngine.start()
             }
@@ -502,7 +514,15 @@ class AudioStreamingService : Service(), AudioStreamingController {
             stopForeground(true)
         }
 
-        serviceScope.launch {
+        launchLifecycle {
+            // Wait for the loops to exit so the recognizer is never released mid-decode
+            transcriptionJob?.cancelAndJoin()
+            levelMonitoringJob?.cancelAndJoin()
+            transcriptionJob = null
+            levelMonitoringJob = null
+            fullTranscript.setLength(0)
+            _transcription.value = ""
+            _audioLevel.value = 0f
             withContext(ioDispatcher) {
                 audioEngine.stop()
                 recognizer?.release()

@@ -38,13 +38,11 @@ bool HarkAudioEngine::openStreamsLocked() {
     uint32_t fifoCapacity = std::max(static_cast<uint32_t>(mFramesPerBurst) * 16, static_cast<uint32_t>(4096));
     mFifoBuffer = std::make_unique<oboe::FifoBuffer>(sizeof(float), fifoCapacity);
 
-    // Sherpa-ONNX usually expects 16kHz audio, but we can buffer more for higher rates.
+    // Sherpa-ONNX resamples to 16kHz itself, so we buffer at the hardware rate.
     // Buffer for 10 seconds of audio at the hardware sample rate.
     mTranscriptionFifo = std::make_unique<oboe::FifoBuffer>(sizeof(float), mSampleRate * 10);
 
-    // Initialize Treble Boost coefficients (High Shelf, 3kHz, 6dB @ 48kHz)
-    // These are pre-calculated for the default 48kHz sample rate.
-    // If the sample rate is different, they will be recalculated in openStreamsLocked.
+    // Treble boost: high-shelf filter, +8dB @ 3kHz, computed for the current sample rate
     updateTrebleBoostCoefficients(mSampleRate);
 
     oboe::AudioStreamBuilder inBuilder;
@@ -151,11 +149,11 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
     if (audioStream->getDirection() == oboe::Direction::Input) {
         mFifoBuffer->write(audioData, numFrames);
 
-        // Apply gain to transcription data as well so Whisper gets a usable signal
+        // Apply gain to transcription data as well so the speech recognizer gets a usable signal
         float currentGain = mGain.load(std::memory_order_acquire);
         auto *inputData = static_cast<const float*>(audioData);
 
-        // Significant gain specifically for transcription to help Whisper detect speech in quiet environments
+        // Extra gain for transcription only, to help Sherpa-ONNX detect speech in quiet environments
         float transcriptionGain = currentGain * 10.0f;
 
         float sumSquares = 0.0f;

@@ -1,21 +1,43 @@
 package com.thivyanstudios.hark.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -59,8 +81,12 @@ fun HomeScreen(
         ), label = "PulseAlpha"
     )
 
+    // User requested to preserve red and green button colors
+    val greenColor = Color(0xFF4CAF50)
+    val redColor = Color(0xFFF44336)
+
     val buttonColor by animateColorAsState(
-        targetValue = if (isStreaming) Color(0xFF4CAF50) else Color(0xFFF44336),
+        targetValue = if (isStreaming) greenColor else redColor,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
         label = "ButtonColor"
     )
@@ -71,7 +97,7 @@ fun HomeScreen(
 
     LaunchedEffect(isButtonEnabled) {
         if (!isButtonEnabled) {
-            delay(1000L) // Reduced from 5s to 1s for better responsiveness
+            delay(1000L)
             isButtonEnabled = true
         }
     }
@@ -93,14 +119,14 @@ fun HomeScreen(
                 style = MaterialTheme.typography.labelLarge.copy(
                     letterSpacing = 4.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isStreaming) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isStreaming) greenColor else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
             Spacer(modifier = Modifier.height(8.dp))
             HarkText(
                 text = if (isStreaming) "Tap to stop" else "Tap the mic to start",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             )
         }
@@ -115,16 +141,15 @@ fun HomeScreen(
                 repeat(3) { index ->
                     Box(
                         modifier = Modifier
-                            .size(120.dp)
+                            .size(140.dp)
                             .graphicsLayer {
-                                // Steady pulse without jittery audio reaction
                                 val finalScale = basePulseScale + (index * 0.15f)
                                 scaleX = finalScale
                                 scaleY = finalScale
                                 alpha = pulseAlpha / (index + 1)
                             }
-                            .background(buttonColor.copy(alpha = 0.4f), CircleShape)
-                            .border(1.dp, buttonColor, CircleShape)
+                            .background(buttonColor.copy(alpha = 0.35f), CircleShape)
+                            .border(1.dp, buttonColor.copy(alpha = 0.6f), CircleShape)
                     )
                 }
             }
@@ -137,7 +162,7 @@ fun HomeScreen(
                         onStreamButtonClick()
                     }
                 },
-                modifier = Modifier.size(140.dp),
+                modifier = Modifier.size(150.dp),
                 backgroundColor = buttonColor,
                 enabled = isButtonEnabled,
                 hapticFeedbackEnabled = hapticFeedbackEnabled
@@ -153,40 +178,43 @@ fun HomeScreen(
                             painterResource(id = R.drawable.ic_mic_off)
                         },
                         contentDescription = stringResource(R.string.cd_stream_button),
-                        modifier = Modifier.size(72.dp)
+                        modifier = Modifier.size(76.dp)
                     )
                 }
             }
         }
         
-        // Activity Chip at the bottom - Simplified to be less "flickery"
+        // M3 Styled Activity Chip at the bottom
         val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         
         if (isStreaming && isModelAvailable) {
-            Row(
+            Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 120.dp + navigationBarsPadding)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(bottom = 110.dp + navigationBarsPadding),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 2.dp,
+                shadowElevation = 2.dp
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(
-                            Color(0xFF4CAF50),
-                            CircleShape
-                        )
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Whisper is running",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                BetaBadge()
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(greenColor, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Sherpa-ONNX is running",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    BetaBadge()
+                }
             }
         }
     }

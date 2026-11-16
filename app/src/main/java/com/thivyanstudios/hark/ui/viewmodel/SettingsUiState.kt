@@ -15,9 +15,9 @@ data class SettingsUiState(
     val transcriptModeEnabled: Boolean = false,
     
     // STT Settings
-    val whisperThreads: Int = 4,
-    val whisperLanguage: String = "en",
-    val whisperTranslate: Boolean = false,
+    val sttThreads: Int = 4,
+    val sttLanguage: String = "en",
+    val sttTranslate: Boolean = false,
     val silenceThreshold: Float = 0.002f,
     val transcriptionFontSize: Float = 22f,
     val selectedModelId: String = "zipformer-en-streaming",

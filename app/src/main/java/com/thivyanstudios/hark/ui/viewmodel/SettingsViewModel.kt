@@ -164,9 +164,9 @@ class SettingsViewModel @Inject constructor(
             trebleBoostEnabled = prefs.trebleBoostEnabled,
             bypassBluetoothChecks = prefs.bypassBluetoothChecks,
             transcriptModeEnabled = prefs.transcriptModeEnabled,
-            whisperThreads = prefs.whisperThreads,
-            whisperLanguage = prefs.whisperLanguage,
-            whisperTranslate = prefs.whisperTranslate,
+            sttThreads = prefs.sttThreads,
+            sttLanguage = prefs.sttLanguage,
+            sttTranslate = prefs.sttTranslate,
             silenceThreshold = prefs.silenceThreshold,
             transcriptionFontSize = prefs.transcriptionFontSize,
             selectedModelId = prefs.selectedModelId,
@@ -239,21 +239,21 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setWhisperThreads(threads: Int) {
+    fun setSttThreads(threads: Int) {
         viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setWhisperThreads(threads)
+            userPreferencesRepository.setSttThreads(threads)
         }
     }
 
-    fun setWhisperLanguage(language: String) {
+    fun setSttLanguage(language: String) {
         viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setWhisperLanguage(language)
+            userPreferencesRepository.setSttLanguage(language)
         }
     }
 
-    fun setWhisperTranslate(isEnabled: Boolean) {
+    fun setSttTranslate(isEnabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setWhisperTranslate(isEnabled)
+            userPreferencesRepository.setSttTranslate(isEnabled)
         }
     }
 

@@ -67,7 +67,7 @@ fun HarkText(
 }
 
 /**
- * A modern, pill-shaped floating toast component.
+ * A modern, pill-shaped floating toast component adhering to Material 3 tokens.
  */
 @Composable
 fun HarkToast(
@@ -79,8 +79,8 @@ fun HarkToast(
         modifier = modifier
             .padding(horizontal = 24.dp, vertical = 12.dp),
         shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 6.dp,
         shadowElevation = 4.dp
     ) {
@@ -202,13 +202,13 @@ fun SquishyBox(
 }
 
 /**
- * A small badge to indicate features that are still in Beta.
+ * A small badge using M3 tertiary container tokens.
  */
 @Composable
 fun BetaBadge(modifier: Modifier = Modifier) {
     Surface(
-        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
-        shape = RoundedCornerShape(4.dp),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        shape = RoundedCornerShape(6.dp),
         modifier = modifier
     ) {
         Text(
@@ -216,7 +216,7 @@ fun BetaBadge(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 10.sp,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
         )
