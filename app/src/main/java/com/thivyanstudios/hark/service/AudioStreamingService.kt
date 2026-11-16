@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import androidx.annotation.RequiresPermission
+import com.thivyanstudios.hark.BuildConfig
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.audio.AudioEngine
 import com.thivyanstudios.hark.audio.model.AudioEngineEvent
@@ -412,7 +413,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 _audioLevel.value = level
                 // Every ~2s, log how loud the audio reaching Sherpa is (diagnostic for the
                 // transcription boost). Shows up in logcat under the "LevelCheck" tag.
-                if (++ticks % 40 == 0) {
+                if (BuildConfig.DEBUG && ++ticks % 40 == 0) {
                     audioEngine.consumeTranscriptionLevelStats()?.let { HarkLog.d("LevelCheck", it.summary()) }
                 }
                 delay(50L) // 20fps for UI smoothness
@@ -453,7 +454,9 @@ class AudioStreamingService : Service(), AudioStreamingController {
                     val result = currentRecognizer.getResult(currentStream)
                     if (result.text.isNotBlank()) {
                         val newText = TranscriptFormatter.partial(result.text)
-                        HarkLog.d(TAG, "Sherpa Partial Result: '$newText'")
+                        // Spoken words only go to the log in debug builds: the log file can be
+                        // shared for support, and must never contain users' conversations
+                        if (BuildConfig.DEBUG) HarkLog.d(TAG, "Sherpa Partial Result: '$newText'")
                         
                         // Handle sentences with fullTranscript to avoid infinite growth in a single result
                         val displayResult = if (fullTranscript.isNotEmpty()) {
@@ -470,7 +473,12 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
                     if (currentRecognizer.isEndpoint(currentStream)) {
                         val finalResult = currentRecognizer.getResult(currentStream).text
-                        HarkLog.i(TAG, "Sherpa Endpoint Detected. Final: '$finalResult'")
+                        if (BuildConfig.DEBUG) {
+                            HarkLog.i(TAG, "Sherpa Endpoint Detected. Final: '$finalResult'")
+                        } else {
+                            val words = finalResult.split(' ').count { it.isNotBlank() }
+                            HarkLog.i(TAG, "Sherpa endpoint detected ($words words)")
+                        }
                         if (finalResult.isNotBlank()) {
                             if (fullTranscript.isNotEmpty()) fullTranscript.append(" ")
                             fullTranscript.append(TranscriptFormatter.sentence(finalResult))
