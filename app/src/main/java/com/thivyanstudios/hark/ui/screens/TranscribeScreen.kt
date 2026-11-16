@@ -30,10 +30,10 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.RecordVoiceOver
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -97,22 +97,24 @@ fun TranscribeScreen(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            // Same large, left-aligned header as History and Settings
+            MediumTopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isStreaming) {
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
+                                    .size(10.dp)
                                     .background(Color(0xFF4CAF50), CircleShape)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                         }
-                        HarkText(
+                        Text(
                             text = stringResource(R.string.transcribe_title),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         BetaBadge()
                     }
                 },

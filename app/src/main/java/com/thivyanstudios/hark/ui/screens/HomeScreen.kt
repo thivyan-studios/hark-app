@@ -1,5 +1,9 @@
 package com.thivyanstudios.hark.ui.screens
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -51,6 +55,7 @@ import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.GlassOrbButton
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     isStreaming: Boolean,
@@ -107,27 +112,30 @@ fun HomeScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Status Text at the Top
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 80.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            HarkText(
-                text = stringResource(if (isStreaming) R.string.home_status_streaming else R.string.home_status_ready),
-                style = MaterialTheme.typography.labelLarge.copy(
-                    letterSpacing = 0.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isStreaming) greenColor else MaterialTheme.colorScheme.onSurfaceVariant
+        // Status header: the same large, left-aligned header as the other pages
+        // (Ready / Streaming), with the hint underneath as subtext
+        Column(modifier = Modifier.align(Alignment.TopStart)) {
+            MediumTopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(if (isStreaming) R.string.home_status_streaming else R.string.home_status_ready),
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        color = if (isStreaming) greenColor else MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
-            Spacer(modifier = Modifier.height(8.dp))
             HarkText(
                 text = stringResource(if (isStreaming) R.string.home_hint_stop else R.string.home_hint_start),
-                style = MaterialTheme.typography.bodyMedium.copy(
+                style = MaterialTheme.typography.bodyLarge.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
+                ),
+                // Tucked up under the title, lined up with its left edge
+                modifier = Modifier
+                    .padding(start = 16.dp)
+                    .offset(y = (-16).dp)
             )
         }
 
