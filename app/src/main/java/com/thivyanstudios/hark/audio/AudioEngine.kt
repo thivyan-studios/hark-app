@@ -123,6 +123,25 @@ class AudioEngine @Inject constructor(
         return getOptimalSampleRate()
     }
 
+    /**
+     * Diagnostics for the transcription feed since the last call (then reset), or null if
+     * the native engine isn't running. See [TranscriptionLevelStats].
+     */
+    fun consumeTranscriptionLevelStats(): TranscriptionLevelStats? {
+        if (!isNativeLibraryLoaded || nativeHandle == 0L) return null
+        val out = FloatArray(6)
+        try { nativeConsumeLevelStats(nativeHandle, out) } catch (_: UnsatisfiedLinkError) { return null }
+        val total = out[5].toInt()
+        if (total == 0) return null
+        return TranscriptionLevelStats(
+            rawPeak = out[0],
+            rawRms = kotlin.math.sqrt(out[1] / total),
+            boostedPeak = out[2],
+            boostedRms = kotlin.math.sqrt(out[3] / total),
+            overFullScaleFraction = out[4] / total,
+        )
+    }
+
     fun getOptimalFramesPerBurst(): Int {
         return audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull() ?: 192
     }
@@ -255,8 +274,29 @@ class AudioEngine @Inject constructor(
     private external fun nativeGetTranscriptionLevel(handle: Long): Float
     private external fun nativeGetSessionId(handle: Long): Int
     private external fun nativeGetInputSampleRate(handle: Long): Int
+    private external fun nativeConsumeLevelStats(handle: Long, out: FloatArray)
 
     companion object {
         private const val TAG = "AudioEngine"
     }
+}
+
+/**
+ * Loudness of the audio going to Sherpa over a short window (linear, 1.0 = full scale).
+ * "raw" is the mic as captured; "boosted" is after the transcription gain, i.e. what Sherpa hears.
+ */
+data class TranscriptionLevelStats(
+    val rawPeak: Float,
+    val rawRms: Float,
+    val boostedPeak: Float,
+    val boostedRms: Float,
+    val overFullScaleFraction: Float,
+) {
+    private fun db(x: Float) = if (x <= 0f) -120f else 20f * kotlin.math.log10(x)
+
+    fun summary(): String = String.format(
+        java.util.Locale.US,
+        "mic rms %.1f dBFS (peak %.1f) | to Sherpa rms %.1f dBFS (peak %.1f) | over full scale %.2f%%",
+        db(rawRms), db(rawPeak), db(boostedRms), db(boostedPeak), overFullScaleFraction * 100f,
+    )
 }

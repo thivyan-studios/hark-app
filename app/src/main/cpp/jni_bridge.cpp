@@ -125,3 +125,13 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeGetInputSampleRate(JNIEnv *
     }
     return 0;
 }
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeConsumeLevelStats(JNIEnv *env, jobject thiz, jlong handle, jfloatArray out) {
+    auto *engine = reinterpret_cast<HarkAudioEngine *>(handle);
+    if (!engine || env->GetArrayLength(out) < 6) return;
+    float stats[6];
+    engine->consumeLevelStats(stats);
+    env->SetFloatArrayRegion(out, 0, 6, stats);
+}

@@ -26,6 +26,11 @@ public:
     int32_t getSessionId();
     /** Sample rate the mic stream is actually delivering (what Sherpa must be told). */
     int32_t getInputSampleRate();
+    /**
+     * Diagnostics: level stats for the transcription feed since the last call, then reset.
+     * out = [rawPeak, rawSumSquares, boostedPeak, boostedSumSquares, samplesOverFullScale, totalSamples]
+     */
+    void consumeLevelStats(float *out);
 
     void setMicrophoneGain(float gain);
     void setNoiseSuppressionEnabled(bool enabled);
@@ -58,6 +63,14 @@ private:
 
     // Live audio level for transcription gating/visuals
     std::atomic<float> mTranscriptionLevel{0.0f};
+
+    // Level diagnostics for the transcription feed (written by the audio thread only)
+    std::atomic<float> mStatRawPeak{0.0f};
+    std::atomic<float> mStatRawSumSq{0.0f};
+    std::atomic<float> mStatBoostPeak{0.0f};
+    std::atomic<float> mStatBoostSumSq{0.0f};
+    std::atomic<int32_t> mStatOverFullScale{0};
+    std::atomic<int32_t> mStatTotal{0};
 
     // Processing state (only accessed on audio thread)
     float mEnvelope = 0.0f;
@@ -95,6 +108,15 @@ private:
 
     // Pre-allocated buffers for audio processing to avoid heap allocation in callback
     static constexpr int32_t kMaxFrames = 2048;
+
+    // Automatic level control for the captions copy (audio thread only)
+    static constexpr float kAgcTargetRms = 0.056f;       // about -25 dBFS
+    static constexpr float kAgcMaxGain = 178.0f;         // at most +45 dB
+    static constexpr float kAgcAttackSeconds = 0.05f;    // react fast to louder speech
+    static constexpr float kAgcReleaseSeconds = 3.0f;    // relax slowly through pauses
+    static constexpr float kAgcGainSmoothSeconds = 0.1f; // avoid audible gain jumps
+    float mAgcEnvelope = 0.0005f;                        // starts near quiet speech (-66 dBFS)
+    float mAgcGain = 1.0f;
     float mGainedBuffer[kMaxFrames]{};
 };
 

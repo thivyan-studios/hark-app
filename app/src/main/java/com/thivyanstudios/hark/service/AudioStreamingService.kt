@@ -405,9 +405,15 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private fun startLevelMonitoringLoop() {
         levelMonitoringJob = serviceScope.launch(ioDispatcher) {
+            var ticks = 0
             while (_isStreaming.value) {
                 val level = audioEngine.getTranscriptionLevel()
                 _audioLevel.value = level
+                // Every ~2s, log how loud the audio reaching Sherpa is (diagnostic for the
+                // transcription boost). Shows up in logcat under the "LevelCheck" tag.
+                if (++ticks % 40 == 0) {
+                    audioEngine.consumeTranscriptionLevelStats()?.let { HarkLog.d("LevelCheck", it.summary()) }
+                }
                 delay(50L) // 20fps for UI smoothness
             }
         }

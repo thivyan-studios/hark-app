@@ -52,7 +52,11 @@ bool HarkAudioEngine::openStreamsLocked() {
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(mSampleRate)
-            ->setInputPreset(oboe::InputPreset::VoiceCommunication)
+            // VoiceRecognition: Android's mic mode tuned for speech-to-text. Unlike
+            // VoiceCommunication (phone-call mode) it skips call-style echo cancellation and
+            // heavy processing, which on some devices (e.g. Galaxy Tab S9 FE) left speech
+            // around -65 dBFS. Noise suppression is still applied separately when enabled.
+            ->setInputPreset(oboe::InputPreset::VoiceRecognition)
             // Guarantee the mic delivers exactly mSampleRate. The playback path copies mic
             // samples straight to the output, and Sherpa is told this rate, so a mismatch
             // would pitch-shift the hearing-aid audio and garble captions. When the device
@@ -128,6 +132,15 @@ float HarkAudioEngine::getTranscriptionLevel() {
     return mTranscriptionLevel.load(std::memory_order_acquire);
 }
 
+void HarkAudioEngine::consumeLevelStats(float *out) {
+    out[0] = mStatRawPeak.exchange(0.0f);
+    out[1] = mStatRawSumSq.exchange(0.0f);
+    out[2] = mStatBoostPeak.exchange(0.0f);
+    out[3] = mStatBoostSumSq.exchange(0.0f);
+    out[4] = static_cast<float>(mStatOverFullScale.exchange(0));
+    out[5] = static_cast<float>(mStatTotal.exchange(0));
+}
+
 int32_t HarkAudioEngine::getInputSampleRate() {
     std::lock_guard<std::mutex> lock(mStreamLock);
     return mInStream ? mInStream->getSampleRate() : mSampleRate;
@@ -163,23 +176,56 @@ oboe::DataCallbackResult HarkAudioEngine::onAudioReady(
     if (audioStream->getDirection() == oboe::Direction::Input) {
         mFifoBuffer->write(audioData, numFrames);
 
-        // Apply gain to transcription data as well so the speech recognizer gets a usable signal
         float currentGain = mGain.load(std::memory_order_acquire);
         auto *inputData = static_cast<const float*>(audioData);
-
-        // Extra gain for transcription only, to help Sherpa-ONNX detect speech in quiet environments
-        float transcriptionGain = currentGain * 10.0f;
-
-        float sumSquares = 0.0f;
         int32_t framesToProcess = std::min(numFrames, kMaxFrames);
+
+        // --- Raw mic level for this block ---
+        float rawSumSq = 0.0f, rawPeak = 0.0f;
         for (int i = 0; i < framesToProcess; ++i) {
-            float sample = inputData[i] * transcriptionGain;
+            float raw = inputData[i];
+            rawSumSq += raw * raw;
+            rawPeak = std::max(rawPeak, std::abs(raw));
+        }
+        float rawRms = std::sqrt(rawSumSq / static_cast<float>(std::max(framesToProcess, 1)));
+
+        // --- Automatic level control for the captions copy ---
+        // Sherpa works best when speech arrives around -25 dBFS, whatever the device's mic
+        // sensitivity or the user's hearing-aid gain. The envelope follows rises in level
+        // quickly (so loud speech is turned down at once) but falls slowly (so the gain
+        // stays steady through pauses instead of pumping up the background noise).
+        // This copy is independent of mGain: the hearing-aid slider no longer changes captions.
+        float blockSeconds = static_cast<float>(framesToProcess) / static_cast<float>(std::max(mSampleRate, 1));
+        float envCoeff = rawRms > mAgcEnvelope
+                ? 1.0f - std::exp(-blockSeconds / kAgcAttackSeconds)
+                : 1.0f - std::exp(-blockSeconds / kAgcReleaseSeconds);
+        mAgcEnvelope += envCoeff * (rawRms - mAgcEnvelope);
+        float desiredGain = std::clamp(kAgcTargetRms / std::max(mAgcEnvelope, 1e-7f), 1.0f, kAgcMaxGain);
+        mAgcGain += (1.0f - std::exp(-blockSeconds / kAgcGainSmoothSeconds)) * (desiredGain - mAgcGain);
+
+        float sumSquares = 0.0f, boostPeak = 0.0f;
+        int32_t overFullScale = 0;
+        for (int i = 0; i < framesToProcess; ++i) {
+            float sample = inputData[i] * mAgcGain;
+            float absBoost = std::abs(sample);
+            if (absBoost > 1.0f) overFullScale++;
+            boostPeak = std::max(boostPeak, absBoost);
+            // Hard ceiling so a sudden bang before the level control reacts can't overdrive Sherpa
+            sample = std::clamp(sample, -1.0f, 1.0f);
             mGainedBuffer[i] = sample;
             sumSquares += sample * sample;
         }
+        // Diagnostics (lock-free; this thread is the only writer, the reader resets)
+        mStatRawPeak.store(std::max(mStatRawPeak.load(std::memory_order_relaxed), rawPeak), std::memory_order_relaxed);
+        mStatBoostPeak.store(std::max(mStatBoostPeak.load(std::memory_order_relaxed), boostPeak), std::memory_order_relaxed);
+        mStatRawSumSq.store(mStatRawSumSq.load(std::memory_order_relaxed) + rawSumSq, std::memory_order_relaxed);
+        mStatBoostSumSq.store(mStatBoostSumSq.load(std::memory_order_relaxed) + sumSquares, std::memory_order_relaxed);
+        mStatOverFullScale.fetch_add(overFullScale, std::memory_order_relaxed);
+        mStatTotal.fetch_add(framesToProcess, std::memory_order_relaxed);
 
-        // Calculate RMS level for visualization/gating
-        float rms = std::sqrt(sumSquares / static_cast<float>(framesToProcess));
+        // Level for the on-screen visualiser. Kept on the old scale (mic x hearing gain x 10)
+        // so the visualiser looks the same as before the captions got their own level control.
+        float rms = rawRms * currentGain * 10.0f;
 
         // Exponential moving average for smoothing the level
         float alpha = 0.1f;
