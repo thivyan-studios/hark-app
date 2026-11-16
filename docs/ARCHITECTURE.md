@@ -10,57 +10,52 @@ HARK follows a layered, multi-tier architecture separating high-performance nati
 
 ```mermaid
 flowchart TD
-    subgraph UI ["User Interface Layer (Jetpack Compose)"]
-        UI_Home["HomeScreen"]
-        UI_Transcribe["TranscribeScreen"]
-        UI_History["HistoryScreen"]
-        UI_Settings["SettingsScreen"]
-        VM_Main["MainViewModel"]
-        VM_Settings["SettingsViewModel"]
+    HOME["HomeScreen"]
+    TRANS["TranscribeScreen"]
+    HIST["HistoryScreen"]
+    SET["SettingsScreen"]
+    MVM["MainViewModel"]
+    SVM["SettingsViewModel"]
+    SVC["<b>AudioStreamingService</b><br/>foreground service"]
+    NOTIF["NotificationHelper"]
+    FOCUS["Audio focus &<br/>device callbacks"]
+    AE["<b>AudioEngine</b><br/>Kotlin"]
+    JNI["jni_bridge.cpp"]
+    HAE["<b>HarkAudioEngine</b><br/>C++ / Oboe"]
+    FB["<b>AudioStreamManager</b><br/>Kotlin fallback"]
+    SHERPA["<b>Sherpa-ONNX</b><br/>OnlineRecognizer"]
+    STTM["<b>STTModelManager</b><br/>model downloads"]
+    REPO["TranscriptionRepository"]
+    ROOM[("Room database")]
+    PREFS[("<b>UserPreferencesRepository</b><br/>DataStore")]
 
-        UI_Home --> VM_Main
-        UI_Transcribe --> VM_Main
-        UI_History --> VM_Main
-        UI_Settings --> VM_Settings
-    end
-
-    subgraph Service ["Service & Lifecycle Layer"]
-        SVC["AudioStreamingService (Foreground Service)"]
-        NOTIF["NotificationHelper"]
-        FOCUS["Audio Focus & Route Callback"]
-
-        SVC --> NOTIF
-        SVC --> FOCUS
-    end
-
-    subgraph Audio ["Native & Kotlin Audio Pipeline Layer"]
-        AE["AudioEngine (Kotlin Wrapper)"]
-        JNI["JNI Bridge (jni_bridge.cpp)"]
-        HAE["HarkAudioEngine (C++/Oboe)"]
-        FALLBACK["AudioStreamManager (Fallback)"]
-
-        AE --> JNI
-        JNI --> HAE
-        AE -.->|Fallback| FALLBACK
-    end
-
-    subgraph STT ["Speech-To-Text & ML Layer"]
-        SHERPA["Sherpa-ONNX (OnlineRecognizer)"]
-        STT_MGR["STTModelManager"]
-
-        SHERPA --> STT_MGR
-    end
-
-    subgraph Data ["Data & Persistence Layer"]
-        ROOM["Room DB (TranscriptionDao)"]
-        DS["DataStore Preferences (UserPreferencesRepository)"]
-    end
-
-    VM_Main --> SVC
-    VM_Settings --> DS
+    HOME --> MVM
+    TRANS --> MVM
+    HIST --> MVM
+    SET --> SVM
+    MVM --> SVC
+    MVM --> REPO
+    SVM --> PREFS
+    SVC --> NOTIF
+    SVC --> FOCUS
     SVC --> AE
+    AE --> JNI --> HAE
+    AE -. "if native fails" .-> FB
     SVC --> SHERPA
-    SVC --> ROOM
+    STTM --> SHERPA
+    SVC --> REPO --> ROOM
+
+    classDef ui fill:#dbeafe,stroke:#3b82f6,color:#1f2328
+    classDef svc fill:#ede9fe,stroke:#8b5cf6,color:#1f2328
+    classDef native fill:#fee2e2,stroke:#ef4444,color:#1f2328
+    classDef ml fill:#dcfce7,stroke:#22c55e,color:#1f2328
+    classDef data fill:#fef3c7,stroke:#f59e0b,color:#1f2328
+    classDef io fill:#f3f4f6,stroke:#6b7280,color:#1f2328
+    class HOME,TRANS,HIST,SET,MVM,SVM ui
+    class SVC,NOTIF,FOCUS,AE,FB svc
+    class JNI,HAE native
+    class SHERPA,STTM ml
+    class REPO,ROOM,PREFS data
 ```
 
 ---
@@ -68,38 +63,39 @@ flowchart TD
 ## Architectural Layers & Components
 
 ### 1. Native Audio Layer (`app/src/main/cpp/`)
-- **[HarkAudioEngine](file:///D:/Development/hark-app/app/src/main/cpp/hark_audio_engine.h)** (`hark_audio_engine.h` / `cpp`): C++ engine using Google's **Oboe** library.
+- **[HarkAudioEngine](../app/src/main/cpp/hark_audio_engine.h)** (`hark_audio_engine.h` / `cpp`): C++ engine using Google's **Oboe** library.
   - Manages low-latency lock-free input (`AudioStream`) and output (`AudioStream`) threads.
   - Performs DSP operations in real-time within callback handlers (`onAudioReady`).
   - Implements thread-safe ring buffers via `oboe::FifoBuffer`.
-- **[jni_bridge.cpp](file:///D:/Development/hark-app/app/src/main/cpp/jni_bridge.cpp)**: JNI entry points exposing native handles and control functions to Kotlin.
+- **[jni_bridge.cpp](../app/src/main/cpp/jni_bridge.cpp)**: JNI entry points exposing native handles and control functions to Kotlin.
 
 ### 2. Audio Abstraction Layer (`com.thivyanstudios.hark.audio`)
-- **[AudioEngine.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/audio/AudioEngine.kt)**: Singleton coordinator that attempts to instantiate the C++ engine via JNI.
+- **[AudioEngine.kt](../app/src/main/java/com/thivyanstudios/hark/audio/AudioEngine.kt)**: Singleton coordinator that attempts to instantiate the C++ engine via JNI.
   - Queries system optimal sample rates and buffer sizes via `AudioManager`.
   - Attaches Android system hardware `NoiseSuppressor` using audio session IDs.
-  - Fallback Mechanism: If native library loading or initialization fails, gracefully redirects processing to `AudioStreamManager`.
-- **[AudioStreamManager.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/audio/stream/AudioStreamManager.kt)** & **[DefaultAudioProcessor.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/audio/processor/DefaultAudioProcessor.kt)**: Pure Java/Kotlin fallback stream engine utilizing `AudioRecord` and `AudioTrack`.
+  - Fallback Mechanism: If native library loading or initialization fails, gracefully redirects processing to `AudioStreamManager` (audio relay only; live captions are off).
+- **[AudioStreamManager.kt](../app/src/main/java/com/thivyanstudios/hark/audio/stream/AudioStreamManager.kt)** & **[DefaultAudioProcessor.kt](../app/src/main/java/com/thivyanstudios/hark/audio/processor/DefaultAudioProcessor.kt)**: Pure Java/Kotlin fallback stream engine utilizing `AudioRecord` and `AudioTrack`.
 
 ### 3. Background Service Layer (`com.thivyanstudios.hark.service`)
-- **[AudioStreamingService.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/service/AudioStreamingService.kt)**: Android `ForegroundService` running with `FOREGROUND_SERVICE_TYPE_MICROPHONE`.
+- **[AudioStreamingService.kt](../app/src/main/java/com/thivyanstudios/hark/service/AudioStreamingService.kt)**: Android `ForegroundService` running with `FOREGROUND_SERVICE_TYPE_MICROPHONE`.
   - Holds a `PowerManager.WakeLock` (partial) to ensure uninterrupted audio streaming when the screen turns off.
   - Implements `AudioManager.OnAudioFocusChangeListener` to handle calls, alarms, and transient focus shifts.
   - Registers `AudioDeviceCallback` to detect ASHA hearing aids, Bluetooth headsets (A2DP/SCO/BLE), and wired headphones.
   - Runs the asynchronous STT decoding loop consuming samples from the native transcription FIFO.
 
 ### 4. Speech-To-Text (STT) Layer (`com.thivyanstudios.hark.data`)
-- **[STTModelManager.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/data/STTModelManager.kt)**: Asynchronously downloads, validates, and manages local ONNX models (e.g., Zipformer streaming models from HuggingFace).
+- **[STTModelManager.kt](../app/src/main/java/com/thivyanstudios/hark/data/STTModelManager.kt)**: Asynchronously downloads, validates, and manages local ONNX models (e.g., Zipformer streaming models from HuggingFace).
 - **Sherpa-ONNX Engine**: Embedded C++/Java binding library running `OnlineRecognizer` with streaming transducer architecture for real-time offline transcription without internet dependencies.
 
 ### 5. Persistence Layer (`com.thivyanstudios.hark.data`)
-- **[UserPreferencesRepository.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/data/UserPreferencesRepository.kt)**: Jetpack DataStore Preferences managing microphone gain, DSP toggles, font size, and device compatibility flags.
-- **[HarkDatabase.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/data/local/HarkDatabase.kt)** & **[TranscriptionRepository.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/data/TranscriptionRepository.kt)**: Room database maintaining persistent transcription history.
+- **[UserPreferencesRepository.kt](../app/src/main/java/com/thivyanstudios/hark/data/UserPreferencesRepository.kt)**: Jetpack DataStore Preferences managing microphone gain, DSP toggles, font size, and device compatibility flags.
+- **[HarkDatabase.kt](../app/src/main/java/com/thivyanstudios/hark/data/local/HarkDatabase.kt)** & **[TranscriptionRepository.kt](../app/src/main/java/com/thivyanstudios/hark/data/TranscriptionRepository.kt)**: Room database maintaining persistent transcription history.
 
 ### 6. User Interface Layer (`com.thivyanstudios.hark.ui`)
 - Built entirely with **Jetpack Compose** and **Material 3**.
-- State management driven by **Hilt**-injected ViewModels ([MainViewModel](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/ui/viewmodel/MainViewModel.kt), [SettingsViewModel](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/ui/viewmodel/SettingsViewModel.kt)).
-- Declarative navigation via `androidx.navigation.compose`.
+- State management driven by **Hilt**-injected ViewModels ([MainViewModel](../app/src/main/java/com/thivyanstudios/hark/ui/viewmodel/MainViewModel.kt), [SettingsViewModel](../app/src/main/java/com/thivyanstudios/hark/ui/viewmodel/SettingsViewModel.kt)).
+- Declarative navigation via `androidx.navigation.compose`, with a floating glass navbar.
+- Tablets (shortest side 600 dp or more) show the Stream page and the other pages side by side.
 
 ---
 

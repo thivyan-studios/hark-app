@@ -17,11 +17,11 @@ Designed to replace expensive proprietary "table mic" hardware accessories, HARK
 - **Hearing Aid & Bluetooth Support**: Built specifically for **ASHA (Audio Streaming for Hearing Aids)** devices, with optional support for A2DP, SCO, and BLE headsets.
 - **Custom DSP Audio Enhancement**:
   - **Bi-quad High-Shelf Treble Boost** (+8dB @ 3kHz) to enhance consonant clarity for high-frequency hearing loss.
-  - **Soft-Knee Dynamic Range Limiter & Compressor** to prevent sudden loud impulse noises from damaging ears.
+  - **Soft-Knee Dynamic Range Limiter & Compressor**, on by default, to stop sudden loud noises from hurting ears.
   - **Hardware Noise Suppression** integration.
-- **100% Offline Real-Time Transcription**: Powered by **Sherpa-ONNX** with Zipformer streaming transducer models. No cloud APIs, zero network latency, complete privacy.
+- **100% Offline Real-Time Transcription**: Powered by **Sherpa-ONNX** with a quantised (int8) Zipformer streaming model. Captions get their own automatic level control and are shown as proper sentences. No cloud APIs, zero network latency, complete privacy.
 - **Transcript-Only Mode**: Option to mute audio relay while keeping live captions running for quiet environments.
-- **Modern Material 3 UI**: Full Jetpack Compose interface featuring live visualizers, adjustable caption font size, dark/light themes, and saved history.
+- **Modern Material 3 UI**: Jetpack Compose interface in a liquid glass style, with a side-by-side tablet layout, adjustable caption font size, dark/light themes, and saved, editable transcript history.
 - **Fault Tolerant**: Automatic background stream recovery on audio route changes or screen-off events.
 
 ---
@@ -32,43 +32,37 @@ HARK uses a high-performance multi-tier architecture connecting native C++ DSP a
 
 ```mermaid
 flowchart TD
-    subgraph UI ["Jetpack Compose UI Layer"]
-        HomeScreen["HomeScreen"]
-        TranscribeScreen["TranscribeScreen"]
-        HistoryScreen["HistoryScreen"]
-        SettingsScreen["SettingsScreen"]
-    end
+    UI["<b>Compose screens</b><br/>Stream · Transcribe · History · Settings"]
+    VM["<b>ViewModels</b><br/>MainViewModel · SettingsViewModel"]
+    SVC["<b>AudioStreamingService</b><br/>foreground service"]
+    AE["<b>AudioEngine</b><br/>Kotlin wrapper"]
+    NATIVE["<b>HarkAudioEngine</b><br/>C++ / Oboe"]
+    DSP["Treble boost → gain → limiter"]
+    AID["Hearing aids / headset"]
+    STT["<b>Sherpa-ONNX</b><br/>on-device captions"]
+    DB[("<b>Room</b><br/>transcript history")]
+    PREFS[("<b>DataStore</b><br/>settings")]
 
-    subgraph Core ["Foreground Service & Audio Coordinator"]
-        Service["AudioStreamingService"]
-        AudioEngine["AudioEngine (Kotlin)"]
-        Service --> AudioEngine
-    end
+    UI --> VM --> SVC
+    VM --> PREFS
+    VM --> DB
+    SVC --> AE --> NATIVE --> DSP --> AID
+    NATIVE -- "captions copy" --> STT
+    STT --> SVC
+    SVC --> DB
 
-    subgraph Native ["C++ Native Audio Engine (Oboe)"]
-        HarkNative["HarkAudioEngine (C++)"]
-        TrebleFilter["Treble Boost Filter"]
-        Limiter["Soft-Knee Limiter"]
-        HarkNative --> TrebleFilter --> Limiter
-    end
-
-    subgraph ML ["Speech-To-Text Engine"]
-        Sherpa["Sherpa-ONNX Recognizer"]
-        ModelMgr["STTModelManager"]
-        Sherpa --> ModelMgr
-    end
-
-    subgraph Storage ["Data & Storage Layer"]
-        RoomDB["HarkDatabase (Room)"]
-        DataStore["UserPreferencesRepository"]
-    end
-
-    HomeScreen --> Service
-    TranscribeScreen --> Service
-    SettingsScreen --> DataStore
-    AudioEngine --> HarkNative
-    Service --> Sherpa
-    Service --> RoomDB
+    classDef ui fill:#dbeafe,stroke:#3b82f6,color:#1f2328
+    classDef svc fill:#ede9fe,stroke:#8b5cf6,color:#1f2328
+    classDef native fill:#fee2e2,stroke:#ef4444,color:#1f2328
+    classDef ml fill:#dcfce7,stroke:#22c55e,color:#1f2328
+    classDef data fill:#fef3c7,stroke:#f59e0b,color:#1f2328
+    classDef io fill:#f3f4f6,stroke:#6b7280,color:#1f2328
+    class UI,VM ui
+    class SVC,AE svc
+    class NATIVE,DSP native
+    class STT ml
+    class DB,PREFS data
+    class AID io
 ```
 
 For complete architectural breakdown, threading diagrams, and module responsibilities, read the **[System Architecture Guide](docs/ARCHITECTURE.md)**.

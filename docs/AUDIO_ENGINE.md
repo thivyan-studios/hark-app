@@ -6,41 +6,47 @@ This document details the low-latency C++ native audio engine (**HarkAudioEngine
 
 ## Engine Overview
 
-The core audio engine ([hark_audio_engine.cpp](file:///D:/Development/hark-app/app/src/main/cpp/hark_audio_engine.cpp) / [hark_audio_engine.h](file:///D:/Development/hark-app/app/src/main/cpp/hark_audio_engine.h)) is written in C++17 utilizing **Google Oboe**. It provides high-efficiency, low-latency audio capture and playback with real-time DSP filters tailored for hearing enhancement.
+The core audio engine ([hark_audio_engine.cpp](../app/src/main/cpp/hark_audio_engine.cpp) / [hark_audio_engine.h](../app/src/main/cpp/hark_audio_engine.h)) is written in C++17 utilizing **Google Oboe**. It provides high-efficiency, low-latency audio capture and playback with real-time DSP filters tailored for hearing enhancement.
 
 ### Key Performance Goals
 - **Ultra-low latency**: Hardware-direct AAudio/OpenSL ES performance mode (`oboe::PerformanceMode::LowLatency`).
 - **Zero dynamic memory allocation in callback**: Pre-allocated buffers prevent Garbage Collection (GC) pauses and audio glitches.
 - **Thread safety**: Lock-free parameter updates using C++ atomics (`std::atomic`).
+- **Matched sample rates**: input and output open at the same rate (usually 48 kHz), with Oboe resampling if the hardware differs, so the hearing path never drifts.
+- **Speech-tuned mic**: input uses the `VoiceRecognition` preset, which skips the phone's call processing and gives cleaner speech.
 
 ---
 
 ## Signal Processing Flow
 
 ```mermaid
-flowchart LR
-    MIC[Microphone Input] --> IN_STREAM[Oboe Input Stream]
-    IN_STREAM --> CB_IN[onAudioReady Input Callback]
+flowchart TD
+    MIC["Microphone<br/>VoiceRecognition preset"] --> IN["Oboe input callback"]
 
-    subgraph TX_PATH ["Transcription Path"]
-        CB_IN --> TX_GAIN[Gain Boost x10]
-        TX_GAIN --> RMS[RMS Level Calculation]
-        RMS --> TX_FIFO[Transcription FifoBuffer]
-    end
+    IN -- "hearing path" --> FIFO["Main FIFO"]
+    FIFO --> PRE{"Pre-buffered?"}
+    PRE -- "yes" --> TREBLE["Treble boost<br/>(if on)"]
+    TREBLE --> GAIN["Microphone gain"]
+    GAIN --> DYN{"Limiter on?"}
+    DYN -- "yes (default)" --> LIM["Soft-knee limiter"]
+    DYN -- "no" --> CLAMP["Clamp ±1.1"]
+    LIM --> OUT["Oboe output"]
+    CLAMP --> OUT
+    OUT --> AID["Hearing aid / headset"]
 
-    subgraph MAIN_PATH ["Primary Hearing Enhancement Path"]
-        CB_IN --> MAIN_FIFO[Main Audio FifoBuffer]
-        MAIN_FIFO --> PRE_BUF{Pre-Buffering Check}
-        PRE_BUF -->|Buffered| TREBLE[Biquad Treble Boost]
-        TREBLE --> GAIN[Microphone Gain]
-        GAIN --> DYNAMICS{Dynamics Enabled?}
-        DYNAMICS -->|Yes| LIMITER[Soft-Knee Limiter]
-        DYNAMICS -->|No| HARD_CLIP[Clamp -1.1 to +1.1]
-        LIMITER --> OUT_STREAM[Oboe Output Stream]
-        HARD_CLIP --> OUT_STREAM
-    end
+    IN -- "captions copy" --> AGC["Automatic level control<br/>aims for −25 dBFS"]
+    AGC --> TXF["Transcription FIFO<br/>10 seconds"]
+    TXF --> STT["Sherpa-ONNX"]
 
-    OUT_STREAM --> HEADSET[Hearing Aid / Headset]
+    classDef ui fill:#dbeafe,stroke:#3b82f6,color:#1f2328
+    classDef svc fill:#ede9fe,stroke:#8b5cf6,color:#1f2328
+    classDef native fill:#fee2e2,stroke:#ef4444,color:#1f2328
+    classDef ml fill:#dcfce7,stroke:#22c55e,color:#1f2328
+    classDef data fill:#fef3c7,stroke:#f59e0b,color:#1f2328
+    classDef io fill:#f3f4f6,stroke:#6b7280,color:#1f2328
+    class MIC,AID io
+    class IN,FIFO,PRE,TREBLE,GAIN,DYN,LIM,CLAMP,OUT native
+    class AGC,TXF,STT ml
 ```
 
 ---
@@ -79,7 +85,7 @@ $$y[n] = b_0 \cdot x[n] + b_1 \cdot x[n-1] + b_2 \cdot x[n-2] - a_1 \cdot y[n-1]
 
 ### 2. Dynamics Processing: Soft-Knee Limiter & Compressor
 
-To protect hearing aid users from sudden loud noises (such as clattering dishes or doors slamming), the engine applies an envelope-following soft-knee gain limiter.
+To protect hearing aid users from sudden loud noises (such as clattering dishes or doors slamming), the engine applies an envelope-following soft-knee gain limiter. It is **on by default** (Settings → Dynamics Processing); with it off, output is only clamped to ±1.1.
 
 - **Threshold**: $0.75$ (linear amplitude)
 - **Knee Width**: $0.15$
@@ -107,16 +113,17 @@ $$y[n] = x[n] \cdot G_{\text{target}}$$
 
 Audio clocks on mobile microphones and Bluetooth output endpoints can drift slightly. To eliminate audible popping or snapping due to buffer underruns:
 1. The engine starts in `mIsBuffering = true` mode.
-2. It accumulates audio frames in `mFifoBuffer` until at least `4 * framesPerBurst` are available.
+2. It accumulates audio frames in `mFifoBuffer` until at least four output callbacks' worth are available.
 3. If an underrun occurs during streaming (`framesRead < numFrames`), output buffers are zero-padded and pre-buffering re-engages seamlessly.
 
 ---
 
 ### 4. Transcription Signal Pipeline
 
-- Dedicated 10-second `mTranscriptionFifo` buffer independent of output streaming.
-- Applies a 10x signal boost to transcription inputs to enable speech recognition in quiet environments.
-- Computes exponential moving average Root-Mean-Square (RMS) audio energy level (`mTranscriptionLevel`) at 20fps for UI speech indicators and gating.
+- Dedicated 10-second `mTranscriptionFifo` buffer, independent of output streaming.
+- **Automatic level control**: the captions copy is levelled so speech reaches Sherpa at about −25 dBFS (`kAgcTargetRms = 0.056`), whatever the mic's sensitivity. It reacts quickly to louder speech (50 ms attack), relaxes slowly through pauses (3 s release) and never adds more than +45 dB. It is independent of the Microphone Gain slider, so changing hearing-aid volume doesn't change caption accuracy.
+- A hard ceiling of ±1.0 stops a sudden bang from overdriving the recogniser before the level control reacts.
+- Computes a smoothed RMS level (`mTranscriptionLevel`) for the on-screen level meter.
 
 ---
 
@@ -126,20 +133,18 @@ On Android, exclusive low-latency streams are torn down by the OS whenever audio
 
 ```mermaid
 sequenceDiagram
-    participant OS as Android OS / Oboe
+    participant OS as Android / Oboe
     participant Engine as HarkAudioEngine
-    participant Worker as Restart Thread
+    participant Worker as Restart thread
 
-    OS->>Engine: onErrorAfterClose(ErrorDisconnected)
-    Engine->>Engine: Verify mShouldBeStreaming == true
-    Engine->>Worker: Spawn background thread
-    loop Retry up to 3 times (Exponential Backoff: 250ms, 500ms, 1000ms)
+    OS->>Engine: onErrorAfterClose (disconnected)
+    Note over Engine: Only if still meant to be streaming
+    Engine->>Worker: Start restart thread
+    loop Up to 3 tries
+        Note over Worker: Wait 250, 500, then 1000 ms
         Worker->>Engine: openStreamsLocked()
-        alt Success
-            Engine-->>Worker: Streams reopened successfully
-            Worker-->>Engine: Reset restart pending flag
-        else Failure
-            Worker-->>Worker: Wait backoff interval
+        alt Streams reopened
+            Engine-->>Worker: Done, clear the restart flag
         end
     end
 ```
@@ -148,6 +153,6 @@ sequenceDiagram
 
 ## Java/Kotlin Fallback Engine
 
-If the native C++ library fails to load or cannot initialize hardware streams on non-standard Android hardware, [AudioEngine.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/audio/AudioEngine.kt) automatically falls back to:
-- **[AudioStreamManager.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/audio/stream/AudioStreamManager.kt)**: Manages Java `AudioRecord` (Input) and `AudioTrack` (Output) initialized with `USAGE_ASSISTANCE_ACCESSIBILITY` and `PERFORMANCE_MODE_LOW_LATENCY`.
-- **[DefaultAudioProcessor.kt](file:///D:/Development/hark-app/app/src/main/java/com/thivyanstudios/hark/audio/processor/DefaultAudioProcessor.kt)**: Pure Kotlin PCM float processing fallback.
+If the native C++ library fails to load or cannot initialize hardware streams on non-standard Android hardware, [AudioEngine.kt](../app/src/main/java/com/thivyanstudios/hark/audio/AudioEngine.kt) automatically falls back to the engines below. The fallback relays audio only: live captions are off, and the app says so.
+- **[AudioStreamManager.kt](../app/src/main/java/com/thivyanstudios/hark/audio/stream/AudioStreamManager.kt)**: Manages Java `AudioRecord` (Input) and `AudioTrack` (Output) initialized with `USAGE_ASSISTANCE_ACCESSIBILITY` and `PERFORMANCE_MODE_LOW_LATENCY`.
+- **[DefaultAudioProcessor.kt](../app/src/main/java/com/thivyanstudios/hark/audio/processor/DefaultAudioProcessor.kt)**: Pure Kotlin PCM float processing fallback.
