@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -73,9 +74,15 @@ fun GlassOrbButton(
     // Follows the app's theme (not just the system's), so check the actual background
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     // Dark: smoky, faintly tinted glass. Light: frosted milky glass with the colour glowing through
-    val glassBase = if (isDark) lerp(Color.Black, color, 0.14f) else lerp(Color.White, color, 0.1f)
+    val glassBase = if (isDark) lerp(Color.Black, color, 0.14f) else lerp(Color.White, color, 0.16f)
     val sheenTop = if (isDark) 0.22f else 0.55f
-    val rimBottom = if (isDark) 0.7f else 0.45f
+    // White-on-white edges vanish in light mode, so there the rim is tinted with the colour
+    // all the way round (lightest at the top, where the light catches it) to outline the glass
+    val rimBrush = if (isDark) {
+        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.75f), Color.White.copy(alpha = 0.1f), color.copy(alpha = 0.7f)))
+    } else {
+        Brush.verticalGradient(listOf(color.copy(alpha = 0.3f), color.copy(alpha = 0.45f), color.copy(alpha = 0.8f)))
+    }
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         // Sharp copy of the backdrop, visible only around the outside of the glass
@@ -90,8 +97,8 @@ fun GlassOrbButton(
                 .shadow(
                     elevation = 28.dp,
                     shape = shape,
-                    ambientColor = if (isDark) color else color.copy(alpha = 0.6f),
-                    spotColor = if (isDark) color else color.copy(alpha = 0.6f),
+                    ambientColor = if (isDark) color else color.copy(alpha = 0.8f),
+                    spotColor = if (isDark) color else color.copy(alpha = 0.8f),
                 )
                 .clip(shape)
                 .background(glassBase)
@@ -134,18 +141,25 @@ fun GlassOrbButton(
                     )
             )
 
-            // Glass rim: bright where light catches the top, tinted at the bottom
+            // Glass rim: catches the light at the top, tinted at the bottom
             Box(
                 Modifier
                     .matchParentSize()
-                    .border(
-                        width = 1.5.dp,
-                        brush = Brush.verticalGradient(
-                            listOf(Color.White.copy(alpha = if (isDark) 0.75f else 0.95f), Color.White.copy(alpha = 0.1f), color.copy(alpha = rimBottom))
-                        ),
-                        shape = shape,
-                    )
+                    .border(width = if (isDark) 1.5.dp else 2.dp, brush = rimBrush, shape = shape)
             )
+            if (!isDark) {
+                // Thin bright inner edge just inside the rim, so it still reads as glass
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .padding(2.dp)
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), Color.White.copy(alpha = 0f))),
+                            shape = RoundedCornerShape(cornerRadius - 2.dp),
+                        )
+                )
+            }
 
             content()
         }
