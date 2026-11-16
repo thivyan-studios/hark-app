@@ -337,14 +337,16 @@ class AudioStreamingService : Service(), AudioStreamingController {
                 }
                 
                 wakeLock?.acquire(60 * 60 * 1000L) // 1 hour timeout
+                // Audio first: the hearing-aid relay shouldn't wait seconds for the
+                // speech model to load. Mic audio queues in the native transcription
+                // buffer (up to 10s) while Sherpa loads, then gets transcribed.
                 withContext(ioDispatcher) {
-                    // Initialize Sherpa before starting engine
-                    prepareSherpa()
                     updateAudioRouting()
                     audioEngine.start()
                 }
-                startTranscriptionLoop()
                 startLevelMonitoringLoop()
+                prepareSherpa()
+                if (_isStreaming.value) startTranscriptionLoop()
             } catch (e: Exception) {
                 HarkLog.e(TAG, "Failed to start streaming", e)
                 stopStreaming()
