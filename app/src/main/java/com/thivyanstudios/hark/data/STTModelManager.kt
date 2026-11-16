@@ -1,5 +1,6 @@
 package com.thivyanstudios.hark.data
 
+import com.thivyanstudios.hark.R
 import android.content.Context
 import com.thivyanstudios.hark.data.model.SherpaModel
 import com.thivyanstudios.hark.di.IoDispatcher
@@ -37,8 +38,8 @@ class STTModelManager @Inject constructor(
     val availableModels = listOf(
         SherpaModel(
             id = "zipformer-en-streaming",
-            name = "Streaming Zipformer (English)",
-            description = "High-speed, real-time English transcription. Best for hearing aid use.",
+            nameRes = R.string.model_zipformer_en_name,
+            descriptionRes = R.string.model_zipformer_en_description,
             // int8-quantised encoder & joiner (same set Sherpa-ONNX's own Android demo uses):
             // ~129 MB instead of ~296 MB and roughly twice as fast on phone CPUs, with
             // near-identical accuracy. The decoder is tiny, so it stays full precision.
@@ -131,7 +132,7 @@ class STTModelManager @Inject constructor(
 
         _downloadProgress.value = _downloadProgress.value - model.id
         if (success) {
-            HarkLog.i("STTModelManager", "Downloaded model: ${model.name}")
+            HarkLog.i("STTModelManager", "Downloaded model: ${model.id}")
             notifyModelStoreChanged()
         }
         success

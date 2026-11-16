@@ -115,7 +115,7 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             HarkText(
-                text = if (isStreaming) "Streaming" else "Ready",
+                text = stringResource(if (isStreaming) R.string.home_status_streaming else R.string.home_status_ready),
                 style = MaterialTheme.typography.labelLarge.copy(
                     letterSpacing = 0.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -124,7 +124,7 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             HarkText(
-                text = if (isStreaming) "Tap the mic to stop" else "Tap the mic to start",
+                text = stringResource(if (isStreaming) R.string.home_hint_stop else R.string.home_hint_start),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
@@ -203,7 +203,7 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Sherpa-ONNX is running",
+                        text = stringResource(R.string.home_stt_running),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface
                     )

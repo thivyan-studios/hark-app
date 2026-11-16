@@ -113,7 +113,7 @@ fun SettingsScreen(
             },
             text = {
                 HarkText(
-                    text = stringResource(R.string.model_delete_message, modelToDelete!!.name),
+                    text = stringResource(R.string.model_delete_message, stringResource(modelToDelete!!.nameRes)),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -181,7 +181,7 @@ fun SettingsScreen(
             MediumTopAppBar(
                 title = {
                     Text(
-                        text = "Settings",
+                        text = stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -209,7 +209,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(36.dp))
 
                 // Section: Experience
-                SettingsGroup(title = "Experience") {
+                SettingsGroup(title = stringResource(R.string.settings_section_experience)) {
                     SettingsSwitchRow(
                         text = stringResource(R.string.settings_haptic_feedback),
                         icon = Icons.Default.Vibration,
@@ -228,7 +228,7 @@ fun SettingsScreen(
                 }
 
                 // Section: Audio
-                SettingsGroup(title = "Audio Engine") {
+                SettingsGroup(title = stringResource(R.string.settings_section_audio_engine)) {
                     SettingsSwitchRow(
                         text = stringResource(R.string.settings_noise_suppression),
                         icon = Icons.Default.FilterList,
@@ -276,7 +276,7 @@ fun SettingsScreen(
                 }
 
                 // Section: Connectivity
-                SettingsGroup(title = "Connectivity") {
+                SettingsGroup(title = stringResource(R.string.settings_section_connectivity)) {
                     SettingsSwitchRow(
                         text = stringResource(R.string.settings_enable_bluetooth_headset_support),
                         icon = Icons.Default.BluetoothAudio,
@@ -316,7 +316,7 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             HarkText(
-                                text = "Disable Battery Optimization",
+                                text = stringResource(R.string.settings_disable_battery_optimization),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         }
@@ -325,11 +325,11 @@ fun SettingsScreen(
 
                 // Section: Sherpa-ONNX STT Engine
                 SettingsGroup(
-                    title = "Sherpa-ONNX STT Engine",
+                    title = stringResource(R.string.settings_section_stt_engine),
                     badge = { BetaBadge() }
                 ) {
                     HarkText(
-                        text = "Transcription Models",
+                        text = stringResource(R.string.settings_transcription_models),
                         style = MaterialTheme.typography.labelSmall.copy(
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
@@ -367,6 +367,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // Font Size Slider
+                        val fontSizeFormat = stringResource(R.string.font_size_sp_format)
                         var fontSizeValue by remember(uiState.transcriptionFontSize) { mutableFloatStateOf(uiState.transcriptionFontSize) }
                         SettingsSliderRow(
                             icon = Icons.Default.FormatSize,
@@ -375,7 +376,7 @@ fun SettingsScreen(
                             onValueChange = { fontSizeValue = it },
                             onValueChangeFinished = { settingsViewModel.setTranscriptionFontSize(fontSizeValue) },
                             valueRange = 14f..48f,
-                            valueLabel = { "${it.toInt()} sp" },
+                            valueLabel = { fontSizeFormat.format(it.toInt()) },
                             hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                             step = 2f,
                         )
@@ -385,7 +386,7 @@ fun SettingsScreen(
                         // Thread Count Slider
                         SettingsSliderRow(
                             icon = Icons.Default.Memory,
-                            label = "CPU Threads",
+                            label = stringResource(R.string.settings_cpu_threads),
                             value = uiState.sttThreads.toFloat(),
                             onValueChange = { settingsViewModel.setSttThreads(it.toInt()) },
                             onValueChangeFinished = {},

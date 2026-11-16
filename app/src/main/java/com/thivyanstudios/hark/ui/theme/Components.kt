@@ -1,5 +1,7 @@
 package com.thivyanstudios.hark.ui.theme
 
+import androidx.compose.ui.res.stringResource
+import com.thivyanstudios.hark.R
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -212,7 +214,7 @@ fun BetaBadge(modifier: Modifier = Modifier) {
         modifier = modifier
     ) {
         Text(
-            text = "BETA",
+            text = stringResource(R.string.beta_badge),
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 10.sp,

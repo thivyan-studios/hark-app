@@ -1,5 +1,6 @@
 package com.thivyanstudios.hark.audio
 
+import com.thivyanstudios.hark.R
 import android.content.Context
 import android.media.AudioManager
 import android.media.audiofx.NoiseSuppressor
@@ -100,7 +101,7 @@ class AudioEngine @Inject constructor(
         if (!success) {
             HarkLog.w(TAG, "Falling back to Java/Kotlin audio engine")
             // The fallback only relays audio; it has no transcription feed, so say so
-            sendError("High-performance audio engine unavailable. Using basic audio; live captions are off.")
+            sendError(context.getString(R.string.error_audio_engine_fallback))
             streamManager.start(currentConfig)
         }
     }

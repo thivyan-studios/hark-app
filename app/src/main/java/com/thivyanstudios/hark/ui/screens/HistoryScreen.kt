@@ -258,7 +258,7 @@ fun HistoryItem(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
-            .clickable(onClickLabel = "Edit transcript", onClick = onOpen)
+            .clickable(onClickLabel = stringResource(R.string.history_edit_transcript), onClick = onOpen)
             .padding(20.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -355,7 +355,7 @@ private fun TranscriptEditorDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = "Edit transcript",
+                            text = stringResource(R.string.history_edit_transcript),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
@@ -363,7 +363,7 @@ private fun TranscriptEditorDialog(
                         DateChip(item.timestamp)
                     }
                     FilledTonalButton(onClick = closeAndSave, enabled = text.isNotBlank()) {
-                        Text(if (changed) "Save" else "Done", fontWeight = FontWeight.Bold)
+                        Text(stringResource(if (changed) R.string.action_save else R.string.action_done), fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -402,23 +402,23 @@ private fun TranscriptEditorDialog(
                             .padding(bottom = 16.dp),
                     ) {
                         GlassActionButton(
-                            icon = Icons.Rounded.ContentCopy, label = "Copy",
+                            icon = Icons.Rounded.ContentCopy, label = stringResource(R.string.action_copy),
                             onClick = { onCopy(text) }, hapticFeedbackEnabled = hapticFeedbackEnabled,
                         )
                         GlassActionButton(
-                            icon = Icons.Rounded.Share, label = "Share",
+                            icon = Icons.Rounded.Share, label = stringResource(R.string.action_share),
                             tint = MaterialTheme.colorScheme.tertiary,
                             onClick = { onShare(text) }, hapticFeedbackEnabled = hapticFeedbackEnabled,
                         )
                         if (changed) {
                             GlassActionButton(
-                                icon = Icons.AutoMirrored.Rounded.Undo, label = "Undo edits",
+                                icon = Icons.AutoMirrored.Rounded.Undo, label = stringResource(R.string.action_undo_edits),
                                 tint = MaterialTheme.colorScheme.secondary,
                                 onClick = { text = item.text }, hapticFeedbackEnabled = hapticFeedbackEnabled,
                             )
                         }
                         GlassActionButton(
-                            icon = Icons.Rounded.Delete, label = "Delete",
+                            icon = Icons.Rounded.Delete, label = stringResource(R.string.delete),
                             tint = MaterialTheme.colorScheme.error,
                             onClick = onDelete, hapticFeedbackEnabled = hapticFeedbackEnabled,
                         )
@@ -453,7 +453,7 @@ private fun rememberCopyToClipboard(): (String) -> Unit {
             clipboard.setText(AnnotatedString(text))
             // Android 13+ shows its own clipboard confirmation
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show()
             }
         }
     }

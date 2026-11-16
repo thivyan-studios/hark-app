@@ -295,7 +295,7 @@ class SettingsViewModel @Inject constructor(
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         
-        val chooser = Intent.createChooser(intent, "Share Hark Log")
+        val chooser = Intent.createChooser(intent, application.getString(R.string.share_log_title))
         chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         application.startActivity(chooser)
     }

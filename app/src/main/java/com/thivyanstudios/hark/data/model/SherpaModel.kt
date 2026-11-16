@@ -1,9 +1,11 @@
 package com.thivyanstudios.hark.data.model
 
+import androidx.annotation.StringRes
+
 data class SherpaModel(
     val id: String,
-    val name: String,
-    val description: String,
+    @param:StringRes val nameRes: Int,
+    @param:StringRes val descriptionRes: Int,
     val encoderUrl: String,
     val decoderUrl: String,
     val joinerUrl: String,

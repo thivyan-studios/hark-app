@@ -5,9 +5,9 @@
     <string name="permissions_required">Permissions are required to stream audio.</string>
 
     <!-- Settings Screen -->
-    <string name="settings_haptic_feedback">Haptic feedback</string>
+    <string name="settings_haptic_feedback">Haptic Feedback</string>
     <string name="settings_dark_mode">Use dark mode</string>
-    <string name="settings_keep_screen_on">Keep screen on when in foreground</string>
+    <string name="settings_keep_screen_on">Keep Screen On</string>
     <string name="settings_enable_bluetooth_headset_support">Enable Bluetooth Headset Support</string>
     <string name="settings_microphone_gain">Microphone Gain</string>
     <string name="settings_support_kofi">Support me on Ko-fi</string>
@@ -72,4 +72,53 @@
     <string name="battery_optimization_action">Open Settings</string>
     <string name="battery_optimization_dismiss">Later</string>
     <string name="gain_loud_warning">High gain may distort or be uncomfortably loud</string>
+
+    <!-- Shared actions -->
+    <string name="action_copy">Copy</string>
+    <string name="action_share">Share</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_save">Save</string>
+    <string name="action_done">Done</string>
+    <string name="action_undo_edits">Undo edits</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="beta_badge">BETA</string>
+
+    <!-- Home Screen (status) -->
+    <string name="home_status_ready">Ready</string>
+    <string name="home_status_streaming">Streaming</string>
+    <string name="home_hint_start">Tap the mic to start</string>
+    <string name="home_hint_stop">Tap the mic to stop</string>
+    <string name="home_stt_running">Sherpa-ONNX is running</string>
+
+    <!-- Transcribe Screen (more) -->
+    <string name="transcribe_title">Live Transcription</string>
+    <string name="transcribe_hint_speak">Speak clearly to begin real-time transcription</string>
+    <string name="transcribe_hint_start_on_stream">Tap the mic on Stream to start</string>
+
+    <!-- History editor -->
+    <string name="history_edit_transcript">Edit transcript</string>
+
+    <!-- Settings Screen (more) -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_experience">Experience</string>
+    <string name="settings_section_audio_engine">Audio Engine</string>
+    <string name="settings_section_connectivity">Connectivity</string>
+    <string name="settings_section_stt_engine">Sherpa-ONNX STT Engine</string>
+    <string name="settings_disable_battery_optimization">Disable Battery Optimization</string>
+    <string name="settings_transcription_models">Transcription Models</string>
+    <string name="settings_cpu_threads">CPU Threads</string>
+    <string name="font_size_sp_format">%1$d sp</string>
+    <string name="share_log_title">Share Hark Log</string>
+
+    <!-- Transcription models -->
+    <string name="model_zipformer_en_name">Streaming Zipformer (English)</string>
+    <string name="model_zipformer_en_description">High-speed, real-time English transcription. Best for hearing aid use.</string>
+    <string name="cd_delete_model">Delete model</string>
+    <string name="cd_download_model">Download model</string>
+    <string name="cd_model_selected">Selected</string>
+    <string name="cd_switch_model">Switch to this model</string>
+
+    <!-- Errors -->
+    <string name="error_stt_init_failed">STT Engine failed to initialize</string>
+    <string name="error_audio_engine_fallback">High-performance audio engine unavailable. Using basic audio; live captions are off.</string>
 </resources>

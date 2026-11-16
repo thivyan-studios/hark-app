@@ -1,5 +1,7 @@
 package com.thivyanstudios.hark.ui.screens
 
+import androidx.compose.ui.res.stringResource
+import com.thivyanstudios.hark.R
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -65,14 +67,14 @@ fun SherpaModelItem(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             HarkText(
-                text = model.name,
+                text = stringResource(model.nameRes),
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
             )
             HarkText(
-                text = model.description,
+                text = stringResource(model.descriptionRes),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
@@ -103,7 +105,7 @@ fun SherpaModelItem(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete model",
+                            contentDescription = stringResource(R.string.cd_delete_model),
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
                             modifier = Modifier.size(24.dp)
                         )
@@ -118,7 +120,7 @@ fun SherpaModelItem(
                 ) {
                     Icon(
                         imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.Download,
-                        contentDescription = if (isSelected) "Selected" else "Switch to this model",
+                        contentDescription = stringResource(if (isSelected) R.string.cd_model_selected else R.string.cd_switch_model),
                         tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                         modifier = Modifier.size(28.dp)
                     )
@@ -133,7 +135,7 @@ fun SherpaModelItem(
             ) {
                 Icon(
                     imageVector = Icons.Default.Download,
-                    contentDescription = "Download model",
+                    contentDescription = stringResource(R.string.cd_download_model),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp)
                 )

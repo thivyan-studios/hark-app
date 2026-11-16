@@ -396,10 +396,10 @@ class AudioStreamingService : Service(), AudioStreamingController {
             recognizer = OnlineRecognizer(null, config)
             sherpaStream = recognizer?.createStream()
 
-            HarkLog.i(TAG, "Sherpa-ONNX initialized successfully with model: ${model.name}")
+            HarkLog.i(TAG, "Sherpa-ONNX initialized successfully with model: ${model.id}")
         } catch (e: Exception) {
             HarkLog.e(TAG, "Failed to initialize Sherpa-ONNX", e)
-            audioEngine.sendError("STT Engine failed to initialize")
+            audioEngine.sendError(getString(R.string.error_stt_init_failed))
         }
     }
 

@@ -109,7 +109,7 @@ fun TranscribeScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                         HarkText(
-                            text = "Live Transcription",
+                            text = stringResource(R.string.transcribe_title),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -153,7 +153,13 @@ fun TranscribeScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     HarkText(
-                        text = if (isStreaming) "Speak clearly to begin real-time transcription" else if (micOnSamePage) "Tap the mic to start" else "Tap the mic on Stream to start",
+                        text = stringResource(
+                            when {
+                                isStreaming -> R.string.transcribe_hint_speak
+                                micOnSamePage -> R.string.home_hint_start
+                                else -> R.string.transcribe_hint_start_on_stream
+                            }
+                        ),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             textAlign = TextAlign.Center
@@ -213,7 +219,7 @@ fun TranscribeScreen(
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                         ) {
                             Text(
-                                "Copied to clipboard",
+                                stringResource(R.string.copied_to_clipboard),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -222,7 +228,7 @@ fun TranscribeScreen(
                     GlassActionBar(hazeState = hazeState) {
                         GlassActionButton(
                             icon = Icons.Rounded.ContentCopy,
-                            label = "Copy",
+                            label = stringResource(R.string.action_copy),
                             hapticFeedbackEnabled = hapticFeedbackEnabled,
                             onClick = {
                                 clipboardManager.setText(AnnotatedString(transcription))
@@ -231,14 +237,14 @@ fun TranscribeScreen(
                         )
                         GlassActionButton(
                             icon = Icons.Rounded.Share,
-                            label = "Share",
+                            label = stringResource(R.string.action_share),
                             tint = MaterialTheme.colorScheme.tertiary,
                             hapticFeedbackEnabled = hapticFeedbackEnabled,
                             onClick = { onShareTranscription(transcription) }
                         )
                         GlassActionButton(
                             icon = Icons.Rounded.Delete,
-                            label = "Clear",
+                            label = stringResource(R.string.action_clear),
                             tint = MaterialTheme.colorScheme.error,
                             hapticFeedbackEnabled = hapticFeedbackEnabled,
                             // Saves the transcript to History, then clears the screen
