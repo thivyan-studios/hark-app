@@ -57,7 +57,7 @@ private:
     // Use atomic for thread-safe access from audio thread without locking
     std::atomic<float> mGain{1.0f};
     std::atomic<bool> mIsNoiseSuppressionEnabled{false};
-    std::atomic<bool> mIsDynamicsProcessingEnabled{false};
+    std::atomic<bool> mIsDynamicsProcessingEnabled{true}; // limiter on until told otherwise
     std::atomic<bool> mIsTranscriptModeEnabled{false};
     std::atomic<bool> mIsTrebleBoostEnabled{false};
 

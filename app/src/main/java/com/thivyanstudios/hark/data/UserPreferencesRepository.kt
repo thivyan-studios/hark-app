@@ -59,7 +59,8 @@ class UserPreferencesRepository @Inject constructor(
                 enableBluetoothHeadsetSupport = preferences[PreferenceKeys.ENABLE_BLUETOOTH_HEADSET_SUPPORT] ?: false,
                 microphoneGain = preferences[PreferenceKeys.MICROPHONE_GAIN] ?: Constants.Preferences.DEFAULT_GAIN,
                 noiseSuppressionEnabled = preferences[PreferenceKeys.NOISE_SUPPRESSION_ENABLED] ?: false,
-                dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: false,
+                // Limiter defaults to ON: protects hearing from sudden loud sounds
+                dynamicsProcessingEnabled = preferences[PreferenceKeys.DYNAMICS_PROCESSING_ENABLED] ?: true,
                 trebleBoostEnabled = preferences[PreferenceKeys.TREBLE_BOOST_ENABLED] ?: false,
                 bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false,
                 transcriptModeEnabled = preferences[PreferenceKeys.TRANSCRIPT_MODE_ENABLED] ?: false,

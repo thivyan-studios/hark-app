@@ -8,7 +8,7 @@ data class UserPreferences(
     val enableBluetoothHeadsetSupport: Boolean = false,
     val microphoneGain: Float = Constants.Preferences.DEFAULT_GAIN,
     val noiseSuppressionEnabled: Boolean = false,
-    val dynamicsProcessingEnabled: Boolean = false,
+    val dynamicsProcessingEnabled: Boolean = true, // safety limiter on unless the user turns it off
     val trebleBoostEnabled: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
     val transcriptModeEnabled: Boolean = false,

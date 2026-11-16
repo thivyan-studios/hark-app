@@ -9,7 +9,7 @@ data class SettingsUiState(
     val enableBluetoothHeadsetSupport: Boolean = false,
     val microphoneGain: Float = 0f,
     val noiseSuppressionEnabled: Boolean = false,
-    val dynamicsProcessingEnabled: Boolean = false,
+    val dynamicsProcessingEnabled: Boolean = true, // safety limiter on unless the user turns it off
     val trebleBoostEnabled: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
     val transcriptModeEnabled: Boolean = false,
