@@ -16,3 +16,5 @@ local.properties
 /app/release/
 /app/src/main/assets/adi-registration.properties
 /app/beta/
+/.idea/deploymentTargetSelector.xml
+/.idea/deviceManager.xml
