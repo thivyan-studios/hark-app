@@ -24,6 +24,8 @@ public:
     int32_t readTranscriptionData(float *target, int32_t numFrames);
     float getTranscriptionLevel();
     int32_t getSessionId();
+    /** Sample rate the mic stream is actually delivering (what Sherpa must be told). */
+    int32_t getInputSampleRate();
 
     void setMicrophoneGain(float gain);
     void setNoiseSuppressionEnabled(bool enabled);

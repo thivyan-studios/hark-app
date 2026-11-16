@@ -99,13 +99,28 @@ class AudioEngine @Inject constructor(
         
         if (!success) {
             HarkLog.w(TAG, "Falling back to Java/Kotlin audio engine")
-            sendError("High-Performance Engine unavailable. Using fallback.")
+            // The fallback only relays audio; it has no transcription feed, so say so
+            sendError("High-performance audio engine unavailable. Using basic audio; live captions are off.")
             streamManager.start(currentConfig)
         }
     }
 
     fun getOptimalSampleRate(): Int {
         return audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 48000
+    }
+
+    /**
+     * Sample rate of the audio handed to Sherpa: what the mic stream is actually delivering,
+     * not just what was requested. Falls back to the device's standard rate.
+     */
+    fun getTranscriptionSampleRate(): Int {
+        if (isNativeLibraryLoaded && nativeHandle != 0L) {
+            try {
+                val rate = nativeGetInputSampleRate(nativeHandle)
+                if (rate > 0) return rate
+            } catch (_: UnsatisfiedLinkError) {}
+        }
+        return getOptimalSampleRate()
     }
 
     fun getOptimalFramesPerBurst(): Int {
@@ -239,6 +254,7 @@ class AudioEngine @Inject constructor(
     private external fun nativeReadTranscriptionData(handle: Long, target: FloatArray, offset: Int, numFrames: Int): Int
     private external fun nativeGetTranscriptionLevel(handle: Long): Float
     private external fun nativeGetSessionId(handle: Long): Int
+    private external fun nativeGetInputSampleRate(handle: Long): Int
 
     companion object {
         private const val TAG = "AudioEngine"

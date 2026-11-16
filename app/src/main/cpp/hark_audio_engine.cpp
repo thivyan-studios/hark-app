@@ -53,6 +53,11 @@ bool HarkAudioEngine::openStreamsLocked() {
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(mSampleRate)
             ->setInputPreset(oboe::InputPreset::VoiceCommunication)
+            // Guarantee the mic delivers exactly mSampleRate. The playback path copies mic
+            // samples straight to the output, and Sherpa is told this rate, so a mismatch
+            // would pitch-shift the hearing-aid audio and garble captions. When the device
+            // already runs at this rate (the usual case) no conversion actually happens.
+            ->setSampleRateConversionQuality(oboe::SampleRateConversionQuality::Medium)
             ->setDataCallback(this)
             ->setErrorCallback(this);
 
@@ -69,6 +74,7 @@ bool HarkAudioEngine::openStreamsLocked() {
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Mono)
             ->setSampleRate(mSampleRate)
+            ->setSampleRateConversionQuality(oboe::SampleRateConversionQuality::Medium)
             ->setDataCallback(this)
             ->setErrorCallback(this);
 
@@ -78,6 +84,9 @@ bool HarkAudioEngine::openStreamsLocked() {
         closeStreams();
         return false;
     }
+
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Streams open: requested %d Hz, mic %d Hz, output %d Hz",
+            mSampleRate, mInStream->getSampleRate(), mOutStream->getSampleRate());
 
     mOutStream->setBufferSizeInFrames(mFramesPerBurst * 2);
     mInStream->requestStart();
@@ -117,6 +126,11 @@ int32_t HarkAudioEngine::readTranscriptionData(float *target, int32_t numFrames)
 
 float HarkAudioEngine::getTranscriptionLevel() {
     return mTranscriptionLevel.load(std::memory_order_acquire);
+}
+
+int32_t HarkAudioEngine::getInputSampleRate() {
+    std::lock_guard<std::mutex> lock(mStreamLock);
+    return mInStream ? mInStream->getSampleRate() : mSampleRate;
 }
 
 int32_t HarkAudioEngine::getSessionId() {

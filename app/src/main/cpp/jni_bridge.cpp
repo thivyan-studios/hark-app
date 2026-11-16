@@ -115,3 +115,13 @@ Java_com_thivyanstudios_hark_audio_AudioEngine_nativeGetSessionId(JNIEnv *env, j
     }
     return -1;
 }
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_thivyanstudios_hark_audio_AudioEngine_nativeGetInputSampleRate(JNIEnv *env, jobject thiz, jlong handle) {
+    auto *engine = reinterpret_cast<HarkAudioEngine *>(handle);
+    if (engine) {
+        return engine->getInputSampleRate();
+    }
+    return 0;
+}

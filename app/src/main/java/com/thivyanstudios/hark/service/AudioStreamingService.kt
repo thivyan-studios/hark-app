@@ -418,7 +418,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
             val currentRecognizer = recognizer ?: return@launch
             val currentStream = sherpaStream ?: return@launch
 
-            val inputSampleRate = audioEngine.getOptimalSampleRate()
 
             val bufferSize = 1600 * 2 // 100ms of audio
             val audioBuffer = FloatArray(bufferSize)
@@ -435,8 +434,10 @@ class AudioStreamingService : Service(), AudioStreamingController {
                         audioBuffer
                     }
 
-                    // Pass the hardware-rate audio data into Sherpa
-                    currentStream.acceptWaveform(activeSamples, sampleRate = inputSampleRate)
+                    // Pass the audio to Sherpa at the rate the mic is really delivering (it
+                    // resamples to 16 kHz itself). Read each time, since a stream restart after
+                    // a Bluetooth route change could reopen at a different rate.
+                    currentStream.acceptWaveform(activeSamples, sampleRate = audioEngine.getTranscriptionSampleRate())
                     
                     while (currentRecognizer.isReady(currentStream)) {
                         currentRecognizer.decode(currentStream)
