@@ -13,9 +13,6 @@ data class UserPreferences(
     val bypassBluetoothChecks: Boolean = false,
     val transcriptModeEnabled: Boolean = false,
     val sttThreads: Int = 4,
-    val sttLanguage: String = "en",
-    val sttTranslate: Boolean = false,
-    val silenceThreshold: Float = 0.005f,
     val transcriptionFontSize: Float = 22f,
     val selectedModelId: String = "ggml-base-q8_0"
 )

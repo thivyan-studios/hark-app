@@ -59,8 +59,6 @@
     <string name="error_whisper_init_failed">Failed to initialize Whisper engine.</string>
     <string name="share_transcription_title">Share Transcription</string>
     <string name="settings_font_size">Transcription Font Size</string>
-    <string name="settings_silence_threshold">Silence Sensitivity Threshold</string>
-    <string name="sensitivity_format">%1$d%%</string>
     <string name="settings_restart_required">Model change will take effect after restart.</string>
     <string name="model_restart_title">Restart Required</string>
     <string name="model_restart_message">The app needs to restart to load the new transcription model. Restart now?</string>

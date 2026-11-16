@@ -39,9 +39,6 @@ class UserPreferencesRepository @Inject constructor(
         // Stored key names still say "whisper" from the old engine; keep them so
         // existing users don't lose their saved settings.
         val STT_THREADS = androidx.datastore.preferences.core.intPreferencesKey("whisper_threads")
-        val STT_LANGUAGE = androidx.datastore.preferences.core.stringPreferencesKey("whisper_language")
-        val STT_TRANSLATE = booleanPreferencesKey("whisper_translate")
-        val SILENCE_THRESHOLD = floatPreferencesKey("silence_threshold")
         val TRANSCRIPTION_FONT_SIZE = floatPreferencesKey("transcription_font_size")
         val SELECTED_MODEL_ID = androidx.datastore.preferences.core.stringPreferencesKey("selected_model_id")
     }
@@ -67,9 +64,6 @@ class UserPreferencesRepository @Inject constructor(
                 bypassBluetoothChecks = preferences[PreferenceKeys.BYPASS_BLUETOOTH_CHECKS] ?: false,
                 transcriptModeEnabled = preferences[PreferenceKeys.TRANSCRIPT_MODE_ENABLED] ?: false,
                 sttThreads = preferences[PreferenceKeys.STT_THREADS] ?: 4,
-                sttLanguage = preferences[PreferenceKeys.STT_LANGUAGE] ?: "en",
-                sttTranslate = preferences[PreferenceKeys.STT_TRANSLATE] ?: false,
-                silenceThreshold = preferences[PreferenceKeys.SILENCE_THRESHOLD] ?: 0.002f,
                 transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
                 selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "zipformer-en-streaming"
             )
@@ -116,17 +110,8 @@ class UserPreferencesRepository @Inject constructor(
         it[PreferenceKeys.STT_THREADS] = threads
     }
 
-    suspend fun setSttLanguage(language: String) = update {
-        it[PreferenceKeys.STT_LANGUAGE] = language
-    }
 
-    suspend fun setSttTranslate(isEnabled: Boolean) = update {
-        it[PreferenceKeys.STT_TRANSLATE] = isEnabled
-    }
 
-    suspend fun setSilenceThreshold(threshold: Float) = update {
-        it[PreferenceKeys.SILENCE_THRESHOLD] = threshold
-    }
 
     suspend fun setTranscriptionFontSize(size: Float) = update {
         it[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] = size

@@ -16,9 +16,6 @@ data class SettingsUiState(
     
     // STT Settings
     val sttThreads: Int = 4,
-    val sttLanguage: String = "en",
-    val sttTranslate: Boolean = false,
-    val silenceThreshold: Float = 0.002f,
     val transcriptionFontSize: Float = 22f,
     val selectedModelId: String = "zipformer-en-streaming",
     val availableModels: List<SherpaModel> = emptyList(),

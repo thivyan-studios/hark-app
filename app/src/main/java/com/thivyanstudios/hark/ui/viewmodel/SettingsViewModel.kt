@@ -165,9 +165,6 @@ class SettingsViewModel @Inject constructor(
             bypassBluetoothChecks = prefs.bypassBluetoothChecks,
             transcriptModeEnabled = prefs.transcriptModeEnabled,
             sttThreads = prefs.sttThreads,
-            sttLanguage = prefs.sttLanguage,
-            sttTranslate = prefs.sttTranslate,
-            silenceThreshold = prefs.silenceThreshold,
             transcriptionFontSize = prefs.transcriptionFontSize,
             selectedModelId = prefs.selectedModelId,
             availableModels = sttModelManager.availableModels,
@@ -245,23 +242,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setSttLanguage(language: String) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setSttLanguage(language)
-        }
-    }
 
-    fun setSttTranslate(isEnabled: Boolean) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setSttTranslate(isEnabled)
-        }
-    }
 
-    fun setSilenceThreshold(threshold: Float) {
-        viewModelScope.launch(ioDispatcher) {
-            userPreferencesRepository.setSilenceThreshold(threshold)
-        }
-    }
 
     fun setTranscriptionFontSize(size: Float) {
         viewModelScope.launch(ioDispatcher) {
