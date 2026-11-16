@@ -1,5 +1,12 @@
 package com.thivyanstudios.hark.ui
 
+import com.thivyanstudios.hark.ui.theme.LocalBackdropBlur
+import androidx.compose.ui.draw.blur
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -65,6 +72,10 @@ fun HarkAppContent(
     // Shared between the screens (blur source) and the floating navbar (blur effect)
     val hazeState = rememberHazeState()
 
+    // Blurred while a glass dialog (e.g. the transcript editor) is open over the app
+    var backdropBlurred by remember { mutableStateOf(false) }
+    val backdropBlurRadius by animateDpAsState(if (backdropBlurred) 20.dp else 0.dp, label = "BackdropBlur")
+
     // Tablets (shortest side >= 600dp, in either orientation) get Home and the other
     // pages side by side. Phones keep the single-screen layout.
     val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
@@ -106,7 +117,8 @@ fun HarkAppContent(
                     transcription = uiState.transcription,
                     onClearTranscription = onClearTranscription,
                     onShareTranscription = onShareTranscription,
-                    fontSize = settingsState.transcriptionFontSize
+                    fontSize = settingsState.transcriptionFontSize,
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                 )
             }
             composable(Navigation.ROUTE_HISTORY) {
@@ -114,7 +126,9 @@ fun HarkAppContent(
                     history = uiState.history,
                     onDeleteAll = { mainViewModel.deleteAllHistory() },
                     onDeleteById = { id -> mainViewModel.deleteHistoryItem(id) },
-                    onShare = onShareTranscription
+                    onShare = onShareTranscription,
+                    onEdit = { id, text -> mainViewModel.updateHistoryItem(id, text) },
+                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
                 )
             }
             composable(Navigation.ROUTE_SETTINGS) {
@@ -126,61 +140,64 @@ fun HarkAppContent(
         }
     }
 
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = 120.dp + navigationBarsPadding) // Lift above navbar
-            ) { data ->
-                HarkToast(
-                    snackbarData = data,
-                    icon = Icons.Default.Info
-                )
-            }
-        },
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
-    ) { innerPadding ->
-        if (isTablet) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                Box(modifier = Modifier.weight(0.42f).fillMaxHeight()) {
-                    homeScreen()
+    CompositionLocalProvider(LocalBackdropBlur provides { backdropBlurred = it }) {
+        Scaffold(
+            modifier = Modifier.blur(backdropBlurRadius),
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.padding(bottom = 120.dp + navigationBarsPadding) // Lift above navbar
+                ) { data ->
+                    HarkToast(
+                        snackbarData = data,
+                        icon = Icons.Default.Info
+                    )
                 }
-                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                Box(modifier = Modifier.weight(0.58f).fillMaxHeight()) {
-                    pages(Modifier.fillMaxSize())
-                    // With no transcription model, Settings is the only page, so no navbar is needed
-                    if (uiState.isModelAvailable) {
-                        BottomNavBar(
-                            currentRoute = currentRoute,
-                            onNavigate = onNavigate,
-                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                            isModelAvailable = uiState.isModelAvailable,
-                            hazeState = hazeState,
-                            showStreamTab = false,
-                            modifier = Modifier.align(Alignment.BottomCenter)
-                        )
+            },
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        ) { innerPadding ->
+            if (isTablet) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    Box(modifier = Modifier.weight(0.42f).fillMaxHeight()) {
+                        homeScreen()
+                    }
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    Box(modifier = Modifier.weight(0.58f).fillMaxHeight()) {
+                        pages(Modifier.fillMaxSize())
+                        // With no transcription model, Settings is the only page, so no navbar is needed
+                        if (uiState.isModelAvailable) {
+                            BottomNavBar(
+                                currentRoute = currentRoute,
+                                onNavigate = onNavigate,
+                                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                                isModelAvailable = uiState.isModelAvailable,
+                                hazeState = hazeState,
+                                showStreamTab = false,
+                                modifier = Modifier.align(Alignment.BottomCenter)
+                            )
+                        }
                     }
                 }
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                pages(Modifier.fillMaxSize())
-                BottomNavBar(
-                    currentRoute = currentRoute,
-                    onNavigate = onNavigate,
-                    hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                    isModelAvailable = uiState.isModelAvailable,
-                    hazeState = hazeState,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    pages(Modifier.fillMaxSize())
+                    BottomNavBar(
+                        currentRoute = currentRoute,
+                        onNavigate = onNavigate,
+                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                        isModelAvailable = uiState.isModelAvailable,
+                        hazeState = hazeState,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
             }
         }
     }

@@ -19,4 +19,7 @@ interface TranscriptionDao {
     
     @Query("DELETE FROM transcriptions WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("UPDATE transcriptions SET text = :text WHERE id = :id")
+    suspend fun updateText(id: Long, text: String)
 }

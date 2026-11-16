@@ -3,6 +3,8 @@ package com.thivyanstudios.hark.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,19 +26,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -57,7 +55,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.BetaBadge
+import com.thivyanstudios.hark.ui.theme.GlassActionBar
+import com.thivyanstudios.hark.ui.theme.GlassActionButton
 import com.thivyanstudios.hark.ui.theme.HarkText
+import com.thivyanstudios.hark.ui.theme.glassSurface
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,11 +70,14 @@ fun TranscribeScreen(
     transcription: String,
     onClearTranscription: () -> Unit,
     onShareTranscription: (String) -> Unit,
-    fontSize: Float = 22f
+    fontSize: Float = 22f,
+    hapticFeedbackEnabled: Boolean = false,
 ) {
     val scrollState = rememberScrollState()
     val clipboardManager = LocalClipboardManager.current
     var showCopyFeedback by remember { mutableStateOf(false) }
+    // The transcript scrolls behind the action bar, so the bar blurs it like the navbar does
+    val hazeState = rememberHazeState()
 
     // Automatically scroll to bottom when new transcription arrives
     LaunchedEffect(transcription) {
@@ -108,81 +114,10 @@ fun TranscribeScreen(
                         BetaBadge()
                     }
                 },
-                actions = {
-                    if (transcription.isNotEmpty()) {
-                        IconButton(onClick = {
-                            clipboardManager.setText(AnnotatedString(transcription))
-                            showCopyFeedback = true
-                        }) {
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "Copy text",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        IconButton(onClick = { onShareTranscription(transcription) }) {
-                            Icon(
-                                Icons.Default.Share,
-                                contentDescription = "Share transcription",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(onClick = onClearTranscription) {
-                            Icon(
-                                Icons.Default.DeleteOutline,
-                                contentDescription = "Clear transcription",
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
-        },
-        floatingActionButton = {
-            if (transcription.isNotEmpty()) {
-                val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                Column(
-                    modifier = Modifier.padding(bottom = 90.dp + navigationBarsPadding),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    AnimatedVisibility(
-                        visible = showCopyFeedback,
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(12.dp),
-                            tonalElevation = 6.dp,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            Text(
-                                "Copied to clipboard",
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            )
-                        }
-                    }
-
-                    FloatingActionButton(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(transcription))
-                            showCopyFeedback = true
-                        },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy text")
-                    }
-                }
-            }
         }
     ) { paddingValues ->
         Box(
@@ -227,34 +162,87 @@ fun TranscribeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .hazeSource(hazeState)
                         .padding(horizontal = 20.dp)
                         .verticalScroll(scrollState)
                 ) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    
-                    ElevatedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                        )
-                    ) {
-                        SelectionContainer {
-                            Box(modifier = Modifier.padding(20.dp)) {
-                                Text(
-                                    text = transcription,
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontSize = fontSize.sp,
-                                        lineHeight = (fontSize * 1.5).sp,
-                                        fontWeight = FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+
+                    SelectionContainer {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .glassSurface(RoundedCornerShape(24.dp), elevation = 4.dp)
+                                .padding(20.dp)
+                        ) {
+                            Text(
+                                text = transcription,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontSize = fontSize.sp,
+                                    lineHeight = (fontSize * 1.5).sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
-                            }
+                            )
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.height(160.dp))
+
+                    // Room to scroll the last lines clear of the action bar and navbar
+                    Spacer(modifier = Modifier.height(220.dp))
+                }
+            }
+
+            // Floating glass action bar, just above the navbar
+            val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            AnimatedVisibility(
+                visible = transcription.isNotEmpty(),
+                enter = fadeIn() + slideInVertically { it / 2 },
+                exit = fadeOut() + slideOutVertically { it / 2 },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 104.dp + navigationBarsPadding)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    AnimatedVisibility(visible = showCopyFeedback, enter = fadeIn(), exit = fadeOut()) {
+                        Box(
+                            modifier = Modifier
+                                .padding(bottom = 8.dp)
+                                .glassSurface(RoundedCornerShape(12.dp), elevation = 6.dp)
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                "Copied to clipboard",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                    GlassActionBar(hazeState = hazeState) {
+                        GlassActionButton(
+                            icon = Icons.Rounded.ContentCopy,
+                            label = "Copy",
+                            hapticFeedbackEnabled = hapticFeedbackEnabled,
+                            onClick = {
+                                clipboardManager.setText(AnnotatedString(transcription))
+                                showCopyFeedback = true
+                            }
+                        )
+                        GlassActionButton(
+                            icon = Icons.Rounded.Share,
+                            label = "Share",
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            hapticFeedbackEnabled = hapticFeedbackEnabled,
+                            onClick = { onShareTranscription(transcription) }
+                        )
+                        GlassActionButton(
+                            icon = Icons.Rounded.Delete,
+                            label = "Clear",
+                            tint = MaterialTheme.colorScheme.error,
+                            hapticFeedbackEnabled = hapticFeedbackEnabled,
+                            // Saves the transcript to History, then clears the screen
+                            onClick = onClearTranscription
+                        )
+                    }
                 }
             }
         }

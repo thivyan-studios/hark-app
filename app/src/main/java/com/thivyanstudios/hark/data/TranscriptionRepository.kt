@@ -24,4 +24,10 @@ class TranscriptionRepository @Inject constructor(
     suspend fun delete(id: Long) {
         transcriptionDao.deleteById(id)
     }
+
+    /** Saves an edited transcript. Blank edits are ignored rather than wiping the entry. */
+    suspend fun update(id: Long, text: String) {
+        if (text.isBlank()) return
+        transcriptionDao.updateText(id, text.trim())
+    }
 }

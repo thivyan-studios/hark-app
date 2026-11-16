@@ -43,7 +43,7 @@
     <string name="notification_text">Streaming live audio</string>
 
     <!-- History Screen -->
-    <string name="history_title">HISTORY</string>
+    <string name="history_title">History</string>
     <string name="history_delete_all_title">Clear History?</string>
     <string name="history_delete_all_message">This will permanently delete all saved transcriptions.</string>
     <string name="history_delete_all_confirm">Delete All</string>

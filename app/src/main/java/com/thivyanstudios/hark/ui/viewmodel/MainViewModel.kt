@@ -191,6 +191,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun updateHistoryItem(id: Long, text: String) {
+        viewModelScope.launch {
+            transcriptionRepository.update(id, text)
+        }
+    }
+
     fun deleteAllHistory() {
         viewModelScope.launch {
             transcriptionRepository.deleteAll()
