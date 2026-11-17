@@ -18,3 +18,44 @@ local.properties
 /app/beta/
 /.idea/deploymentTargetSelector.xml
 /.idea/deviceManager.xml
+
+# Kotlin compiler daemon logs and sessions
+.kotlin/
+
+# Per-user Android Studio settings (AI assistant and Play Vitals preferences)
+/.idea/studiobot.xml
+/.idea/appInsightsSettings.xml
+/.idea/other.xml
+
+# Signing keys and credentials: never commit these
+*.jks
+*.keystore
+*.p12
+*.pem
+keystore.properties
+signing.properties
+google-services.json
+.env
+.env.*
+
+# Build outputs (publish APKs on GitHub Releases instead)
+*.apk
+*.aab
+*.dm
+/app/debug/
+output-metadata.json
+
+# Downloaded speech models (fetched by the app at runtime, far too big for git)
+*.onnx
+*.bin
+
+# Fastlane / Ruby tooling
+Gemfile
+Gemfile.lock
+/fastlane/report.xml
+/fastlane/Preview.html
+/fastlane/screenshots
+/fastlane/test_output
+
+# Profiling and crash dumps
+*.hprof
