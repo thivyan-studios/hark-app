@@ -40,6 +40,7 @@ class UserPreferencesRepository @Inject constructor(
         // existing users don't lose their saved settings.
         val STT_THREADS = androidx.datastore.preferences.core.intPreferencesKey("whisper_threads")
         val TRANSCRIPTION_FONT_SIZE = floatPreferencesKey("transcription_font_size")
+        val GLASS_TRANSLUCENCY = floatPreferencesKey("glass_translucency")
         val SELECTED_MODEL_ID = androidx.datastore.preferences.core.stringPreferencesKey("selected_model_id")
     }
 
@@ -66,6 +67,7 @@ class UserPreferencesRepository @Inject constructor(
                 transcriptModeEnabled = preferences[PreferenceKeys.TRANSCRIPT_MODE_ENABLED] ?: false,
                 sttThreads = preferences[PreferenceKeys.STT_THREADS] ?: 4,
                 transcriptionFontSize = preferences[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] ?: 22f,
+                glassTranslucency = preferences[PreferenceKeys.GLASS_TRANSLUCENCY] ?: 1f,
                 selectedModelId = preferences[PreferenceKeys.SELECTED_MODEL_ID] ?: "zipformer-en-streaming"
             )
         }
@@ -116,6 +118,10 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setTranscriptionFontSize(size: Float) = update {
         it[PreferenceKeys.TRANSCRIPTION_FONT_SIZE] = size
+    }
+
+    suspend fun setGlassTranslucency(value: Float) = update {
+        it[PreferenceKeys.GLASS_TRANSLUCENCY] = value.coerceIn(0f, 1f)
     }
 
     suspend fun setSelectedModelId(id: String) = update {

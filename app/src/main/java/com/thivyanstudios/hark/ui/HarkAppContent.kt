@@ -1,5 +1,6 @@
 package com.thivyanstudios.hark.ui
 
+import com.thivyanstudios.hark.ui.theme.LocalGlassTranslucency
 import com.thivyanstudios.hark.ui.theme.LocalBackdropBlur
 import androidx.compose.ui.draw.blur
 import androidx.compose.runtime.setValue
@@ -45,7 +46,6 @@ import com.thivyanstudios.hark.ui.screens.HistoryScreen
 import com.thivyanstudios.hark.ui.screens.HomeScreen
 import com.thivyanstudios.hark.ui.screens.SettingsScreen
 import com.thivyanstudios.hark.ui.screens.TranscribeScreen
-import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.HarkToast
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.util.Constants.Navigation
@@ -141,7 +141,10 @@ fun HarkAppContent(
         }
     }
 
-    CompositionLocalProvider(LocalBackdropBlur provides { backdropBlurred = it }) {
+    CompositionLocalProvider(
+        LocalBackdropBlur provides { backdropBlurred = it },
+        LocalGlassTranslucency provides settingsState.glassTranslucency,
+    ) {
         Scaffold(
             modifier = Modifier.blur(backdropBlurRadius),
             snackbarHost = {

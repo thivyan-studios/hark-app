@@ -13,6 +13,7 @@ data class SettingsUiState(
     val trebleBoostEnabled: Boolean = false,
     val bypassBluetoothChecks: Boolean = false,
     val transcriptModeEnabled: Boolean = false,
+    val glassTranslucency: Float = 1f,
     
     // STT Settings
     val sttThreads: Int = 4,

@@ -45,30 +45,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 /**
- * A centralized Text component for the Hark app.
- */
-@Composable
-fun HarkText(
-    text: String,
-    modifier: Modifier = Modifier,
-    style: TextStyle = MaterialTheme.typography.titleMedium,
-    color: Color = Color.Unspecified,
-    textAlign: TextAlign? = null,
-    maxLines: Int = Int.MAX_VALUE,
-    overflow: TextOverflow = TextOverflow.Clip
-) {
-    Text(
-        text = text,
-        modifier = modifier,
-        style = style,
-        color = color,
-        textAlign = textAlign,
-        maxLines = maxLines,
-        overflow = overflow
-    )
-}
-
-/**
  * A modern, pill-shaped floating toast component adhering to Material 3 tokens.
  */
 @Composable

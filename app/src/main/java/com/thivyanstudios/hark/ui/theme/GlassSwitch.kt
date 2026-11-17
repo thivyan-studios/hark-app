@@ -9,7 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -28,8 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeInput
-import dev.chrisbanes.haze.blur.HazeBlurStyle
-import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -61,7 +58,7 @@ fun GlassSwitch(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    val isDark = isSystemInDarkTheme()
+    val isDark = isAppInDarkTheme()
     val hazeState = rememberHazeState()
 
     val trackColor by animateColorAsState(
@@ -90,15 +87,7 @@ fun GlassSwitch(
         label = "Frost",
     )
 
-    val glassStyle = remember(isDark) {
-        HazeBlurStyle {
-            blurRadius(6.dp)
-            noiseFactor(0.04f)
-            // Read inside the block so the frost animates without recomposition
-            colorEffects(listOf(HazeColorEffect.tint(Color.White.copy(alpha = frost))))
-            fallbackColorEffect(HazeColorEffect.tint(Color.White))
-        }
-    }
+    val glassStyle = rememberThumbGlassStyle(blurRadius = 6.dp, noise = 0.04f) { frost }
 
     // Bright rim on top fading down, like light catching the edge of glass
     val rim = Brush.verticalGradient(

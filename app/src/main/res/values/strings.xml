@@ -6,11 +6,10 @@
 
     <!-- Settings Screen -->
     <string name="settings_haptic_feedback">Haptic Feedback</string>
-    <string name="settings_dark_mode">Use dark mode</string>
     <string name="settings_keep_screen_on">Keep Screen On</string>
+    <string name="settings_glass_translucency">Glass Translucency</string>
     <string name="settings_enable_bluetooth_headset_support">Enable Bluetooth Headset Support</string>
     <string name="settings_microphone_gain">Microphone Gain</string>
-    <string name="settings_support_kofi">Support me on Ko-fi</string>
     <string name="gain_db_format">%1$s dB</string>
     <string name="settings_noise_suppression">Noise Suppression</string>
     <string name="settings_dynamics_processing">Dynamics Processing (Compressor)</string>
@@ -49,29 +48,18 @@
     <string name="history_delete_all_message">This will permanently delete all saved transcriptions.</string>
     <string name="history_delete_all_confirm">Delete All</string>
     <string name="history_empty">No history yet</string>
-    <string name="cd_delete_history_item">Delete</string>
     <string name="cd_delete_all_history">Delete all</string>
 
     <!-- ViewModel -->
     <string name="version_not_found">Developed by Thivyan Pillay (Version not found)</string>
     <string name="noise_suppression_not_available">Noise suppression is not available on this device.</string>
     <string name="dynamics_processing_not_available">Dynamics Processing is not available on this device.</string>
-    <string name="error_model_file_corrupt">Whisper model file is missing or corrupt.</string>
-    <string name="error_whisper_init_failed">Failed to initialize Whisper engine.</string>
     <string name="share_transcription_title">Share Transcription</string>
     <string name="settings_font_size">Transcription Font Size</string>
-    <string name="settings_restart_required">Model change will take effect after restart.</string>
-    <string name="model_restart_title">Restart Required</string>
-    <string name="model_restart_message">The app needs to restart to load the new transcription model. Restart now?</string>
     <string name="model_delete_title">Delete Model</string>
     <string name="model_delete_message">Are you sure you want to delete the %1$s model? You will need to download it again to use it.</string>
-    <string name="restart">Restart</string>
     <string name="delete">Delete</string>
 
-    <string name="battery_optimization_title">Disable Battery Optimization?</string>
-    <string name="battery_optimization_message">To keep HARK running reliably with the screen off, please set its battery usage to \"Unrestricted\". This prevents the system from killing the app during long listening sessions.</string>
-    <string name="battery_optimization_action">Open Settings</string>
-    <string name="battery_optimization_dismiss">Later</string>
     <string name="gain_loud_warning">High gain may distort or be uncomfortably loud</string>
 
     <!-- Shared actions -->

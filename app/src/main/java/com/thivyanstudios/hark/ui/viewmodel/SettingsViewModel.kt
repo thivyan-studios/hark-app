@@ -166,6 +166,7 @@ class SettingsViewModel @Inject constructor(
             transcriptModeEnabled = prefs.transcriptModeEnabled,
             sttThreads = prefs.sttThreads,
             transcriptionFontSize = prefs.transcriptionFontSize,
+            glassTranslucency = prefs.glassTranslucency,
             selectedModelId = prefs.selectedModelId,
             availableModels = sttModelManager.availableModels,
             downloadedModelIds = downloadedIds,
@@ -248,6 +249,12 @@ class SettingsViewModel @Inject constructor(
     fun setTranscriptionFontSize(size: Float) {
         viewModelScope.launch(ioDispatcher) {
             userPreferencesRepository.setTranscriptionFontSize(size)
+        }
+    }
+
+    fun setGlassTranslucency(value: Float) {
+        viewModelScope.launch(ioDispatcher) {
+            userPreferencesRepository.setGlassTranslucency(value)
         }
     }
 

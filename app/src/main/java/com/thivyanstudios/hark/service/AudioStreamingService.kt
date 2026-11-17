@@ -610,7 +610,7 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
     private fun updateAudioRouting() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        // Reset to normal mode as the BT mic feature has been removed
+        // Normal mode: HARK plays to the default output and never uses call (SCO) routing
         audioManager.mode = AudioManager.MODE_NORMAL
     }
 

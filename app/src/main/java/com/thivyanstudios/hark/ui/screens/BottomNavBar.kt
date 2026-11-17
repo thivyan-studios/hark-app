@@ -1,11 +1,12 @@
 package com.thivyanstudios.hark.ui.screens
 
+import com.thivyanstudios.hark.ui.theme.glassRim
+import com.thivyanstudios.hark.ui.theme.rememberPanelGlassStyle
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -53,8 +54,6 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.util.Constants.Navigation
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.HazeBlurStyle
-import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 
 @Composable
@@ -69,30 +68,9 @@ fun BottomNavBar(
     showStreamTab: Boolean = true,
 ) {
     val shape = RoundedCornerShape(36.dp)
-    val isDark = isSystemInDarkTheme()
-    val surface = MaterialTheme.colorScheme.surface
-    val fallback = MaterialTheme.colorScheme.surfaceContainerHigh
-
-    // Frosted glass: blur whatever scrolls behind the bar, then wash it with a light
-    // tint of the surface colour so icons stay readable (like Samsung's One UI pills).
-    // Android 12+ gets the real blur; older versions fall back to a near-opaque tint.
-    val glassStyle = remember(surface, fallback, isDark) {
-        HazeBlurStyle {
-            blurRadius(28.dp)
-            backgroundColor(surface)
-            colorEffects(listOf(HazeColorEffect.tint(surface.copy(alpha = if (isDark) 0.55f else 0.45f))))
-            noiseFactor(0.06f)
-            fallbackColorEffect(HazeColorEffect.tint(fallback.copy(alpha = 0.94f)))
-        }
-    }
-
-    // Thin highlight along the top edge that fades out, to sell the glass edge
-    val rimBrush = Brush.verticalGradient(
-        listOf(
-            Color.White.copy(alpha = if (isDark) 0.22f else 0.6f),
-            Color.White.copy(alpha = 0.04f),
-        )
-    )
+    // Frosted glass over whatever scrolls behind the bar (a little more blur than other panels)
+    val glassStyle = rememberPanelGlassStyle(blurRadius = 28.dp)
+    val rimBrush = glassRim()
 
     val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 

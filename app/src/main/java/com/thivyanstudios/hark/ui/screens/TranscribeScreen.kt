@@ -57,7 +57,6 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.BetaBadge
 import com.thivyanstudios.hark.ui.theme.GlassActionBar
 import com.thivyanstudios.hark.ui.theme.GlassActionButton
-import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.glassSurface
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -145,7 +144,7 @@ fun TranscribeScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-                    HarkText(
+                    Text(
                         text = if (isStreaming) stringResource(R.string.transcribe_empty_text) else stringResource(R.string.transcribe_mic_off),
                         style = MaterialTheme.typography.titleLarge.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -154,7 +153,7 @@ fun TranscribeScreen(
                         )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    HarkText(
+                    Text(
                         text = stringResource(
                             when {
                                 isStreaming -> R.string.transcribe_hint_speak

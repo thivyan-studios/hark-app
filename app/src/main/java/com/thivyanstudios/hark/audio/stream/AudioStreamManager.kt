@@ -25,14 +25,20 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     private var activeAudioSink: AudioSink? = null
     private val lock = Any()
 
+    // The device's native rate (usually 48 kHz), the same rate the main C++ engine uses.
+    // Set on each start; 44.1 kHz on most phones meant Android resampling every buffer.
+    @Volatile
+    private var sampleRate = 48_000
+
     @SuppressLint("MissingPermission")
-    fun start(config: AudioProcessingConfig) {
+    fun start(config: AudioProcessingConfig, sampleRate: Int) {
         if (isRunning.getAndSet(true)) {
             Log.d(TAG, "start() called but already running")
             return
         }
 
-        Log.d(TAG, "Starting audio stream manager")
+        this.sampleRate = sampleRate
+        Log.d(TAG, "Starting audio stream manager at $sampleRate Hz")
 
         val executor = Executors.newSingleThreadExecutor()
         streamingExecutor = executor
@@ -87,7 +93,7 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val audioFormat = AudioFormat.ENCODING_PCM_FLOAT
         val bufferSize = AudioRecord.getMinBufferSize(
-            Constants.Audio.SAMPLE_RATE, 
+            sampleRate, 
             channelConfig, 
             audioFormat
         ) * Constants.Audio.BUFFER_SIZE_MULTIPLIER
@@ -143,7 +149,7 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
             .setAudioFormat(
                 AudioFormat.Builder()
                     .setEncoding(audioFormat)
-                    .setSampleRate(Constants.Audio.SAMPLE_RATE)
+                    .setSampleRate(sampleRate)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build()
             )
@@ -157,7 +163,7 @@ class AudioStreamManager(private val audioProcessor: AudioProcessor) {
     private fun createAudioRecord(channelConfig: Int, audioFormat: Int, bufferSize: Int): AudioRecord {
         return AudioRecord(
             MediaRecorder.AudioSource.MIC, 
-            Constants.Audio.SAMPLE_RATE, 
+            sampleRate, 
             channelConfig, 
             audioFormat, 
             bufferSize

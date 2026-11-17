@@ -1,5 +1,7 @@
 package com.thivyanstudios.hark.ui.screens
 
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarDefaults
@@ -51,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.ui.theme.BetaBadge
-import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.GlassOrbButton
 import kotlinx.coroutines.delay
 
@@ -127,7 +128,7 @@ fun HomeScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
-            HarkText(
+            Text(
                 text = stringResource(if (isStreaming) R.string.home_hint_stop else R.string.home_hint_start),
                 style = MaterialTheme.typography.bodyLarge.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -182,7 +183,9 @@ fun HomeScreen(
                         painterResource(id = R.drawable.ic_mic_off)
                     },
                     contentDescription = stringResource(R.string.cd_stream_button),
-                    modifier = Modifier.size(76.dp)
+                    modifier = Modifier.size(76.dp),
+                    // Colour comes from the button, so the icon stays visible at any glass setting
+                    colorFilter = ColorFilter.tint(LocalContentColor.current),
                 )
             }
         }

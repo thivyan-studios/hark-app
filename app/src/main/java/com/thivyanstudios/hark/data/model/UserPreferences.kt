@@ -14,5 +14,7 @@ data class UserPreferences(
     val transcriptModeEnabled: Boolean = false,
     val sttThreads: Int = 4,
     val transcriptionFontSize: Float = 22f,
+    // 1 = the full glass look (most see-through), 0 = solid panels
+    val glassTranslucency: Float = 1f,
     val selectedModelId: String = "ggml-base-q8_0"
 )

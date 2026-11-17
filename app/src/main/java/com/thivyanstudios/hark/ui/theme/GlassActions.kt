@@ -8,7 +8,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -44,8 +42,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.HazeBlurStyle
-import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 
 /**
@@ -54,18 +50,6 @@ import dev.chrisbanes.haze.blur.hazeBlur
  * blurs its own content instead, which works on every Android 12+ device.
  */
 val LocalBackdropBlur = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
-
-/** Bright-at-the-top rim used on every glass surface, so edges catch the light consistently. */
-@Composable
-fun glassRim(): Brush {
-    val isDark = isSystemInDarkTheme()
-    return Brush.verticalGradient(
-        listOf(
-            Color.White.copy(alpha = if (isDark) 0.22f else 0.6f),
-            Color.White.copy(alpha = 0.04f),
-        )
-    )
-}
 
 /**
  * Frosted-glass surface. With a [hazeState] it blurs whatever that state's source draws
@@ -79,25 +63,16 @@ fun Modifier.glassSurface(
     elevation: Dp = 14.dp,
     paneAlpha: Float? = null,
 ): Modifier {
-    val isDark = isSystemInDarkTheme()
-    val surface = MaterialTheme.colorScheme.surface
+    val isDark = isAppInDarkTheme()
     val fallback = MaterialTheme.colorScheme.surfaceContainerHigh
-    val style = remember(surface, fallback, isDark) {
-        HazeBlurStyle {
-            blurRadius(24.dp)
-            backgroundColor(surface)
-            colorEffects(listOf(HazeColorEffect.tint(surface.copy(alpha = if (isDark) 0.55f else 0.45f))))
-            noiseFactor(0.06f)
-            fallbackColorEffect(HazeColorEffect.tint(fallback.copy(alpha = 0.94f)))
-        }
-    }
+    val style = rememberPanelGlassStyle()
     val base = this
         .shadow(elevation, shape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.35f))
         .clip(shape)
     val filled = if (hazeState != null) {
         base.hazeBlur(input = HazeInput.Sources(hazeState), style = style)
     } else {
-        base.background(fallback.copy(alpha = paneAlpha ?: if (isDark) 0.72f else 0.85f))
+        base.background(fallback.copy(alpha = glassAlpha(paneAlpha ?: if (isDark) 0.72f else 0.85f, solidAlpha = 1f)))
     }
     return filled.border(1.dp, glassRim(), shape)
 }

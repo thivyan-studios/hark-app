@@ -102,7 +102,7 @@ class AudioEngine @Inject constructor(
             HarkLog.w(TAG, "Falling back to Java/Kotlin audio engine")
             // The fallback only relays audio; it has no transcription feed, so say so
             sendError(context.getString(R.string.error_audio_engine_fallback))
-            streamManager.start(currentConfig)
+            streamManager.start(currentConfig, getOptimalSampleRate())
         }
     }
 

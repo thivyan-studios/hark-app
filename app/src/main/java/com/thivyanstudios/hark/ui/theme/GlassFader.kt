@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,8 +55,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeInput
-import dev.chrisbanes.haze.blur.HazeBlurStyle
-import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -124,7 +121,7 @@ fun GlassFader(
 
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val isDark = isSystemInDarkTheme()
+    val isDark = isAppInDarkTheme()
     val hazeState = rememberHazeState()
 
     val currentValue by rememberUpdatedState(value)
@@ -172,14 +169,7 @@ fun GlassFader(
     val notchColor = MaterialTheme.colorScheme.onSurface.copy(alpha = S.NotchAlpha)
     val fillColor = faderZoneColor(valueOf(shownFraction), primary, originValue, end, warnAbove)
 
-    val glassStyle = remember(isDark) {
-        HazeBlurStyle {
-            blurRadius(S.ThumbBlurRadius)
-            noiseFactor(S.ThumbNoise)
-            colorEffects(listOf(HazeColorEffect.tint(Color.White.copy(alpha = frost))))
-            fallbackColorEffect(HazeColorEffect.tint(Color.White))
-        }
-    }
+    val glassStyle = rememberThumbGlassStyle(S.ThumbBlurRadius, S.ThumbNoise) { frost }
     val rim = Brush.verticalGradient(
         listOf(Color.White.copy(alpha = S.RimTopAlpha), Color.White.copy(alpha = S.RimMidAlpha), fillColor.copy(alpha = 0.5f))
     )

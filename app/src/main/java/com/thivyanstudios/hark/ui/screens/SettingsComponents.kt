@@ -1,5 +1,6 @@
 package com.thivyanstudios.hark.ui.screens
 
+import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import com.thivyanstudios.hark.R
 import androidx.compose.animation.core.animateFloatAsState
@@ -26,7 +27,6 @@ import com.thivyanstudios.hark.ui.theme.faderZoneColor
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.thivyanstudios.hark.ui.theme.HarkText
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -66,14 +66,14 @@ fun SherpaModelItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            HarkText(
+            Text(
                 text = stringResource(model.nameRes),
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
             )
-            HarkText(
+            Text(
                 text = stringResource(model.descriptionRes),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.sp,
@@ -177,7 +177,7 @@ fun SettingsSwitchRow(
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        HarkText(
+        Text(
             text = text,
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
@@ -248,9 +248,9 @@ fun SettingsSliderRow(
                     modifier = Modifier.size(HarkSliderStyle.IconSize)
                 )
                 Spacer(modifier = Modifier.width(HarkSliderStyle.IconToLabelGap))
-                HarkText(text = label)
+                Text(text = label, style = MaterialTheme.typography.titleMedium)
             }
-            HarkText(
+            Text(
                 text = valueLabel(value),
                 style = MaterialTheme.typography.labelLarge,
                 color = zoneColor,
@@ -271,7 +271,7 @@ fun SettingsSliderRow(
             onDraggingChange = { dragging = it },
         )
         if (warningText != null && warnAbove != null && value > warnAbove) {
-            HarkText(
+            Text(
                 text = warningText,
                 style = MaterialTheme.typography.bodySmall,
                 color = zoneColor,

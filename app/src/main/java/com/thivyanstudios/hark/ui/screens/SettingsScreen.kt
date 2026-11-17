@@ -1,5 +1,7 @@
 package com.thivyanstudios.hark.ui.screens
 
+import kotlin.math.roundToInt
+import androidx.compose.material.icons.filled.Opacity
 import androidx.compose.ui.draw.alpha
 import androidx.compose.animation.core.animateFloatAsState
 import android.annotation.SuppressLint
@@ -76,7 +78,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.data.model.SherpaModel
 import com.thivyanstudios.hark.ui.theme.BetaBadge
-import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.viewmodel.SettingsViewModel
 import com.thivyanstudios.hark.util.Constants
 import java.util.Locale
@@ -106,13 +107,13 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = {
-                HarkText(
+                Text(
                     text = stringResource(R.string.model_delete_title),
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
             },
             text = {
-                HarkText(
+                Text(
                     text = stringResource(R.string.model_delete_message, stringResource(modelToDelete!!.nameRes)),
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -122,12 +123,12 @@ fun SettingsScreen(
                     settingsViewModel.deleteModel(modelToDelete!!.id)
                     showDeleteDialog = false
                 }) {
-                    HarkText(text = stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    Text(text = stringResource(R.string.delete), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleMedium)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    HarkText(text = stringResource(R.string.cancel))
+                    Text(text = stringResource(R.string.cancel), style = MaterialTheme.typography.titleMedium)
                 }
             },
             shape = RoundedCornerShape(28.dp),
@@ -139,13 +140,13 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showPrivacyDialog = false },
             title = { 
-                HarkText(
+                Text(
                     text = stringResource(R.string.privacy_policy_title),
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 ) 
             },
             text = {
-                HarkText(
+                Text(
                     text = stringResource(R.string.privacy_policy_content),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -163,7 +164,7 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showPrivacyDialog = false }) {
-                    HarkText(
+                    Text(
                         text = stringResource(R.string.cancel),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.labelLarge
@@ -224,6 +225,20 @@ fun SettingsScreen(
                         checked = uiState.keepScreenOn,
                         onCheckedChange = settingsViewModel::setKeepScreenOn,
                         hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                    )
+
+                    // Right end (100%) is the full glass look; sliding left makes it more solid.
+                    // Saved on every step so the whole app updates live while you drag.
+                    SettingsSliderRow(
+                        icon = Icons.Default.Opacity,
+                        label = stringResource(R.string.settings_glass_translucency),
+                        value = uiState.glassTranslucency,
+                        onValueChange = settingsViewModel::setGlassTranslucency,
+                        onValueChangeFinished = {},
+                        valueRange = 0f..1f,
+                        valueLabel = { "${(it * 100).roundToInt()}%" },
+                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                        step = 0.1f,
                     )
                 }
 
@@ -315,7 +330,7 @@ fun SettingsScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(16.dp))
-                            HarkText(
+                            Text(
                                 text = stringResource(R.string.settings_disable_battery_optimization),
                                 style = MaterialTheme.typography.bodyLarge
                             )
@@ -328,7 +343,7 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_section_stt_engine),
                     badge = { BetaBadge() }
                 ) {
-                    HarkText(
+                    Text(
                         text = stringResource(R.string.settings_transcription_models),
                         style = MaterialTheme.typography.labelSmall.copy(
                             color = MaterialTheme.colorScheme.primary,
@@ -426,7 +441,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                HarkText(
+                Text(
                     text = uiState.versionName,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelMedium
@@ -473,7 +488,7 @@ fun SettingsScreen(
 @Composable
 fun ConfirmLogButton(onConfirm: () -> Unit) {
     TextButton(onClick = onConfirm) {
-        HarkText(
+        Text(
             text = stringResource(R.string.accept),
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
@@ -492,7 +507,7 @@ fun SettingsGroup(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
         ) {
-            HarkText(
+            Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.Bold,

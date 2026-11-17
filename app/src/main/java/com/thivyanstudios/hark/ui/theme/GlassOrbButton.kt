@@ -1,5 +1,7 @@
 package com.thivyanstudios.hark.ui.theme
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -13,7 +15,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -26,7 +27,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -71,8 +71,7 @@ fun GlassOrbButton(
         label = "OrbCore",
     )
 
-    // Follows the app's theme (not just the system's), so check the actual background
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val isDark = isAppInDarkTheme()
     // Dark: smoky, faintly tinted glass. Light: frosted milky glass with the colour glowing through
     val glassBase = if (isDark) lerp(Color.Black, color, 0.14f) else lerp(Color.White, color, 0.16f)
     val sheenTop = if (isDark) 0.22f else 0.55f
@@ -128,6 +127,15 @@ fun GlassOrbButton(
                 )
             }
 
+            // Glass Translucency setting: a layer of the glass's own colour over the glow.
+            // Invisible at 100% (the full look); thicker as it drops, until at 0% the glass is
+            // fully opaque and the glow is hidden. The coloured rim and shadow still show red/green.
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(glassBase.copy(alpha = glassAlpha(glassAlpha = 0f, solidAlpha = 1f)))
+            )
+
             // Specular sheen across the top of the glass
             Box(
                 Modifier
@@ -161,7 +169,13 @@ fun GlassOrbButton(
                 )
             }
 
-            content()
+            // White over the glow. As the glass turns opaque and hides the glow, the icon takes
+            // on the button's own colour instead (red or green), in both light and dark mode,
+            // so the button's state stays obvious at any Glass Translucency setting.
+            val contentColor = lerp(color, Color.White, LocalGlassTranslucency.current.coerceIn(0f, 1f))
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
+                content()
+            }
         }
     }
 }

@@ -76,7 +76,6 @@ import com.thivyanstudios.hark.R
 import com.thivyanstudios.hark.data.local.TranscriptionEntity
 import com.thivyanstudios.hark.ui.theme.GlassActionBar
 import com.thivyanstudios.hark.ui.theme.GlassActionButton
-import com.thivyanstudios.hark.ui.theme.HarkText
 import com.thivyanstudios.hark.ui.theme.LocalBackdropBlur
 import com.thivyanstudios.hark.ui.theme.glassSurface
 import dev.chrisbanes.haze.hazeSource
@@ -107,13 +106,13 @@ fun HistoryScreen(
         AlertDialog(
             onDismissRequest = { showDeleteAllDialog = false },
             title = {
-                HarkText(
+                Text(
                     text = stringResource(R.string.history_delete_all_title),
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
             },
             text = {
-                HarkText(
+                Text(
                     text = stringResource(R.string.history_delete_all_message),
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -125,7 +124,7 @@ fun HistoryScreen(
                         showDeleteAllDialog = false
                     }
                 ) {
-                    HarkText(
+                    Text(
                         text = stringResource(R.string.history_delete_all_confirm),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
@@ -134,7 +133,7 @@ fun HistoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAllDialog = false }) {
-                    HarkText(
+                    Text(
                         text = stringResource(R.string.cancel),
                         style = MaterialTheme.typography.labelLarge
                     )
@@ -197,7 +196,7 @@ fun HistoryScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    HarkText(
+                    Text(
                         text = stringResource(R.string.history_empty),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
