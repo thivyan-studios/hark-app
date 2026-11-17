@@ -79,7 +79,22 @@ fun HarkAppContent(
     // Tablets (shortest side >= 600dp, in either orientation) get Home and the other
     // pages side by side. Phones keep the single-screen layout.
     val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
-    val startRoute = if (isTablet) Navigation.ROUTE_SETTINGS else Navigation.ROUTE_HOME
+
+    // Nothing to draw until the app knows its state (e.g. whether a speech model is
+    // installed); the splash screen covers this. The start page below depends on it, and a
+    // page can't be swapped for another once it's on screen without visibly flashing.
+    if (uiState.isLoading) return
+
+    // Tablets open on Transcribe (the mic is already on screen beside it), or on Settings when
+    // there's no speech model yet (that's where it's downloaded). Phones open on Stream.
+    // Decided once: the start page must stay the same for the whole session.
+    val startRoute = remember(isTablet) {
+        when {
+            !isTablet -> Navigation.ROUTE_HOME
+            uiState.isModelAvailable -> Navigation.ROUTE_TRANSCRIBE
+            else -> Navigation.ROUTE_SETTINGS
+        }
+    }
     val currentRoute = navBackStackEntry?.destination?.route ?: startRoute
 
     val homeScreen: @Composable () -> Unit = {

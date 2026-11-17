@@ -1,5 +1,7 @@
 package com.thivyanstudios.hark.ui.screens
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.Opacity
 import androidx.compose.ui.draw.alpha
@@ -199,255 +201,260 @@ fun SettingsScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Clears the 32dp top fade so the first header isn't washed out
-                Spacer(modifier = Modifier.height(36.dp))
+            // The list only appears once the saved settings have loaded, then fades in with every
+            // slider and switch already in place. Drawing it earlier showed the defaults first, and
+            // the sliders visibly sprang to the saved values.
+            AnimatedVisibility(visible = uiState.isLoaded, enter = fadeIn()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Clears the 32dp top fade so the first header isn't washed out
+                    Spacer(modifier = Modifier.height(36.dp))
 
-                // Section: Experience
-                SettingsGroup(title = stringResource(R.string.settings_section_experience)) {
-                    SettingsSwitchRow(
-                        text = stringResource(R.string.settings_haptic_feedback),
-                        icon = Icons.Default.Vibration,
-                        checked = uiState.hapticFeedbackEnabled,
-                        onCheckedChange = settingsViewModel::setHapticFeedbackEnabled,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                    )
-
-                    SettingsSwitchRow(
-                        text = stringResource(R.string.settings_keep_screen_on),
-                        icon = Icons.Default.Lightbulb,
-                        checked = uiState.keepScreenOn,
-                        onCheckedChange = settingsViewModel::setKeepScreenOn,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                    )
-
-                    // Right end (100%) is the full glass look; sliding left makes it more solid.
-                    // Saved on every step so the whole app updates live while you drag.
-                    SettingsSliderRow(
-                        icon = Icons.Default.Opacity,
-                        label = stringResource(R.string.settings_glass_translucency),
-                        value = uiState.glassTranslucency,
-                        onValueChange = settingsViewModel::setGlassTranslucency,
-                        onValueChangeFinished = {},
-                        valueRange = 0f..1f,
-                        valueLabel = { "${(it * 100).roundToInt()}%" },
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                        step = 0.1f,
-                    )
-                }
-
-                // Section: Audio
-                SettingsGroup(title = stringResource(R.string.settings_section_audio_engine)) {
-                    SettingsSwitchRow(
-                        text = stringResource(R.string.settings_noise_suppression),
-                        icon = Icons.Default.FilterList,
-                        checked = uiState.noiseSuppressionEnabled,
-                        onCheckedChange = settingsViewModel::setNoiseSuppressionEnabled,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                        enabled = uiState.isNoiseSuppressionSupported
-                    )
-
-                    SettingsSwitchRow(
-                        text = stringResource(R.string.settings_dynamics_processing),
-                        icon = Icons.Default.GraphicEq,
-                        checked = uiState.dynamicsProcessingEnabled,
-                        onCheckedChange = settingsViewModel::setDynamicsProcessingEnabled,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                        enabled = uiState.isDynamicsProcessingSupported
-                    )
-
-                    SettingsSwitchRow(
-                        text = stringResource(R.string.settings_treble_boost),
-                        icon = Icons.Default.RecordVoiceOver,
-                        checked = uiState.trebleBoostEnabled,
-                        onCheckedChange = settingsViewModel::setTrebleBoostEnabled,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Microphone Gain Slider
-                    var gainValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
-                    SettingsSliderRow(
-                        icon = Icons.Default.Mic,
-                        label = stringResource(R.string.settings_microphone_gain),
-                        value = gainValue,
-                        onValueChange = { gainValue = it },
-                        onValueChangeFinished = { settingsViewModel.setMicrophoneGain(gainValue) },
-                        valueRange = Constants.Preferences.MIN_MIC_GAIN..Constants.Preferences.MAX_MIC_GAIN,
-                        valueLabel = { stringResource(R.string.gain_db_format, formatGain(it)) },
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                        step = 1f,
-                        origin = Constants.Preferences.DEFAULT_GAIN,
-                        warnAbove = GAIN_WARNING_DB,
-                        warningText = stringResource(R.string.gain_loud_warning),
-                    )
-                }
-
-                // Section: Connectivity
-                SettingsGroup(title = stringResource(R.string.settings_section_connectivity)) {
-                    SettingsSwitchRow(
-                        text = stringResource(R.string.settings_enable_bluetooth_headset_support),
-                        icon = Icons.Default.BluetoothAudio,
-                        checked = uiState.enableBluetoothHeadsetSupport,
-                        onCheckedChange = settingsViewModel::setEnableBluetoothHeadsetSupport,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                    )
-
-                    SettingsSwitchRow(
-                        text = stringResource(R.string.settings_bypass_bluetooth_checks),
-                        icon = Icons.Default.Bluetooth,
-                        checked = uiState.bypassBluetoothChecks,
-                        onCheckedChange = settingsViewModel::setBypassBluetoothChecks,
-                        hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                        enabled = uiState.isDeveloperOptionsEnabled
-                    )
-
-                    if (!uiState.isBatteryOptimizationIgnored) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    // Section: Experience
+                    SettingsGroup(title = stringResource(R.string.settings_section_experience)) {
+                        SettingsSwitchRow(
+                            text = stringResource(R.string.settings_haptic_feedback),
+                            icon = Icons.Default.Vibration,
+                            checked = uiState.hapticFeedbackEnabled,
+                            onCheckedChange = settingsViewModel::setHapticFeedbackEnabled,
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
                         )
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onRequestBatteryOptimizationExemption() }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.BatteryAlert,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                modifier = Modifier.size(24.dp)
+                        SettingsSwitchRow(
+                            text = stringResource(R.string.settings_keep_screen_on),
+                            icon = Icons.Default.Lightbulb,
+                            checked = uiState.keepScreenOn,
+                            onCheckedChange = settingsViewModel::setKeepScreenOn,
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                        )
+
+                        // Right end (100%) is the full glass look; sliding left makes it more solid.
+                        // Saved on every step so the whole app updates live while you drag.
+                        SettingsSliderRow(
+                            icon = Icons.Default.Opacity,
+                            label = stringResource(R.string.settings_glass_translucency),
+                            value = uiState.glassTranslucency,
+                            onValueChange = settingsViewModel::setGlassTranslucency,
+                            onValueChangeFinished = {},
+                            valueRange = 0f..1f,
+                            valueLabel = { "${(it * 100).roundToInt()}%" },
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            step = 0.1f,
+                        )
+                    }
+
+                    // Section: Audio
+                    SettingsGroup(title = stringResource(R.string.settings_section_audio_engine)) {
+                        SettingsSwitchRow(
+                            text = stringResource(R.string.settings_noise_suppression),
+                            icon = Icons.Default.FilterList,
+                            checked = uiState.noiseSuppressionEnabled,
+                            onCheckedChange = settingsViewModel::setNoiseSuppressionEnabled,
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            enabled = uiState.isNoiseSuppressionSupported
+                        )
+
+                        SettingsSwitchRow(
+                            text = stringResource(R.string.settings_dynamics_processing),
+                            icon = Icons.Default.GraphicEq,
+                            checked = uiState.dynamicsProcessingEnabled,
+                            onCheckedChange = settingsViewModel::setDynamicsProcessingEnabled,
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            enabled = uiState.isDynamicsProcessingSupported
+                        )
+
+                        SettingsSwitchRow(
+                            text = stringResource(R.string.settings_treble_boost),
+                            icon = Icons.Default.RecordVoiceOver,
+                            checked = uiState.trebleBoostEnabled,
+                            onCheckedChange = settingsViewModel::setTrebleBoostEnabled,
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Microphone Gain Slider
+                        var gainValue by remember(uiState.microphoneGain) { mutableFloatStateOf(uiState.microphoneGain) }
+                        SettingsSliderRow(
+                            icon = Icons.Default.Mic,
+                            label = stringResource(R.string.settings_microphone_gain),
+                            value = gainValue,
+                            onValueChange = { gainValue = it },
+                            onValueChangeFinished = { settingsViewModel.setMicrophoneGain(gainValue) },
+                            valueRange = Constants.Preferences.MIN_MIC_GAIN..Constants.Preferences.MAX_MIC_GAIN,
+                            valueLabel = { stringResource(R.string.gain_db_format, formatGain(it)) },
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            step = 1f,
+                            origin = Constants.Preferences.DEFAULT_GAIN,
+                            warnAbove = GAIN_WARNING_DB,
+                            warningText = stringResource(R.string.gain_loud_warning),
+                        )
+                    }
+
+                    // Section: Connectivity
+                    SettingsGroup(title = stringResource(R.string.settings_section_connectivity)) {
+                        SettingsSwitchRow(
+                            text = stringResource(R.string.settings_enable_bluetooth_headset_support),
+                            icon = Icons.Default.BluetoothAudio,
+                            checked = uiState.enableBluetoothHeadsetSupport,
+                            onCheckedChange = settingsViewModel::setEnableBluetoothHeadsetSupport,
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                        )
+
+                        SettingsSwitchRow(
+                            text = stringResource(R.string.settings_bypass_bluetooth_checks),
+                            icon = Icons.Default.Bluetooth,
+                            checked = uiState.bypassBluetoothChecks,
+                            onCheckedChange = settingsViewModel::setBypassBluetoothChecks,
+                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                            enabled = uiState.isDeveloperOptionsEnabled
+                        )
+
+                        if (!uiState.isBatteryOptimizationIgnored) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                             )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(
-                                text = stringResource(R.string.settings_disable_battery_optimization),
-                                style = MaterialTheme.typography.bodyLarge
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onRequestBatteryOptimizationExemption() }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.BatteryAlert,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Text(
+                                    text = stringResource(R.string.settings_disable_battery_optimization),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                    }
+
+                    // Section: Sherpa-ONNX STT Engine
+                    SettingsGroup(
+                        title = stringResource(R.string.settings_section_stt_engine),
+                        badge = { BetaBadge() }
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_transcription_models),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp, top = 8.dp)
+                        )
+
+                        uiState.availableModels.forEach { model ->
+                            SherpaModelItem(
+                                model = model,
+                                isSelected = uiState.selectedModelId == model.id,
+                                isDownloaded = uiState.downloadedModelIds.contains(model.id),
+                                downloadProgress = uiState.downloadProgress[model.id],
+                                onSelect = { settingsViewModel.setSelectedModel(model.id) },
+                                onDownload = { settingsViewModel.downloadModel(model.id) },
+                                onDelete = {
+                                    modelToDelete = model
+                                    showDeleteDialog = true
+                                },
+                                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                            )
+                        }
+
+                        if (uiState.downloadedModelIds.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            SettingsSwitchRow(
+                                text = stringResource(R.string.settings_transcript_mode),
+                                icon = Icons.Default.SpeakerNotesOff,
+                                checked = uiState.transcriptModeEnabled,
+                                onCheckedChange = settingsViewModel::setTranscriptModeEnabled,
+                                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Font Size Slider
+                            val fontSizeFormat = stringResource(R.string.font_size_sp_format)
+                            var fontSizeValue by remember(uiState.transcriptionFontSize) { mutableFloatStateOf(uiState.transcriptionFontSize) }
+                            SettingsSliderRow(
+                                icon = Icons.Default.FormatSize,
+                                label = stringResource(R.string.settings_font_size),
+                                value = fontSizeValue,
+                                onValueChange = { fontSizeValue = it },
+                                onValueChangeFinished = { settingsViewModel.setTranscriptionFontSize(fontSizeValue) },
+                                valueRange = 14f..48f,
+                                valueLabel = { fontSizeFormat.format(it.toInt()) },
+                                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                                step = 2f,
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Thread Count Slider
+                            SettingsSliderRow(
+                                icon = Icons.Default.Memory,
+                                label = stringResource(R.string.settings_cpu_threads),
+                                value = uiState.sttThreads.toFloat(),
+                                onValueChange = { settingsViewModel.setSttThreads(it.toInt()) },
+                                onValueChangeFinished = {},
+                                valueRange = 1f..8f,
+                                valueLabel = { "${it.toInt()}" },
+                                hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
+                                step = 1f,
+                                modifier = Modifier.padding(vertical = 8.dp),
                             )
                         }
                     }
-                }
 
-                // Section: Sherpa-ONNX STT Engine
-                SettingsGroup(
-                    title = stringResource(R.string.settings_section_stt_engine),
-                    badge = { BetaBadge() }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_transcription_models),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp, top = 8.dp)
-                    )
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    uiState.availableModels.forEach { model ->
-                        SherpaModelItem(
-                            model = model,
-                            isSelected = uiState.selectedModelId == model.id,
-                            isDownloaded = uiState.downloadedModelIds.contains(model.id),
-                            downloadProgress = uiState.downloadProgress[model.id],
-                            onSelect = { settingsViewModel.setSelectedModel(model.id) },
-                            onDownload = { settingsViewModel.downloadModel(model.id) },
-                            onDelete = {
-                                modelToDelete = model
-                                showDeleteDialog = true
-                            },
-                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
+                    // M3 Support Log Button
+                    FilledTonalButton(
+                        onClick = {
+                            if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showPrivacyDialog = true
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(52.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.BugReport,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = stringResource(R.string.settings_generate_log),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
 
-                    if (uiState.downloadedModelIds.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
 
-                        SettingsSwitchRow(
-                            text = stringResource(R.string.settings_transcript_mode),
-                            icon = Icons.Default.SpeakerNotesOff,
-                            checked = uiState.transcriptModeEnabled,
-                            onCheckedChange = settingsViewModel::setTranscriptModeEnabled,
-                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Font Size Slider
-                        val fontSizeFormat = stringResource(R.string.font_size_sp_format)
-                        var fontSizeValue by remember(uiState.transcriptionFontSize) { mutableFloatStateOf(uiState.transcriptionFontSize) }
-                        SettingsSliderRow(
-                            icon = Icons.Default.FormatSize,
-                            label = stringResource(R.string.settings_font_size),
-                            value = fontSizeValue,
-                            onValueChange = { fontSizeValue = it },
-                            onValueChangeFinished = { settingsViewModel.setTranscriptionFontSize(fontSizeValue) },
-                            valueRange = 14f..48f,
-                            valueLabel = { fontSizeFormat.format(it.toInt()) },
-                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                            step = 2f,
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Thread Count Slider
-                        SettingsSliderRow(
-                            icon = Icons.Default.Memory,
-                            label = stringResource(R.string.settings_cpu_threads),
-                            value = uiState.sttThreads.toFloat(),
-                            onValueChange = { settingsViewModel.setSttThreads(it.toInt()) },
-                            onValueChangeFinished = {},
-                            valueRange = 1f..8f,
-                            valueLabel = { "${it.toInt()}" },
-                            hapticFeedbackEnabled = uiState.hapticFeedbackEnabled,
-                            step = 1f,
-                            modifier = Modifier.padding(vertical = 8.dp),
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // M3 Support Log Button
-                FilledTonalButton(
-                    onClick = {
-                        if (uiState.hapticFeedbackEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showPrivacyDialog = true
-                    },
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth(0.85f)
-                        .height(52.dp)
-                ) {
-                    Icon(
-                        Icons.Default.BugReport,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = stringResource(R.string.settings_generate_log),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        text = uiState.versionName,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium
                     )
+
+                    Spacer(modifier = Modifier.height(140.dp))
                 }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Text(
-                    text = uiState.versionName,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelMedium
-                )
-
-                Spacer(modifier = Modifier.height(140.dp))
             }
 
             // Top Fading Edge Overlay for Settings Scroll

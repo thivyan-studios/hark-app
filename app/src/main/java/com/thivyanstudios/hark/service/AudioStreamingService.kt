@@ -2,16 +2,14 @@ package com.thivyanstudios.hark.service
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.*
+import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.media.*
+import android.media.AudioManager
 import android.os.Binder
 import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.os.PowerManager
 import androidx.annotation.RequiresPermission
 import com.thivyanstudios.hark.BuildConfig
@@ -21,13 +19,10 @@ import com.thivyanstudios.hark.audio.model.AudioEngineEvent
 import com.thivyanstudios.hark.data.STTModelManager
 import com.thivyanstudios.hark.data.TranscriptionRepository
 import com.thivyanstudios.hark.data.UserPreferencesRepository
+import com.thivyanstudios.hark.data.model.UserPreferences
 import com.thivyanstudios.hark.di.IoDispatcher
 import com.thivyanstudios.hark.di.MainDispatcher
 import com.thivyanstudios.hark.util.HarkLog
-import com.thivyanstudios.hark.util.TranscriptFormatter
-import com.k2fsa.sherpa.onnx.OnlineRecognizer
-import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
-import com.k2fsa.sherpa.onnx.OnlineStream
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -37,75 +32,66 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import javax.inject.Inject
 import kotlin.math.pow
 
+/**
+ * Runs a streaming session in the background: keeps the app alive with a foreground
+ * notification, and coordinates the pieces that do the actual work.
+ *
+ *  - [AudioEngine]: the mic → hearing aid relay (native C++)
+ *  - [SherpaTranscriber]: live captions
+ *  - [AudioFocusController]: pausing for calls and alarms
+ *  - [HearingDeviceMonitor]: hearing aids and headsets coming and going
+ *
+ * This class decides *when* things happen (start, stop, pause, settings changes); the pieces
+ * above decide *how*.
+ */
 @AndroidEntryPoint
-class AudioStreamingService : Service(), AudioStreamingController {
+class AudioStreamingService : Service(), AudioStreamingController, HearingDeviceMonitor.Listener {
+
+    @Inject lateinit var audioEngine: AudioEngine
+    @Inject lateinit var transcriber: SherpaTranscriber
+    @Inject lateinit var audioFocus: AudioFocusController
+    @Inject lateinit var devices: HearingDeviceMonitor
+    @Inject lateinit var notificationHelper: NotificationHelper
+    @Inject lateinit var userPreferencesRepository: UserPreferencesRepository
+    @Inject lateinit var transcriptionRepository: TranscriptionRepository
+    @Inject lateinit var sttModelManager: STTModelManager
+    @Inject @MainDispatcher lateinit var mainDispatcher: CoroutineDispatcher
+    @Inject @IoDispatcher lateinit var ioDispatcher: CoroutineDispatcher
 
     private val binder = LocalBinder()
-    
-    @Inject
-    lateinit var sttModelManager: STTModelManager
-
-    @Inject
-    lateinit var transcriptionRepository: TranscriptionRepository
-
+    private lateinit var serviceScope: CoroutineScope
     // Outlives serviceScope so a transcript saved during onDestroy isn't cancelled mid-write
     private val persistScope by lazy { CoroutineScope(SupervisorJob() + ioDispatcher) }
+    private var wakeLock: PowerManager.WakeLock? = null
 
-    private val _isStreaming = MutableStateFlow(value = false)
+    // --- What the app's screens observe (AudioStreamingController) ---
+
+    private val _isStreaming = MutableStateFlow(false)
     override val isStreaming = _isStreaming.asStateFlow()
-
-    private val _transcription = MutableStateFlow("")
-    override val transcription = _transcription.asStateFlow()
 
     private val _audioLevel = MutableStateFlow(0f)
     override val audioLevel = _audioLevel.asStateFlow()
 
-    private val fullTranscript = StringBuilder()
-    private var lastTranscriptionTime = 0L
+    // Read through, as the injected parts don't exist yet when the service object is created
+    override val transcription: StateFlow<String> get() = transcriber.transcription
+    override val hearingAidConnected: StateFlow<Boolean> get() = devices.connected
 
-    private var wakeLock: PowerManager.WakeLock? = null
-
-    private var recognizer: OnlineRecognizer? = null
-    private var sherpaStream: OnlineStream? = null
-
-    @Inject
-    lateinit var userPreferencesRepository: UserPreferencesRepository
-    
-    @Inject
-    lateinit var audioEngine: AudioEngine
-
-    @Inject
-    lateinit var notificationHelper: NotificationHelper
-
-    @Inject
-    @MainDispatcher
-    lateinit var mainDispatcher: CoroutineDispatcher
-
-    @Inject
-    @IoDispatcher
-    lateinit var ioDispatcher: CoroutineDispatcher
-
-    private lateinit var serviceScope: CoroutineScope
-    private var enableBluetoothHeadsetSupport = false
-    private var lastTranscriptModeEnabled: Boolean? = null
-    private var lastSelectedModelId: String? = null
-
-    private val _hearingAidConnected = MutableStateFlow(false)
-    override val hearingAidConnected = _hearingAidConnected.asStateFlow()
+    // --- Session state ---
 
     private var pausedByFocusLoss = false
+    private var lastTranscriptModeEnabled: Boolean? = null
+    private var lastSelectedModelId: String? = null
 
     // Start/stop/pause/resume each do their engine work in a coroutine. Chaining them
     // guarantees they run in the order they were requested (e.g. a stop issued just
@@ -122,88 +108,13 @@ class AudioStreamingService : Service(), AudioStreamingController {
         }
     }
 
-    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
-        when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS -> {
-                HarkLog.i(TAG, "Audio focus lost permanently, stopping streaming")
-                stopStreaming()
-            }
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                HarkLog.i(TAG, "Audio focus lost transiently, pausing streaming")
-                pauseStreaming()
-            }
-            AudioManager.AUDIOFOCUS_GAIN -> {
-                HarkLog.i(TAG, "Audio focus regained, resuming streaming")
-                resumeStreamingAfterFocusGain()
-            }
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                HarkLog.i(TAG, "Audio focus lost (duckable), continuing streaming")
-                // We could lower our output volume here if we were playing audio,
-                // but since we are mainly recording/transcribing, we continue.
-            }
-        }
-    }
-
-    private var audioFocusRequest: AudioFocusRequest? = null
-
-    private val audioDeviceCallback = object : AudioDeviceCallback() {
-        @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
-        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-            HarkLog.i(TAG, "Audio devices added")
-            updateHearingAidStatus()
-            if (_isStreaming.value && hasRequiredPermissions()) {
-                restartStreaming()
-            }
-        }
-
-        @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
-        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-            HarkLog.i(TAG, "Audio devices removed")
-            updateHearingAidStatus()
-            
-            val isTargetDeviceRemoved = removedDevices?.any { isCompatibleDevice(it.type) } == true
-            if (isTargetDeviceRemoved) {
-                HarkLog.i(TAG, "Compatible device removed, stopping streaming")
-                stopStreaming()
-            } else if (_isStreaming.value && hasRequiredPermissions()) {
-                restartStreaming()
-            }
-        }
-    }
-
-    private fun isCompatibleDevice(type: Int): Boolean {
-        return if (enableBluetoothHeadsetSupport) {
-            when (type) {
-                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-                AudioDeviceInfo.TYPE_WIRED_HEADSET,
-                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-                AudioDeviceInfo.TYPE_USB_HEADSET,
-                -> true
-                else -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        (type == AudioDeviceInfo.TYPE_BLE_HEADSET || 
-                        type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
-                    } else false
-                }
-            }
-        } else {
-            type == AudioDeviceInfo.TYPE_HEARING_AID
-        }
-    }
-
-    private fun hasRequiredPermissions(): Boolean {
-        val hasRecordAudio = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        val hasBluetoothConnect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
-        return hasRecordAudio && hasBluetoothConnect
-    }
-
     inner class LocalBinder : Binder() {
         fun getService(): AudioStreamingController = this@AudioStreamingService
+    }
+
+    override fun onBind(intent: Intent?): IBinder {
+        HarkLog.i(TAG, "onBind")
+        return binder
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -215,11 +126,6 @@ class AudioStreamingService : Service(), AudioStreamingController {
         return START_NOT_STICKY
     }
 
-    override fun onBind(intent: Intent?): IBinder {
-        HarkLog.i(TAG, "onBind")
-        return binder
-    }
-
     override fun onCreate() {
         super.onCreate()
         HarkLog.i(TAG, "onCreate")
@@ -227,60 +133,14 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
         userPreferencesRepository.userPreferencesFlow
             .distinctUntilChanged()
-            .onEach { prefs ->
-                val newEnableSupport = prefs.enableBluetoothHeadsetSupport
-                if (newEnableSupport != enableBluetoothHeadsetSupport) {
-                    HarkLog.i(TAG, "Bluetooth headset support preference changed: $newEnableSupport")
-                    bluetoothSupportChange(newEnableSupport)
-                }
-
-                val newTranscriptMode = prefs.transcriptModeEnabled
-                if (lastTranscriptModeEnabled != null && newTranscriptMode != lastTranscriptModeEnabled) {
-                    HarkLog.i(TAG, "Transcript mode changed: $newTranscriptMode, stopping stream")
-                    if (_isStreaming.value) {
-                        stopStreaming()
-                    }
-                }
-                lastTranscriptModeEnabled = newTranscriptMode
-
-                val newModelId = prefs.selectedModelId
-                if (lastSelectedModelId != null && newModelId != lastSelectedModelId) {
-                    HarkLog.i(TAG, "Model selection changed: $newModelId, stopping stream")
-                    if (_isStreaming.value) {
-                        stopStreaming()
-                    }
-                }
-                lastSelectedModelId = newModelId
-
-                val gain = 10.0.pow(prefs.microphoneGain / 20.0).toFloat()
-                audioEngine.setMicrophoneGain(gain)
-                audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
-                audioEngine.setDynamicsProcessingEnabled(prefs.dynamicsProcessingEnabled)
-                audioEngine.setTrebleBoostEnabled(prefs.trebleBoostEnabled)
-                audioEngine.setTranscriptModeEnabled(prefs.transcriptModeEnabled)
-            }
+            .onEach(::applyPreferences)
             .launchIn(serviceScope)
-            
+
         audioEngine.events.receiveAsFlow()
-            .onEach { event ->
-                when(event) {
-                    is AudioEngineEvent.NoiseSuppressorAvailability -> {
-                        if (!event.isAvailable) {
-                            HarkLog.w(TAG, "Noise suppressor not available")
-                            audioEngine.sendError(getString(R.string.noise_suppression_not_available))
-                        }
-                    }
-                    is AudioEngineEvent.DynamicsProcessingAvailability -> {
-                        if (!event.isAvailable) {
-                            HarkLog.w(TAG, "Dynamics processing not available")
-                            audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
-                        }
-                    }
-                }
-            }
+            .onEach(::reportUnsupportedEffect)
             .launchIn(serviceScope)
 
-        // Stop streaming if model library changes (download or delete)
+        // Stop streaming if the model library changes (download or delete)
         sttModelManager.modelStoreUpdateTrigger
             .onEach {
                 if (_isStreaming.value) {
@@ -292,26 +152,86 @@ class AudioStreamingService : Service(), AudioStreamingController {
 
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hark::AudioStreamingWakeLock")
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        audioManager.registerAudioDeviceCallback(audioDeviceCallback, Handler(Looper.getMainLooper()))
-        updateHearingAidStatus()
+        devices.start(listener = this)
     }
 
-    private fun bluetoothSupportChange(newEnableSupport: Boolean) {
-        enableBluetoothHeadsetSupport = newEnableSupport
-        if (_isStreaming.value) {
-            stopStreaming()
+    override fun onDestroy() {
+        HarkLog.i(TAG, "onDestroy")
+        stopStreaming()
+        serviceScope.cancel()
+        devices.stop()
+        super.onDestroy()
+    }
+
+    // --- Settings ---
+
+    private fun applyPreferences(prefs: UserPreferences) {
+        // Changing which devices count as a hearing aid ends the current session
+        if (prefs.enableBluetoothHeadsetSupport != devices.headsetsAllowed) {
+            HarkLog.i(TAG, "Bluetooth headset support preference changed: ${prefs.enableBluetoothHeadsetSupport}")
+            if (_isStreaming.value) stopStreaming()
+            devices.setHeadsetsAllowed(prefs.enableBluetoothHeadsetSupport)
         }
-        updateHearingAidStatus()
+
+        // Switching Transcript Mode or the speech model also needs a fresh start
+        if (lastTranscriptModeEnabled != null && prefs.transcriptModeEnabled != lastTranscriptModeEnabled) {
+            HarkLog.i(TAG, "Transcript mode changed: ${prefs.transcriptModeEnabled}, stopping stream")
+            if (_isStreaming.value) stopStreaming()
+        }
+        lastTranscriptModeEnabled = prefs.transcriptModeEnabled
+
+        if (lastSelectedModelId != null && prefs.selectedModelId != lastSelectedModelId) {
+            HarkLog.i(TAG, "Model selection changed: ${prefs.selectedModelId}, stopping stream")
+            if (_isStreaming.value) stopStreaming()
+        }
+        lastSelectedModelId = prefs.selectedModelId
+
+        // Everything else applies live, mid-stream. Gain is stored in dB, the engine wants a multiplier.
+        audioEngine.setMicrophoneGain(10.0.pow(prefs.microphoneGain / 20.0).toFloat())
+        audioEngine.setNoiseSuppressionEnabled(prefs.noiseSuppressionEnabled)
+        audioEngine.setDynamicsProcessingEnabled(prefs.dynamicsProcessingEnabled)
+        audioEngine.setTrebleBoostEnabled(prefs.trebleBoostEnabled)
+        audioEngine.setTranscriptModeEnabled(prefs.transcriptModeEnabled)
     }
 
-    private fun updateHearingAidStatus() {
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        val isConnected = devices.any { isCompatibleDevice(it.type) }
-        HarkLog.i(TAG, "Hearing aid connected: $isConnected")
-        _hearingAidConnected.value = isConnected
+    private fun reportUnsupportedEffect(event: AudioEngineEvent) {
+        when (event) {
+            is AudioEngineEvent.NoiseSuppressorAvailability -> if (!event.isAvailable) {
+                HarkLog.w(TAG, "Noise suppressor not available")
+                audioEngine.sendError(getString(R.string.noise_suppression_not_available))
+            }
+            is AudioEngineEvent.DynamicsProcessingAvailability -> if (!event.isAvailable) {
+                HarkLog.w(TAG, "Dynamics processing not available")
+                audioEngine.sendError(getString(R.string.dynamics_processing_not_available))
+            }
+        }
     }
+
+    // --- Devices coming and going (HearingDeviceMonitor.Listener) ---
+
+    @SuppressLint("MissingPermission") // checked by hasRequiredPermissions()
+    override fun onDevicesAdded() {
+        if (_isStreaming.value && hasRequiredPermissions()) restartStreaming()
+    }
+
+    @SuppressLint("MissingPermission") // checked by hasRequiredPermissions()
+    override fun onDevicesRemoved(streamTargetRemoved: Boolean) {
+        if (streamTargetRemoved) {
+            HarkLog.i(TAG, "Compatible device removed, stopping streaming")
+            stopStreaming()
+        } else if (_isStreaming.value && hasRequiredPermissions()) {
+            restartStreaming()
+        }
+    }
+
+    private fun hasRequiredPermissions(): Boolean {
+        val hasRecordAudio = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val hasBluetoothConnect = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        return hasRecordAudio && hasBluetoothConnect
+    }
+
+    // --- Start / stop ---
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
     private fun restartStreaming() {
@@ -323,15 +243,14 @@ class AudioStreamingService : Service(), AudioStreamingController {
     }
 
     @RequiresPermission(allOf = [Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT])
-    @SuppressLint("ForegroundServiceType")
     override fun startStreaming() {
         if (_isStreaming.value) return
 
-        if (!requestAudioFocus()) {
+        if (!audioFocus.request(::onAudioFocusChange)) {
             HarkLog.w(TAG, "Could not acquire audio focus, aborting start")
             return
         }
-        
+
         HarkLog.i(TAG, "Starting streaming")
         _isStreaming.value = true
 
@@ -340,192 +259,23 @@ class AudioStreamingService : Service(), AudioStreamingController {
             // up the notification, wake lock or engine for a session that's already over
             if (!_isStreaming.value) return@launchLifecycle
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    startForeground(
-                        NOTIFICATION_ID, 
-                        notificationHelper.createNotification(),
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                    )
-                } else {
-                    startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
-                }
-                
-                wakeLock?.acquire(60 * 60 * 1000L) // 1 hour timeout
-                // Audio first: the hearing-aid relay shouldn't wait seconds for the
-                // speech model to load. Mic audio queues in the native transcription
-                // buffer (up to 10s) while Sherpa loads, then gets transcribed.
+                enterForeground()
+                // Audio first: the hearing-aid relay shouldn't wait seconds for the speech
+                // model to load. Mic audio queues in the native transcription buffer (up to
+                // 10 s) while Sherpa loads, then gets transcribed.
                 withContext(ioDispatcher) {
-                    updateAudioRouting()
+                    setNormalAudioMode()
                     audioEngine.start()
                 }
-                startLevelMonitoringLoop()
-                prepareSherpa()
-                if (_isStreaming.value) startTranscriptionLoop()
+                startLevelMonitoring()
+                if (transcriber.prepare() && _isStreaming.value) {
+                    transcriptionJob = serviceScope.launch(ioDispatcher) {
+                        transcriber.run(keepRunning = { _isStreaming.value })
+                    }
+                }
             } catch (e: Exception) {
                 HarkLog.e(TAG, "Failed to start streaming", e)
                 stopStreaming()
-            }
-        }
-    }
-
-    private suspend fun prepareSherpa() = withContext(ioDispatcher) {
-        val prefs = userPreferencesRepository.userPreferencesFlow.first()
-        val modelId = prefs.selectedModelId
-        val model = sttModelManager.availableModels.find { it.id == modelId } ?: sttModelManager.availableModels.first()
-        
-        if (!sttModelManager.isModelDownloaded(model)) {
-            HarkLog.i(TAG, "No model downloaded, skipping Sherpa initialization.")
-            return@withContext
-        }
-        
-        try {
-            // 1. Initialize the base config
-            val config = OnlineRecognizerConfig()
-
-            // 2. Point it to your downloaded files
-            config.modelConfig.transducer.encoder = File(filesDir, model.encoderFileName).absolutePath
-            config.modelConfig.transducer.decoder = File(filesDir, model.decoderFileName).absolutePath
-            config.modelConfig.transducer.joiner = File(filesDir, model.joinerFileName).absolutePath
-            config.modelConfig.tokens = File(filesDir, model.tokensFileName).absolutePath
-
-            config.decodingMethod = "modified_beam_search"
-            config.maxActivePaths = 4
-            config.enableEndpoint = true
-            config.endpointConfig.rule1.minTrailingSilence = 1.5f
-            config.endpointConfig.rule2.minTrailingSilence = 0.8f
-
-            // Sherpa-ONNX streaming models expect 16kHz feature sample rate.
-            // Input audio from hardware (e.g. 48kHz) passed via acceptWaveform will be resampled automatically.
-            config.featConfig.sampleRate = 16000
-            config.featConfig.featureDim = 80
-            config.modelConfig.numThreads = prefs.sttThreads
-            config.modelConfig.debug = false
-            
-            // Initialize the engine with these bounds
-            recognizer = OnlineRecognizer(null, config)
-            sherpaStream = recognizer?.createStream()
-
-            HarkLog.i(TAG, "Sherpa-ONNX initialized successfully with model: ${model.id}")
-        } catch (e: Exception) {
-            HarkLog.e(TAG, "Failed to initialize Sherpa-ONNX", e)
-            audioEngine.sendError(getString(R.string.error_stt_init_failed))
-        }
-    }
-
-    override fun clearTranscription() {
-        fullTranscript.setLength(0)
-        _transcription.value = ""
-    }
-
-    private fun startLevelMonitoringLoop() {
-        levelMonitoringJob = serviceScope.launch(ioDispatcher) {
-            var ticks = 0
-            while (_isStreaming.value) {
-                val level = audioEngine.getTranscriptionLevel()
-                _audioLevel.value = level
-                // Every ~2s, log how loud the audio reaching Sherpa is (diagnostic for the
-                // transcription boost). Shows up in logcat under the "LevelCheck" tag.
-                if (BuildConfig.DEBUG && ++ticks % 40 == 0) {
-                    audioEngine.consumeTranscriptionLevelStats()?.let { HarkLog.d("LevelCheck", it.summary()) }
-                }
-                delay(50L) // 20fps for UI smoothness
-            }
-        }
-    }
-
-    private fun startTranscriptionLoop() {
-        transcriptionJob = serviceScope.launch(ioDispatcher) {
-            val currentRecognizer = recognizer ?: return@launch
-            val currentStream = sherpaStream ?: return@launch
-
-
-            val bufferSize = 1600 * 2 // 100ms of audio
-            val audioBuffer = FloatArray(bufferSize)
-            
-            fullTranscript.setLength(0)
-            
-            while (_isStreaming.value) {
-                val read = audioEngine.readTranscriptionData(audioBuffer, 0, bufferSize)
-                if (read > 0) {
-                    // If the read buffer was partial, slice it down to the exact data read
-                    val activeSamples = if (read < audioBuffer.size) {
-                        audioBuffer.copyOfRange(0, read)
-                    } else {
-                        audioBuffer
-                    }
-
-                    // Pass the audio to Sherpa at the rate the mic is really delivering (it
-                    // resamples to 16 kHz itself). Read each time, since a stream restart after
-                    // a Bluetooth route change could reopen at a different rate.
-                    currentStream.acceptWaveform(activeSamples, sampleRate = audioEngine.getTranscriptionSampleRate())
-                    
-                    while (currentRecognizer.isReady(currentStream)) {
-                        currentRecognizer.decode(currentStream)
-                    }
-                    
-                    val result = currentRecognizer.getResult(currentStream)
-                    if (result.text.isNotBlank()) {
-                        val newText = TranscriptFormatter.partial(result.text)
-                        // Spoken words only go to the log in debug builds: the log file can be
-                        // shared for support, and must never contain users' conversations
-                        if (BuildConfig.DEBUG) HarkLog.d(TAG, "Sherpa Partial Result: '$newText'")
-                        
-                        // Handle sentences with fullTranscript to avoid infinite growth in a single result
-                        val displayResult = if (fullTranscript.isNotEmpty()) {
-                            "$fullTranscript $newText"
-                        } else {
-                            newText
-                        }
-
-                        if (displayResult != _transcription.value) {
-                             _transcription.value = displayResult
-                             lastTranscriptionTime = System.currentTimeMillis()
-                        }
-                    }
-
-                    if (currentRecognizer.isEndpoint(currentStream)) {
-                        val finalResult = currentRecognizer.getResult(currentStream).text
-                        if (BuildConfig.DEBUG) {
-                            HarkLog.i(TAG, "Sherpa Endpoint Detected. Final: '$finalResult'")
-                        } else {
-                            val words = finalResult.split(' ').count { it.isNotBlank() }
-                            HarkLog.i(TAG, "Sherpa endpoint detected ($words words)")
-                        }
-                        if (finalResult.isNotBlank()) {
-                            if (fullTranscript.isNotEmpty()) fullTranscript.append(" ")
-                            fullTranscript.append(TranscriptFormatter.sentence(finalResult))
-                            // Show the finished sentence (with its full stop) straight away,
-                            // rather than waiting for the next words to refresh the display
-                            _transcription.value = fullTranscript.toString()
-                        }
-                        currentRecognizer.reset(currentStream)
-                    }
-                }
-                delay(30L) // Fast loop for low latency
-            }
-        }
-    }
-
-    // Transient focus loss (call, alarm, assistant): keep the session alive so we can
-    // resume when focus returns. The foreground notification and wake lock stay held.
-    private fun pauseStreaming() {
-        if (!_isStreaming.value || pausedByFocusLoss) return
-        pausedByFocusLoss = true
-        _audioLevel.value = 0f
-        launchLifecycle {
-            withContext(ioDispatcher) {
-                audioEngine.stop()
-            }
-        }
-    }
-
-    private fun resumeStreamingAfterFocusGain() {
-        if (!pausedByFocusLoss) return
-        pausedByFocusLoss = false
-        if (!_isStreaming.value) return
-        launchLifecycle {
-            withContext(ioDispatcher) {
-                audioEngine.start()
             }
         }
     }
@@ -534,20 +284,17 @@ class AudioStreamingService : Service(), AudioStreamingController {
         if (!_isStreaming.value) return
 
         HarkLog.i(TAG, "Stopping streaming")
-        // Save the session's transcript to History before it's cleared. Previously it was
-        // only saved when the user tapped Clear, so stopping the stream silently lost it.
-        val finishedTranscript = _transcription.value
+        // Save the session's transcript to History before it's cleared
+        val finishedTranscript = transcriber.transcription.value
         if (finishedTranscript.isNotBlank()) {
             persistScope.launch { transcriptionRepository.insert(finishedTranscript) }
         }
 
         _isStreaming.value = false
         pausedByFocusLoss = false
-        clearAudioRouting()
-        abandonAudioFocus()
-        
-        fullTranscript.setLength(0)
-        _transcription.value = ""
+        resetAudioRouting()
+        audioFocus.abandon()
+        transcriber.clear()
         _audioLevel.value = 0f
 
         // Drop the notification straight away so it feels instant...
@@ -557,27 +304,60 @@ class AudioStreamingService : Service(), AudioStreamingController {
             // ...and again once any start still in flight has finished, since a start that
             // was mid-way when Stop was tapped may have only just posted it
             leaveForeground()
-            // Wait for the loops to exit so the recognizer is never released mid-decode
+            // Wait for the loops to exit so the model is never freed mid-decode
             transcriptionJob?.cancelAndJoin()
             levelMonitoringJob?.cancelAndJoin()
             transcriptionJob = null
             levelMonitoringJob = null
-            fullTranscript.setLength(0)
-            _transcription.value = ""
+            transcriber.clear()
             _audioLevel.value = 0f
-            withContext(ioDispatcher) {
-                audioEngine.stop()
-                recognizer?.release()
-                recognizer = null
-                sherpaStream = null
-            }
+            withContext(ioDispatcher) { audioEngine.stop() }
+            transcriber.release()
         }
     }
 
-    private fun leaveForeground() {
-        if (wakeLock?.isHeld == true) {
-            wakeLock?.release()
+    override fun clearTranscription() = transcriber.clear()
+
+    // --- Calls and alarms (audio focus) ---
+
+    private fun onAudioFocusChange(change: AudioFocusController.Change) {
+        when (change) {
+            AudioFocusController.Change.Lost -> stopStreaming()
+            AudioFocusController.Change.LostTemporarily -> pauseStreaming()
+            AudioFocusController.Change.Regained -> resumeStreaming()
         }
+    }
+
+    // A call, alarm or assistant has the audio for a while: keep the session (notification,
+    // wake lock, captions so far) and just stop the engine until focus comes back.
+    private fun pauseStreaming() {
+        if (!_isStreaming.value || pausedByFocusLoss) return
+        pausedByFocusLoss = true
+        _audioLevel.value = 0f
+        launchLifecycle { withContext(ioDispatcher) { audioEngine.stop() } }
+    }
+
+    private fun resumeStreaming() {
+        if (!pausedByFocusLoss) return
+        pausedByFocusLoss = false
+        if (!_isStreaming.value) return
+        launchLifecycle { withContext(ioDispatcher) { audioEngine.start() } }
+    }
+
+    // --- Foreground notification, level meter, routing ---
+
+    @SuppressLint("ForegroundServiceType") // declared as "microphone" in the manifest
+    private fun enterForeground() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notificationHelper.createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } else {
+            startForeground(NOTIFICATION_ID, notificationHelper.createNotification())
+        }
+        wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
+    }
+
+    private fun leaveForeground() {
+        if (wakeLock?.isHeld == true) wakeLock?.release()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
@@ -586,55 +366,36 @@ class AudioStreamingService : Service(), AudioStreamingController {
         }
     }
 
-    private fun requestAudioFocus(): Boolean {
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-            .build()
-        
-        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
-            .setAudioAttributes(attributes)
-            .setAcceptsDelayedFocusGain(false)
-            .setOnAudioFocusChangeListener(audioFocusChangeListener)
-            .build()
-        
-        val result = audioManager.requestAudioFocus(audioFocusRequest!!)
-        return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-    }
-
-    private fun abandonAudioFocus() {
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-    }
-
-    private fun updateAudioRouting() {
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        // Normal mode: HARK plays to the default output and never uses call (SCO) routing
-        audioManager.mode = AudioManager.MODE_NORMAL
-    }
-
-    private fun clearAudioRouting() {
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        audioManager.mode = AudioManager.MODE_NORMAL
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            audioManager.clearCommunicationDevice()
+    private fun startLevelMonitoring() {
+        levelMonitoringJob = serviceScope.launch(ioDispatcher) {
+            var ticks = 0
+            while (_isStreaming.value) {
+                _audioLevel.value = audioEngine.getTranscriptionLevel()
+                // Every ~2 s in debug builds, log how loud the audio reaching Sherpa is
+                // (logcat tag "LevelCheck")
+                if (BuildConfig.DEBUG && ++ticks % 40 == 0) {
+                    audioEngine.consumeTranscriptionLevelStats()?.let { HarkLog.d("LevelCheck", it.summary()) }
+                }
+                delay(50L) // 20 fps for a smooth meter
+            }
         }
     }
 
-    override fun onDestroy() {
-        HarkLog.i(TAG, "onDestroy")
-        stopStreaming()
-        serviceScope.cancel()
+    // Normal mode: HARK plays to the default output and never uses call (SCO) routing
+    private fun setNormalAudioMode() {
+        (getSystemService(AUDIO_SERVICE) as AudioManager).mode = AudioManager.MODE_NORMAL
+    }
+
+    private fun resetAudioRouting() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
-        super.onDestroy()
+        audioManager.mode = AudioManager.MODE_NORMAL
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) audioManager.clearCommunicationDevice()
     }
 
     companion object {
         private const val TAG = "AudioStreamingService"
         private const val NOTIFICATION_ID = 1
+        private const val WAKE_LOCK_TIMEOUT_MS = 60 * 60 * 1000L // 1 hour
         const val ACTION_STOP = "com.thivyanstudios.hark.action.STOP_STREAMING"
     }
 }

@@ -3,6 +3,8 @@ package com.thivyanstudios.hark.ui.viewmodel
 import com.thivyanstudios.hark.data.model.SherpaModel
 
 data class SettingsUiState(
+    // False until the saved settings have been read; until then every field is just a default
+    val isLoaded: Boolean = false,
     val versionName: String = "",
     val hapticFeedbackEnabled: Boolean = false,
     val keepScreenOn: Boolean = false,

@@ -154,6 +154,7 @@ class SettingsViewModel @Inject constructor(
             .isIgnoringBatteryOptimizations(application.packageName)
 
         SettingsUiState(
+            isLoaded = true,
             versionName = version,
             hapticFeedbackEnabled = prefs.hapticFeedbackEnabled,
             keepScreenOn = prefs.keepScreenOn,
